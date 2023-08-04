@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2021 Roger Clark, VK3KYY / G4KYF
+ * Copyright (C) 2019-2023 Roger Clark, VK3KYY / G4KYF
  *                         Daniel Caujolle-Bert, F1RMB
  *
  *
@@ -36,9 +36,21 @@ static void handleEvent(uiEvent_t *ev);
 
 static menuStatus_t menuSoundExitCode = MENU_STATUS_SUCCESS;
 
-enum SOUND_MENU_LIST { OPTIONS_MENU_TIMEOUT_BEEP = 0, OPTIONS_MENU_BEEP_VOLUME, OPTIONS_MENU_DMR_BEEP, OPTIONS_MIC_GAIN_DMR, OPTIONS_MIC_GAIN_FM,
-	OPTIONS_VOX_THRESHOLD, OPTIONS_VOX_TAIL, OPTIONS_AUDIO_PROMPT_MODE,
-	NUM_SOUND_MENU_ITEMS};
+enum SOUND_MENU_LIST
+{
+	OPTIONS_MENU_TIMEOUT_BEEP = 0,
+	OPTIONS_MENU_BEEP_VOLUME,
+	OPTIONS_MENU_DMR_BEEP,
+	OPTIONS_MENU_RX_BEEP,
+	OPTIONS_MENU_RX_TALKER_BEGIN_BEEP,
+	OPTIONS_MIC_GAIN_DMR,
+	OPTIONS_MIC_GAIN_FM,
+	OPTIONS_VOX_THRESHOLD,
+	OPTIONS_VOX_TAIL,
+	OPTIONS_AUDIO_PROMPT_MODE,
+	OPTIONS_AUDIO_DMR_RX_AGC,
+	NUM_SOUND_MENU_ITEMS
+};
 
 menuStatus_t menuSoundOptions(uiEvent_t *ev, bool isFirstRun)
 {
@@ -47,7 +59,7 @@ menuStatus_t menuSoundOptions(uiEvent_t *ev, bool isFirstRun)
 		menuDataGlobal.menuOptionsSetQuickkey = 0;
 		menuDataGlobal.menuOptionsTimeout = 0;
 		menuDataGlobal.newOptionSelected = true;
-		menuDataGlobal.endIndex = NUM_SOUND_MENU_ITEMS;
+		menuDataGlobal.numItems = NUM_SOUND_MENU_ITEMS;
 
 		if (originalNonVolatileSettings.magicNumber == 0xDEADBEEF)
 		{
@@ -90,12 +102,20 @@ static void updateScreen(bool isFirstRun)
 	displayClearBuf();
 	bool settingOption = uiShowQuickKeysChoices(buf, SCREEN_LINE_BUFFER_SIZE, currentLanguage->sound_options);
 
-	// Can only display 3 of the options at a time menu at -1, 0 and +1
-	for(int i = -1; i <= 1; i++)
+	for(int i = 1 - ((MENU_MAX_DISPLAYED_ENTRIES - 1) / 2) - 1; i <= (MENU_MAX_DISPLAYED_ENTRIES - ((MENU_MAX_DISPLAYED_ENTRIES - 1) / 2) - 1); i++)
 	{
 		if ((settingOption == false) || (i == 0))
 		{
 			mNum = menuGetMenuOffset(NUM_SOUND_MENU_ITEMS, i);
+			if (mNum == MENU_OFFSET_BEFORE_FIRST_ENTRY)
+			{
+				continue;
+			}
+			else if (mNum == MENU_OFFSET_AFTER_LAST_ENTRY)
+			{
+				break;
+			}
+
 			buf[0] = 0;
 			leftSide = NULL;
 			rightSideConst = NULL;
@@ -147,7 +167,32 @@ static void updateScreen(bool isFirstRun)
 					else
 					{
 						const char * const *beepTX[] = { &currentLanguage->none, &currentLanguage->start, &currentLanguage->stop, &currentLanguage->both };
-						rightSideConst = (char * const *)beepTX[nonVolatileSettings.beepOptions];
+						rightSideConst = (char * const *)beepTX[(nonVolatileSettings.beepOptions & 0x03)];
+					}
+					break;
+				case OPTIONS_MENU_RX_BEEP:
+					leftSide = (char * const *)&currentLanguage->rx_beep;
+					if (nonVolatileSettings.audioPromptMode == AUDIO_PROMPT_MODE_SILENT)
+					{
+						rightSideConst = (char * const *)&currentLanguage->n_a;
+					}
+					else
+					{
+						const char * const *beepRX[] = { &currentLanguage->none, &currentLanguage->carrier, &currentLanguage->talker, &currentLanguage->both };
+						rightSideConst = (char * const *)beepRX[((nonVolatileSettings.beepOptions >> 2) & 0x03)];
+					}
+					break;
+				case OPTIONS_MENU_RX_TALKER_BEGIN_BEEP:
+					leftSide = (char * const *)&currentLanguage->talker;
+					if ((nonVolatileSettings.audioPromptMode == AUDIO_PROMPT_MODE_SILENT) ||
+							((nonVolatileSettings.beepOptions & BEEP_RX_TALKER) == 0) || (((nonVolatileSettings.beepOptions >> 2) & 0x03) == 0))
+					{
+						rightSideConst = (char * const *)&currentLanguage->n_a;
+					}
+					else
+					{
+						const char * const *beepRXTalker[] = { &currentLanguage->end_only, &currentLanguage->both };
+						rightSideConst = (char * const *)beepRXTalker[((nonVolatileSettings.beepOptions & BEEP_RX_TALKER_BEGIN) >> 4)];
 					}
 					break;
 				case OPTIONS_MIC_GAIN_DMR: // DMR Mic gain
@@ -185,6 +230,17 @@ static void updateScreen(bool isFirstRun)
 						const char * const *audioPromptOption[] = { &currentLanguage->silent, &currentLanguage->beep,
 								&currentLanguage->voice_prompt_level_1, &currentLanguage->voice_prompt_level_2, &currentLanguage->voice_prompt_level_3 };
 						rightSideConst = (char * const *)audioPromptOption[nonVolatileSettings.audioPromptMode];
+					}
+					break;
+				case OPTIONS_AUDIO_DMR_RX_AGC:
+					leftSide = (char * const *)&currentLanguage->dmr_rx_agc;
+					if (nonVolatileSettings.DMR_RxAGC != 0)
+					{
+						snprintf(rightSideVar, SCREEN_LINE_BUFFER_SIZE, "%ddB", ((nonVolatileSettings.DMR_RxAGC - 1) * 3));
+					}
+					else
+					{
+						rightSideConst = (char * const *)&currentLanguage->off;
 					}
 					break;
 			}
@@ -292,7 +348,7 @@ static void handleEvent(uiEvent_t *ev)
 
 	if ((ev->events & KEY_EVENT) && (menuDataGlobal.menuOptionsSetQuickkey == 0) && (menuDataGlobal.menuOptionsTimeout == 0))
 	{
-		if (KEYCHECK_PRESS(ev->keys, KEY_DOWN) && (menuDataGlobal.endIndex != 0))
+		if (KEYCHECK_PRESS(ev->keys, KEY_DOWN) && (menuDataGlobal.numItems != 0))
 		{
 			isDirty = true;
 			menuSystemMenuIncrement(&menuDataGlobal.currentItemIndex, NUM_SOUND_MENU_ITEMS);
@@ -362,9 +418,41 @@ static void handleEvent(uiEvent_t *ev)
 				case OPTIONS_MENU_DMR_BEEP:
 					if (nonVolatileSettings.audioPromptMode != AUDIO_PROMPT_MODE_SILENT)
 					{
-						if (nonVolatileSettings.beepOptions < (BEEP_TX_START | BEEP_TX_STOP))
+						if ((nonVolatileSettings.beepOptions & 0x03) < (BEEP_TX_START | BEEP_TX_STOP))
 						{
-							settingsIncrement(nonVolatileSettings.beepOptions, 1);
+							uint8_t opts = (nonVolatileSettings.beepOptions >> 2);
+							uint8_t v = (nonVolatileSettings.beepOptions & 0x03) + 1;
+
+							opts = ((opts << 2) | v);
+
+							settingsSet(nonVolatileSettings.beepOptions, opts);
+						}
+					}
+					break;
+				case OPTIONS_MENU_RX_BEEP:
+					if (nonVolatileSettings.audioPromptMode != AUDIO_PROMPT_MODE_SILENT)
+					{
+						if ((nonVolatileSettings.beepOptions & 0x0C) < (BEEP_RX_CARRIER | BEEP_RX_TALKER))
+						{
+							uint8_t opts = (nonVolatileSettings.beepOptions >> 4);
+							uint8_t txBeeps = (nonVolatileSettings.beepOptions & 0x03);
+							uint8_t v = ((nonVolatileSettings.beepOptions >> 2) & 0x03) + 1;
+
+							opts = ((opts << 4) | (v << 2) | txBeeps);
+
+							settingsSet(nonVolatileSettings.beepOptions, opts);
+						}
+					}
+					break;
+				case OPTIONS_MENU_RX_TALKER_BEGIN_BEEP:
+					if ((nonVolatileSettings.audioPromptMode != AUDIO_PROMPT_MODE_SILENT) &&
+							((nonVolatileSettings.beepOptions & BEEP_RX_TALKER) != 0))
+					{
+						if ((nonVolatileSettings.beepOptions & BEEP_RX_TALKER_BEGIN) == 0)
+						{
+							uint8_t opts = (nonVolatileSettings.beepOptions | BEEP_RX_TALKER_BEGIN);
+
+							settingsSet(nonVolatileSettings.beepOptions, opts);
 						}
 					}
 					break;
@@ -409,7 +497,12 @@ static void handleEvent(uiEvent_t *ev)
 						}
 					}
 					break;
-
+				case OPTIONS_AUDIO_DMR_RX_AGC:
+					if (nonVolatileSettings.DMR_RxAGC < 16)
+					{
+						settingsIncrement(nonVolatileSettings.DMR_RxAGC, 1);
+					}
+					break;
 			}
 		}
 		else if (KEYCHECK_PRESS(ev->keys, KEY_LEFT) || (QUICKKEY_FUNCTIONID(ev->function) == FUNC_LEFT))
@@ -439,9 +532,43 @@ static void handleEvent(uiEvent_t *ev)
 				case OPTIONS_MENU_DMR_BEEP:
 					if (nonVolatileSettings.audioPromptMode != AUDIO_PROMPT_MODE_SILENT)
 					{
-						if (nonVolatileSettings.beepOptions > BEEP_TX_NONE)
+						if ((nonVolatileSettings.beepOptions & 0x03) > BEEP_TX_NONE)
 						{
-							settingsDecrement(nonVolatileSettings.beepOptions, 1);
+							uint8_t opts = (nonVolatileSettings.beepOptions >> 2);
+							uint8_t v = (nonVolatileSettings.beepOptions & 0x03) - 1;
+
+							opts = ((opts << 2) | v);
+
+							settingsSet(nonVolatileSettings.beepOptions, opts);
+						}
+					}
+					break;
+				case OPTIONS_MENU_RX_BEEP:
+					if (nonVolatileSettings.audioPromptMode != AUDIO_PROMPT_MODE_SILENT)
+					{
+						if ((nonVolatileSettings.beepOptions & 0x0C) >= BEEP_RX_CARRIER)
+						{
+							uint8_t opts = (nonVolatileSettings.beepOptions >> 4);
+							uint8_t txBeeps = (nonVolatileSettings.beepOptions & 0x03);
+							uint8_t v = ((nonVolatileSettings.beepOptions >> 2) & 0x03) - 1;
+
+							opts = ((opts << 4) | (v << 2) | txBeeps);
+
+							settingsSet(nonVolatileSettings.beepOptions, opts);
+						}
+					}
+					break;
+				case OPTIONS_MENU_RX_TALKER_BEGIN_BEEP:
+					if ((nonVolatileSettings.audioPromptMode != AUDIO_PROMPT_MODE_SILENT) &&
+							((nonVolatileSettings.beepOptions & BEEP_RX_TALKER) != 0))
+					{
+						if (nonVolatileSettings.beepOptions & BEEP_RX_TALKER_BEGIN)
+						{
+							uint8_t opts = nonVolatileSettings.beepOptions;
+
+							opts &= ~BEEP_RX_TALKER_BEGIN;
+
+							settingsSet(nonVolatileSettings.beepOptions, opts);
 						}
 					}
 					break;
@@ -468,7 +595,7 @@ static void handleEvent(uiEvent_t *ev)
 					}
 					break;
 				case OPTIONS_VOX_TAIL:
-					if (nonVolatileSettings.voxTailUnits > 1) // .5 minimum
+					if (nonVolatileSettings.voxTailUnits >= 1)
 					{
 						settingsDecrement(nonVolatileSettings.voxTailUnits, 1);
 						voxSetParameters(nonVolatileSettings.voxThreshold, nonVolatileSettings.voxTailUnits);
@@ -484,6 +611,17 @@ static void handleEvent(uiEvent_t *ev)
 						}
 
 						settingsDecrement(nonVolatileSettings.audioPromptMode, 1);
+					}
+					break;
+				case OPTIONS_AUDIO_DMR_RX_AGC:
+					if (nonVolatileSettings.DMR_RxAGC > 0)
+					{
+						settingsDecrement(nonVolatileSettings.DMR_RxAGC, 1);
+
+						if (nonVolatileSettings.DMR_RxAGC == 0)
+						{
+							HRC6000SetDmrRxGain(0);
+						}
 					}
 					break;
 			}

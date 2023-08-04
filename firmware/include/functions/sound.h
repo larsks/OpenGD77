@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2019      Kai Ludwig, DG4KLU
- * Copyright (C) 2019-2021 Roger Clark, VK3KYY / G4KYF
+ * Copyright (C) 2019-2023 Roger Clark, VK3KYY / G4KYF
  *
  *
  * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions
@@ -49,19 +49,27 @@ extern const int MELODY_DMR_TX_START_BEEP[];
 extern const int MELODY_DMR_TX_STOP_BEEP[];
 extern const int MELODY_KEY_BEEP_FIRST_ITEM[];
 extern const int MELODY_LOW_BATTERY[];
+extern const int MELODY_APO_TRIGGERED[];
 extern const int MELODY_QUICKKEYS_CLEAR_ACK_BEEP[];
 extern const int MELODY_RX_TGTSCC_WARNING_BEEP[];
+extern const int MELODY_RX_BEEP_BEGIN_BEEP[];
+extern const int MELODY_RX_BEEP_END_BEEP[];
+extern const int MELODY_RX_BEEP_CALLER_BEGIN_BEEP[];
+extern const int MELODY_RX_BEEP_CALLER_END_BEEP[];
 
 extern volatile int *melody_play;
 extern volatile int melody_idx;
 extern volatile int micAudioSamplesTotal;
 extern int soundBeepVolumeDivider;
+extern volatile float dmrRxAGCrxPeakAverage;
 
 #define WAV_BUFFER_SIZE                          160
 #define WAV_BUFFER_COUNT                          30 // 5 DMR frames, was 24
 #define WAV_BUFFER_AMBE_PREBUFFERING_COUNT        12 // 2 DMR frames, 6 buffers each
 #define HOTSPOT_BUFFER_SIZE                      50U
 #define HOTSPOT_BUFFER_COUNT                     48U
+
+#define DMR_RX_AGC_DEFAULT_PEAK_SAMPLES			4000.0f
 
 extern union sharedDataBuffer
 {

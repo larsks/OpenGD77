@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2021 Roger Clark, VK3KYY / G4KYF
+ * Copyright (C) 2019-2023 Roger Clark, VK3KYY / G4KYF
  *                         Daniel Caujolle-Bert, F1RMB
  *
  *
@@ -50,8 +50,8 @@ menuStatus_t uiPowerOff(uiEvent_t *ev, bool isFirstRun)
 static void updateScreen(void)
 {
 	displayClearBuf();
-	displayPrintCentered(12, currentLanguage->power_off, FONT_SIZE_3);
-	displayPrintCentered(32, "73", FONT_SIZE_3);
+	displayPrintCentered(((DISPLAY_SIZE_Y / 3) - (FONT_SIZE_3_HEIGHT / 2)), currentLanguage->power_off, FONT_SIZE_3);
+	displayPrintCentered((((DISPLAY_SIZE_Y / 3) * 2) - (FONT_SIZE_3_HEIGHT / 2)), "73", FONT_SIZE_3);
 	displayRender();
 }
 
@@ -71,7 +71,7 @@ static void handleEvent(uiEvent_t *ev)
 
 	if ((ev->time - initialEventTime) > POWEROFF_DURATION_MILLISECONDS)
 	{
-		powerOffFinalStage(false);
+		powerOffFinalStage(false, false);
 	}
 
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2021 Roger Clark, VK3KYY / G4KYF
+ * Copyright (C) 2019-2023 Roger Clark, VK3KYY / G4KYF
  *                         Daniel Caujolle-Bert, F1RMB
  *
  *
@@ -51,20 +51,22 @@ static __attribute__((section(".data.$RAM2"))) uint8_t screenNotificationBufData
 typedef struct
 {
 	bool                   visible;
-	uint32_t               hideTicks;
+	ticksTimer_t           hideTimer;
 	uiNotificationType_t   type;
+	uiNotificationID_t     id;
 	char                   message[16]; // 15 char + NULL
 } uiNotificationData_t;
 
 static uiNotificationData_t notificationData =
 {
 		.visible = false,
-		.hideTicks = 0,
+		.hideTimer = { 0, 0 },
 		.type = NOTIFICATION_TYPE_MAX,
+		.id = NOTIFICATION_ID_NONE,
 		.message = { 0 }
 };
 
-void uiNotificationShow(uiNotificationType_t type, uint32_t msTimeout, const char *message, bool immediateRender)
+void uiNotificationShow(uiNotificationType_t type, uiNotificationID_t id, uint32_t msTimeout, const char *message, bool immediateRender)
 {
 	bool valid = true;
 
@@ -77,6 +79,7 @@ void uiNotificationShow(uiNotificationType_t type, uint32_t msTimeout, const cha
 	memset(notificationData.message, 0, sizeof(notificationData.message));
 
 	notificationData.type = type;
+	notificationData.id = id;
 
 	switch (type)
 	{
@@ -105,7 +108,7 @@ void uiNotificationShow(uiNotificationType_t type, uint32_t msTimeout, const cha
 		{
 			uiNotificationRefresh();
 		}
-		notificationData.hideTicks = ticksGetMillis() + msTimeout;
+		ticksTimerStart(&notificationData.hideTimer, msTimeout);
 	}
 }
 
@@ -165,7 +168,7 @@ void uiNotificationRefresh(void)
 
 bool uiNotificationHasTimedOut(void)
 {
-	return (notificationData.visible && (ticksGetMillis() > notificationData.hideTicks));
+	return (notificationData.visible && ticksTimerHasExpired(&notificationData.hideTimer));
 }
 
 bool uiNotificationIsVisible(void)
@@ -180,4 +183,9 @@ void uiNotificationHide(bool immediateRender)
 	{
 		displayRender();
 	}
+}
+
+uiNotificationID_t uiNotificationGetId(void)
+{
+	return notificationData.id;
 }

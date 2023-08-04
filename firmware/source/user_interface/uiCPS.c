@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2021 Roger Clark, VK3KYY / G4KYF
+ * Copyright (C) 2019-2023 Roger Clark, VK3KYY / G4KYF
  *                         Daniel Caujolle-Bert, F1RMB
  *
  *
@@ -42,7 +42,7 @@ typedef enum
 #define PIT_COUNTS_PER_UPDATE  500
 
 static blinkLed_t ledType = LED_NONE;
-static uint32_t nextPIT;
+static ticksTimer_t nextUpdateTimer;
 static bool ledState = false;
 static int radioMode;
 static bool radioBandWidth;
@@ -52,18 +52,18 @@ menuStatus_t uiCPS(uiEvent_t *ev, bool isFirstRun)
 {
 	if (isFirstRun)
 	{
-		menuDataGlobal.endIndex = 0;
+		menuDataGlobal.numItems = 0;
 		rxPowerSavingSetState(ECOPHASE_POWERSAVE_INACTIVE);
 		radioMode = trxGetMode();
 		radioBandWidth = trxGetBandwidthIs25kHz();
 		trxSetModeAndBandwidth(RADIO_MODE_NONE, radioBandWidth);
-		nextPIT = ticksGetMillis() + PIT_COUNTS_PER_UPDATE;
+		ticksTimerStart(&nextUpdateTimer, PIT_COUNTS_PER_UPDATE);
 	}
 	else
 	{
-		if (ticksGetMillis() >= nextPIT)
+		if (ticksTimerHasExpired(&nextUpdateTimer))
 		{
-			nextPIT = ticksGetMillis() + PIT_COUNTS_PER_UPDATE;
+			ticksTimerStart(&nextUpdateTimer, PIT_COUNTS_PER_UPDATE);
 			handleTick();
 		}
 	}

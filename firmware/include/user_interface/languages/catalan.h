@@ -1,6 +1,6 @@
 /* -*- coding: windows-1252-unix; -*- */
 /*
- * Copyright (C) 2019-2021 Roger Clark, VK3KYY / G4KYF
+ * Copyright (C) 2019-2023 Roger Clark, VK3KYY / G4KYF
  *
  *
  * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions
@@ -29,7 +29,7 @@
  * Translators: EA3IGM, EA5SW, EB3AM, EA3BIL
  *
  *
- * Rev: 10.  18Dec2021 EA3BIL
+ * Rev: 11.  11Mar2022 EA3BIL
  */
 #ifndef USER_INTERFACE_LANGUAGES_CATALAN_H_
 #define USER_INTERFACE_LANGUAGES_CATALAN_H_
@@ -115,7 +115,7 @@ const stringsTable_t catalanLanguage=
 .on						= "Sí",
 .timeout_beep			= "Avís T.O.T.",
 .list_full				= "Llista plena",
-.UNUSED_1				= "",
+.dmr_cc_scan			= "CC Scan", // MaxLen: 12 (with ':' + settings: .on or .off)
 .band_limits			= "Límit bandes",
 .beep_volume			= "Volum tons",
 .dmr_mic_gain			= "DMR mic",
@@ -164,10 +164,10 @@ const stringsTable_t catalanLanguage=
 .vox_tail				= "Cua VOX", // MaxLen 16 (with ':' + .n_a or '0.0s')
 .audio_prompt			= "Avís",// Maxlen 16 (with ':' + .silent, .beep or .voice_prompt_level_1)
 .silent					= "Silenci", // Maxlen 16 (with : + audio_prompt)
-.UNUSED_2				= "",
+.rx_beep				= "RX beep", // MaxLen 16 (with ':' + .carrier/.talker/.both/.none)
 .beep					= "Beep", // Maxlen 16 (with : + audio_prompt)
 .voice_prompt_level_1	= "Veu L1", // Maxlen 16 (with : + audio_prompt)
-.transmitTalkerAlias	= "Enviar TA", // Maxlen 16 (with : + .on or .off)
+.transmitTalkerAliasTS1	= "Enviar TA 1", // Maxlen 16 (with : + .off .text APRS .both)
 .squelch_VHF			= "Squelch VHF",// Maxlen 16 (with : + XX%)
 .squelch_220			= "Squelch 220",// Maxlen 16 (with : + XX%)
 .squelch_UHF			= "Squelch UHF", // Maxlen 16 (with : + XX%)
@@ -180,7 +180,7 @@ const stringsTable_t catalanLanguage=
 .voice_prompt_level_2	= "Veu L2", // Maxlen 16 (with : + audio_prompt)
 .voice_prompt_level_3	= "Veu L3", // Maxlen 16 (with : + audio_prompt)
 .dmr_filter				= "Filtre DMR",// MaxLen: 12 (with ':' + settings: "TG" or "Ct" or "RxG")
-.UNUSED_4				= "",
+.talker					= "Talker",
 .dmr_ts_filter			= "Filtre TS", // MaxLen: 12 (with ':' + settings: .on or .off)
 .dtmf_contact_list		= "Contactes DTMF", // Maxlen: 16
 .channel_power			= "Pot. Ch", //Displayed as "Ch Power:" + .from_master or "Ch Power:"+ power text e.g. "Power:500mW" . Max total length 16
@@ -210,7 +210,7 @@ const stringsTable_t catalanLanguage=
 .scan_on_boot			= "Scan inici",
 .dtmf_entry				= "Escriu DTMF",
 .name					= "Nom",
-.UNUSED_3				= "",
+.carrier				= "Carrier",
 .openDM1801A 				= "OpenDM1801A", // Do not translate
 .time					= "Hora",
 .uptime					= "Arrenca en",
@@ -221,7 +221,7 @@ const stringsTable_t catalanLanguage=
 .location				= "Ubicació",
 .date					= "Data",
 .timeZone				= "Ús Horari",
-.suspend				= "Desactivar",
+.suspend				= "Hibernar",
 .pass					= "Pas", // For satellite screen
 .elevation				= "El",
 .azimuth				= "Az",
@@ -234,7 +234,30 @@ const stringsTable_t catalanLanguage=
 .symbols				= "NSEO", // symbols: N,S,E,W
 .not_set				= "NO DEFINIT",
 .general_options		= "Opcions Generals",
-.radio_options			= "Opcions Ràdio"
+.radio_options			= "Opcions Ràdio",
+.openMD9600				= "OpenMD9600",
+.dmr_rx_agc				= "DMR Rx AGC",
+.speaker_click_suppress			= "Click Suppr.",
+.gps					= "GPS",
+.end_only				= "End only",
+.dmr_crc				= "DMR crc",
+.eco					= "Eco",
+.safe_power_on				= "Safe Pwr-On", // MaxLen: 16 (with ':' + .on or .off)
+.auto_power_off				= "Auto Pwr-Off", // MaxLen: 16 (with ':' + 30/60/90/120/180 or .no)
+.apo_with_rf				= "APO with RF", // MaxLen: 16 (with ':' + .yes or .no or .n_a)
+.openMDUV380			= "OpenMDUV380",
+.openMD380				= "OpenMD380",
+.gps_acquiring			= "Acquiring", 
+.altitude				= "Alt",
+.calibration            = "Radio Calibration",
+.freq_set                = "Freq Adjust",
+.cal_frequency          = "Cal Freq",
+.cal_pwr                = "Cal Power",
+.pwr_set                = "Power Adjust",
+.factory_reset          = "Factory Cal",
+.rx_tune				= "Rx Tuning",
+.transmitTalkerAliasTS2	= "Enviar TA 2", // Maxlen 16 (with : + .ta_text, 'APRS' , .both or .off)
+.ta_text				= "Text",
 };
 /********************************************************************
  *

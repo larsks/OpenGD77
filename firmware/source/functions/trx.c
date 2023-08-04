@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2019      Kai Ludwig, DG4KLU
- * Copyright (C) 2019-2021 Roger Clark, VK3KYY / G4KYF
+ * Copyright (C) 2019-2023 Roger Clark, VK3KYY / G4KYF
  *                         Colin, G4EML
  *                         Daniel Caujolle-Bert, F1RMB
  *
@@ -165,8 +165,8 @@ static int txPowerLevel = -1;
 static bool analogSignalReceived = false;
 static bool analogTriggeredAudio = false;
 static bool digitalSignalReceived = false;
-static uint32_t trxNextRssiNoiseSamplePIT = 0;
-static uint32_t trxNextSquelchCheckingPIT = 0;
+static ticksTimer_t trxNextRssiNoiseSampleTimer = { 0, 0 };
+static ticksTimer_t trxNextSquelchCheckingTimer = { 0, 0 };
 
 static uint8_t trxCssMeasureCount = 0;
 
@@ -174,7 +174,7 @@ static int currentMode = RADIO_MODE_NONE;
 static bool currentBandWidthIs25kHz = BANDWIDTH_12P5KHZ;
 static int currentRxFrequency = -1;
 static int currentTxFrequency = -1;
-static int currentCC = 1;
+static uint8_t currentCC = 1;
 
 #define CTCSS_HOLD_DELAY            6
 #define SQUELCH_CLOSE_DELAY         1
@@ -217,7 +217,7 @@ uint32_t trxTalkGroupOrPcId = 9;// Set to local TG just in case there is some pr
 uint32_t trxDMRID = 0;// Set ID to 0. Not sure if its valid. This value needs to be loaded from the codeplug.
 
 int trxCurrentBand[2] = { RADIO_BAND_VHF, RADIO_BAND_VHF };// Rx and Tx band.
-int trxDMRModeRx = DMR_MODE_DMO;// simplex
+volatile int trxDMRModeRx = DMR_MODE_DMO;// simplex
 int trxDMRModeTx = DMR_MODE_DMO;// simplex
 
 
@@ -274,7 +274,8 @@ void trxSetModeAndBandwidth(int mode, bool bandwidthIs25kHz)
 
 	digitalSignalReceived = false;
 	analogSignalReceived = false;
-	trxNextRssiNoiseSamplePIT = trxNextSquelchCheckingPIT = ticksGetMillis() + RSSI_NOISE_SAMPLE_PERIOD_PIT;
+	ticksTimerStart(&trxNextRssiNoiseSampleTimer, RSSI_NOISE_SAMPLE_PERIOD_PIT);
+	ticksTimerStart(&trxNextSquelchCheckingTimer, RSSI_NOISE_SAMPLE_PERIOD_PIT);
 	trxCssMeasureCount = 0;
 	//rxCSSTriggerCount = 0;
 
@@ -423,16 +424,16 @@ void trxReadVoxAndMicStrength(void)
 // msOverride parameter is used if > 0
 void trxPostponeReadRSSIAndNoise(uint32_t msOverride)
 {
-	trxNextRssiNoiseSamplePIT = ticksGetMillis() + (msOverride > 0 ? msOverride : RSSI_NOISE_SAMPLE_PERIOD_PIT);
+	ticksTimerStart(&trxNextRssiNoiseSampleTimer, (msOverride > 0 ? msOverride : RSSI_NOISE_SAMPLE_PERIOD_PIT));
 }
 
 // Check RSSI and Noise
 void trxReadRSSIAndNoise(bool force)
 {
-	if (rxPowerSavingIsRxOn() && ((ticksGetMillis() >= trxNextRssiNoiseSamplePIT) || force))
+	if (rxPowerSavingIsRxOn() && (ticksTimerHasExpired(&trxNextRssiNoiseSampleTimer) || force))
 	{
 		radioReadRSSIAndNoise();
-		trxNextRssiNoiseSamplePIT = ticksGetMillis() + RSSI_NOISE_SAMPLE_PERIOD_PIT;
+		ticksTimerStart(&trxNextRssiNoiseSampleTimer, RSSI_NOISE_SAMPLE_PERIOD_PIT);
 	}
 }
 
@@ -469,7 +470,7 @@ bool trxCarrierDetected(void)
 
 bool trxCheckDigitalSquelch(void)
 {
-	if (ticksGetMillis() >= trxNextSquelchCheckingPIT)
+	if (ticksTimerHasExpired(&trxNextSquelchCheckingTimer))
 	{
 		if (currentMode != RADIO_MODE_NONE)
 		{
@@ -479,6 +480,11 @@ bool trxCheckDigitalSquelch(void)
 
 			if (trxRxNoise < squelch)
 			{
+				if ((uiDataGlobal.rxBeepState & RX_BEEP_CARRIER_HAS_STARTED) == 0)
+				{
+					uiDataGlobal.rxBeepState |= (RX_BEEP_CARRIER_HAS_STARTED | RX_BEEP_CARRIER_HAS_STARTED_EXEC);
+				}
+
 				if(!digitalSignalReceived)
 				{
 					digitalSignalReceived = true;
@@ -492,10 +498,15 @@ bool trxCheckDigitalSquelch(void)
 					digitalSignalReceived = false;
 					LEDs_PinWrite(GPIO_LEDgreen, Pin_LEDgreen, 0);
 				}
+
+				if (uiDataGlobal.rxBeepState & RX_BEEP_CARRIER_HAS_STARTED)
+				{
+					uiDataGlobal.rxBeepState = RX_BEEP_CARRIER_HAS_ENDED;
+				}
 			}
 		}
 
-		trxNextSquelchCheckingPIT = ticksGetMillis() + RSSI_NOISE_SAMPLE_PERIOD_PIT;
+		ticksTimerStart(&trxNextSquelchCheckingTimer, RSSI_NOISE_SAMPLE_PERIOD_PIT);
 	}
 	return digitalSignalReceived;
 }
@@ -516,7 +527,7 @@ bool trxCheckAnalogSquelch(void)
 		return false;
 	}
 
-	if (ticksGetMillis() >= trxNextSquelchCheckingPIT)
+	if (ticksTimerHasExpired(&trxNextSquelchCheckingTimer))
 	{
 		uint8_t squelch;
 
@@ -536,6 +547,23 @@ bool trxCheckAnalogSquelch(void)
 			{
 				analogSignalReceived = true;
 				LEDs_PinWrite(GPIO_LEDgreen, Pin_LEDgreen, 1);
+
+				// FM: Replace Carrier beeps with Talker beeps if Caller beep option is selected.
+				if (((nonVolatileSettings.beepOptions & BEEP_RX_CARRIER) == 0) && (nonVolatileSettings.beepOptions & BEEP_RX_TALKER))
+				{
+					if ((uiDataGlobal.rxBeepState & RX_BEEP_TALKER_HAS_STARTED) == 0)
+					{
+						uiDataGlobal.rxBeepState |= (RX_BEEP_TALKER_HAS_STARTED | RX_BEEP_TALKER_HAS_STARTED_EXEC);
+					}
+				}
+				else
+				{
+					if ((uiDataGlobal.rxBeepState & RX_BEEP_CARRIER_HAS_STARTED) == 0)
+					{
+						uiDataGlobal.rxBeepState |= (RX_BEEP_CARRIER_HAS_STARTED | RX_BEEP_CARRIER_HAS_STARTED_EXEC);
+					}
+				}
+
 				analogTriggeredAudio = true;
 				//rxCSSTriggerCount = 0;
 				trxCssMeasureCount = 0;
@@ -551,6 +579,23 @@ bool trxCheckAnalogSquelch(void)
 			{
 				analogSignalReceived = false;
 				LEDs_PinWrite(GPIO_LEDgreen, Pin_LEDgreen, 0);
+
+				// FM: Replace Carrier beeps with Talker beeps if Caller beep option is selected.
+				if (((nonVolatileSettings.beepOptions & BEEP_RX_CARRIER) == 0) && (nonVolatileSettings.beepOptions & BEEP_RX_TALKER))
+				{
+					if (uiDataGlobal.rxBeepState & RX_BEEP_TALKER_HAS_STARTED)
+					{
+						uiDataGlobal.rxBeepState |= (RX_BEEP_TALKER_HAS_ENDED | RX_BEEP_TALKER_HAS_ENDED_EXEC);
+					}
+				}
+				else
+				{
+					if (uiDataGlobal.rxBeepState & RX_BEEP_CARRIER_HAS_STARTED)
+					{
+						uiDataGlobal.rxBeepState = RX_BEEP_CARRIER_HAS_ENDED;
+					}
+				}
+
 				analogTriggeredAudio = false;
 				//rxCSSTriggerCount = 0;
 				trxCssMeasureCount = 0;
@@ -568,7 +613,7 @@ bool trxCheckAnalogSquelch(void)
 				if (rxCSSactive && (rxCSSTriggerCount < 1))
 				{
 					rxCSSTriggerCount++;
-					trxNextRssiNoiseSamplePIT = ticksGetMillis() + RSSI_NOISE_SAMPLE_PERIOD_PIT;
+					ticksTimerStart(&trxNextRssiNoiseSampleTimer, RSSI_NOISE_SAMPLE_PERIOD_PIT);
 					return;
 				}*/
 
@@ -629,7 +674,7 @@ bool trxCheckAnalogSquelch(void)
 			}
 		}
 
-		trxNextSquelchCheckingPIT = ticksGetMillis() + RSSI_NOISE_SAMPLE_PERIOD_PIT;
+		ticksTimerStart(&trxNextSquelchCheckingTimer, RSSI_NOISE_SAMPLE_PERIOD_PIT);
 	}
 
 	return analogSignalReceived;
@@ -641,7 +686,7 @@ void trxResetSquelchesState(void)
 	analogSignalReceived = false;
 }
 
-void trxSetFrequency(int fRx,int fTx, int dmrMode)
+void trxSetFrequency(int fRx, int fTx, int dmrMode)
 {
 	if (currentChannelData->libreDMR_Power != 0x00)
 	{
@@ -753,7 +798,8 @@ void trxSetFrequency(int fRx,int fTx, int dmrMode)
 			HRC6000InitDigital();
 		}
 
-		trxNextRssiNoiseSamplePIT = trxNextSquelchCheckingPIT = ticksGetMillis() + RSSI_NOISE_SAMPLE_PERIOD_PIT;
+		ticksTimerStart(&trxNextRssiNoiseSampleTimer, RSSI_NOISE_SAMPLE_PERIOD_PIT);
+		ticksTimerStart(&trxNextSquelchCheckingTimer, RSSI_NOISE_SAMPLE_PERIOD_PIT);
 		taskEXIT_CRITICAL();
 	}
 }
@@ -831,7 +877,8 @@ void trxRxAndTxOff(bool critical)
 
 void trxRxOn(bool critical)
 {
-	trxNextRssiNoiseSamplePIT = trxNextSquelchCheckingPIT = ticksGetMillis() + RSSI_NOISE_SAMPLE_PERIOD_PIT;
+	ticksTimerStart(&trxNextRssiNoiseSampleTimer, RSSI_NOISE_SAMPLE_PERIOD_PIT);
+	ticksTimerStart(&trxNextSquelchCheckingTimer, RSSI_NOISE_SAMPLE_PERIOD_PIT);
 
 	if (critical)
 	{
@@ -890,7 +937,8 @@ void trxActivateRx(bool critical)
 
 	trxRxOn(critical);
 
-	trxNextRssiNoiseSamplePIT = trxNextSquelchCheckingPIT = ticksGetMillis() + RSSI_NOISE_SAMPLE_PERIOD_PIT;
+	ticksTimerStart(&trxNextRssiNoiseSampleTimer, RSSI_NOISE_SAMPLE_PERIOD_PIT);
+	ticksTimerStart(&trxNextSquelchCheckingTimer, RSSI_NOISE_SAMPLE_PERIOD_PIT);
 }
 
 void trxActivateTx(bool critical)
@@ -1086,9 +1134,10 @@ static void trxUpdateC6000Calibration(void)
 	trxCalcBandAndFrequencyOffset(&calBand, &freq_offset);
 
 	SPI0WritePageRegByte(0x04, 0x00, 0x3F); // Reset HR-C6000 state
-
+#if false
 	calibrationGetSectionData(calBand, CalibrationSection_DACDATA_SHIFT, &calRes);
 	SPI0WritePageRegByte(0x04, 0x37, calRes.value); // DACDATA shift (LIN_VOL)
+#endif
 
 	calibrationGetSectionData(calBand, CalibrationSection_Q_MOD2_OFFSET, &calRes);
 	SPI0WritePageRegByte(0x04, 0x04, calRes.value); // MOD2 offset
@@ -1206,7 +1255,7 @@ static void trxUpdateAT1846SCalibration(void)
 	I2C_AT1846_set_register_with_mask(0x49, 0x0000, squelch_th, 0);
 }
 
-void trxSetDMRColourCode(int colourCode)
+void trxSetDMRColourCode(uint8_t colourCode)
 {
 	if (rxPowerSavingIsRxOn() == false)
 	{
@@ -1217,7 +1266,7 @@ void trxSetDMRColourCode(int colourCode)
 	currentCC = colourCode;
 }
 
-int trxGetDMRColourCode(void)
+uint8_t trxGetDMRColourCode(void)
 {
 	return currentCC;
 }
@@ -1271,7 +1320,7 @@ void trxUpdateTsForCurrentChannelWithSpecifiedContact(struct_codeplugContact_t *
 		if (overriddenTS == 0)
 		{
 			// Apply channnel TS
-			trxCurrentDMRTimeSlot = ((currentChannelData->flag2 & 0x40) != 0);
+			trxCurrentDMRTimeSlot = codeplugChannelIsFlagSet(currentChannelData, CHANNEL_FLAG_TIMESLOT_TWO) ? 1 : 0;
 		}
 		else
 		{
@@ -1704,4 +1753,46 @@ bool trxPowerUpDownRxAndC6000(bool powerUp, bool includeC6000)
 	 powerUpDownState = powerUp;
 
 	 return status;
+}
+
+
+int trxGetRSSIdBm(void)
+{
+	int dBm = 0;
+
+	if (trxCurrentBand[TRX_RX_FREQ_BAND] == RADIO_BAND_UHF)
+	{
+		// Use fixed point maths to scale the RSSI value to dBm, based on data from VK4JWT and VK7ZJA
+		dBm = -151 + trxRxSignal;// Note no the RSSI value on UHF does not need to be scaled like it does on VHF
+	}
+	else
+	{
+		// VHF
+		// Use fixed point maths to scale the RSSI value to dBm, based on data from VK4JWT and VK7ZJA
+		dBm = -164 + ((trxRxSignal * 32) / 27);
+	}
+
+	return dBm;
+}
+
+int trxGetNoisedBm(void)
+{
+	int dBm = 0;
+
+	if (trxCurrentBand[TRX_RX_FREQ_BAND] == RADIO_BAND_UHF)
+	{
+		dBm = -151 + trxRxNoise;// Note no the RSSI value on UHF does not need to be scaled like it does on VHF
+	}
+	else
+	{
+		// VHF
+		dBm = -164 + ((trxRxNoise * 32) / 27);
+	}
+
+	return dBm;
+}
+
+int trxGetSNRMargindBm(void)
+{
+	return (trxGetRSSIdBm() - trxGetNoisedBm());
 }

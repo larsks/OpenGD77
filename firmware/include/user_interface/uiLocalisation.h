@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2021 Roger Clark, VK3KYY / G4KYF
+ * Copyright (C) 2019-2023 Roger Clark, VK3KYY / G4KYF
  *                         Daniel Caujolle-Bert, F1RMB
  *
  *
@@ -126,7 +126,7 @@ typedef struct
    const char *on;
    const char *timeout_beep;
    const char *list_full;
-   const char *UNUSED_1;
+   const char *dmr_cc_scan;
    const char *band_limits;
    const char *beep_volume;
    const char *dmr_mic_gain;
@@ -175,10 +175,10 @@ typedef struct
    const char *vox_tail;
    const char *audio_prompt;
    const char *silent;
-   const char *UNUSED_2;
+   const char *rx_beep;
    const char *beep;
    const char *voice_prompt_level_1;
-   const char *transmitTalkerAlias;
+   const char *transmitTalkerAliasTS1;
    const char *squelch_VHF;
    const char *squelch_220;
    const char *squelch_UHF;
@@ -191,7 +191,7 @@ typedef struct
    const char *voice_prompt_level_2;
    const char *voice_prompt_level_3;
    const char *dmr_filter;
-   const char *UNUSED_4;
+   const char *talker;
    const char *dmr_ts_filter;
    const char *dtmf_contact_list;// Menu number 18
    const char *channel_power;// "Ch Power" for the Channel details screen
@@ -221,7 +221,7 @@ typedef struct
    const char *scan_on_boot;
    const char *dtmf_entry;
    const char *name;
-   const char *UNUSED_3;
+   const char *carrier;
    const char *openDM1801A;
    const char *time;
    const char *uptime;
@@ -246,6 +246,29 @@ typedef struct
    const char *not_set;// Used when Location etc has not been set.
    const char *general_options;
    const char *radio_options;
+   const char *openMD9600;              // MD-9600 ONLY
+   const char *dmr_rx_agc;
+   const char *speaker_click_suppress;  // MD-9600 ONLY
+   const char *gps;                     // MD-9600 ONLY
+   const char *end_only;
+   const char *dmr_crc;
+   const char *eco;
+   const char *safe_power_on;
+   const char *auto_power_off;
+   const char *apo_with_rf;
+   const char *openMDUV380;              // MD-UV380 ONLY
+   const char *openMD380;              // MD-380 ONLY
+   const char *gps_acquiring;
+   const char *altitude;
+   const char *calibration;            //Calibration Menu (204)
+   const char *freq_set;
+   const char *cal_frequency;
+   const char *cal_pwr;
+   const char *pwr_set;
+   const char *factory_reset;
+   const char *rx_tune;               //MD-9600 only
+   const char *transmitTalkerAliasTS2;
+   const char *ta_text;// "Text"
 } stringsTable_t;
 
 extern const stringsTable_t languages[];

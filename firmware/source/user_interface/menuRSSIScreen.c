@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2021 Roger Clark, VK3KYY / G4KYF
+ * Copyright (C) 2019-2023 Roger Clark, VK3KYY / G4KYF
  *                         Daniel Caujolle-Bert, F1RMB
  *
  *
@@ -51,7 +51,7 @@ menuStatus_t menuRSSIScreen(uiEvent_t *ev, bool isFirstRun)
 	if (isFirstRun)
 	{
 		//calibrationGetRSSIMeterParams(&rssiCalibration); // UNUSED
-		menuDataGlobal.endIndex = 0;
+		menuDataGlobal.numItems = 0;
 		displayClearBuf();
 		menuDisplayTitle(currentLanguage->rssi);
 		displayRenderRows(0, 2);
@@ -95,7 +95,7 @@ static void updateScreen(bool forceRedraw, bool isFirstRun)
 	char buffer[SCREEN_LINE_BUFFER_SIZE];
 	int barWidth;
 
-	dBm = getRSSIdBm();
+	dBm = trxGetRSSIdBm();
 	int rssi = dBm;
 
 	if (isFirstRun && (nonVolatileSettings.audioPromptMode >= AUDIO_PROMPT_MODE_VOICE_LEVEL_1))

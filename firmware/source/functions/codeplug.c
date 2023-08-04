@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2019      Kai Ludwig, DG4KLU
- * Copyright (C) 2019-2021 Roger Clark, VK3KYY / G4KYF
+ * Copyright (C) 2019-2023 Roger Clark, VK3KYY / G4KYF
  *                         Daniel Caujolle-Bert, F1RMB
  *
  *
@@ -346,7 +346,7 @@ bool codeplugZoneGetDataForNumber(int zoneNum, struct_codeplugZone_t *returnBuf)
 
 bool codeplugZoneAddChannelToZoneAndSave(int channelIndex, struct_codeplugZone_t *zoneBuf)
 {
-	if ((zoneBuf->NOT_IN_CODEPLUGDATA_numChannelsInZone <= codeplugChannelsPerZone) && (zoneBuf->NOT_IN_CODEPLUGDATA_indexNumber != -1))
+	if ((zoneBuf->NOT_IN_CODEPLUGDATA_numChannelsInZone < codeplugChannelsPerZone) && (zoneBuf->NOT_IN_CODEPLUGDATA_indexNumber != -1))
 	{
 		zoneBuf->channels[zoneBuf->NOT_IN_CODEPLUGDATA_numChannelsInZone++] = channelIndex;// add channel to zone, and increment numb channels in zone
 		zoneBuf->NOT_IN_CODEPLUGDATA_highestIndex = zoneBuf->NOT_IN_CODEPLUGDATA_numChannelsInZone;
@@ -355,10 +355,8 @@ bool codeplugZoneAddChannelToZoneAndSave(int channelIndex, struct_codeplugZone_t
 		return EEPROM_Write(CODEPLUG_ADDR_EX_ZONE_LIST + (zoneBuf->NOT_IN_CODEPLUGDATA_indexNumber * (16 + (sizeof(uint16_t) * codeplugChannelsPerZone))),
 				(uint8_t *)zoneBuf, ((codeplugChannelsPerZone == 16) ? CODEPLUG_ZONE_DATA_ORIGINAL_STRUCT_SIZE : CODEPLUG_ZONE_DATA_OPENGD77_STRUCT_SIZE));
 	}
-	else
-	{
-		return false;
-	}
+
+	return false;
 }
 
 static uint16_t codeplugAllChannelsGetCount(void)
@@ -445,11 +443,23 @@ void codeplugAllChannelsInitCache(void)
 	}
 }
 
+static void setChannelFlag(uint8_t *flag, uint8_t bit, bool enabled)
+{
+	if (enabled)
+	{
+		*flag |= bit;
+	}
+	else
+	{
+		*flag &= ~bit;
+	}
+}
+
 uint32_t codeplugChannelGetOptionalDMRID(struct_codeplugChannel_t *channelBuf)
 {
 	uint32_t retVal = 0;
 
-	if (channelBuf->LibreDMR_flag1 & 0x80)
+	if (codeplugChannelIsFlagSet(channelBuf, CHANNEL_FLAG_OPTIONAL_DMRID))
 	{
 		retVal = ((channelBuf->rxSignaling << 16) | (channelBuf->artsInterval << 8) | channelBuf->encrypt);
 	}
@@ -457,9 +467,10 @@ uint32_t codeplugChannelGetOptionalDMRID(struct_codeplugChannel_t *channelBuf)
 	return retVal;
 }
 
-void codeplugChannelSetOptionalDMRID(uint32_t dmrID, struct_codeplugChannel_t *channelBuf)
+void codeplugChannelSetOptionalDMRID(struct_codeplugChannel_t *channelBuf, uint32_t dmrID)
 {
 	uint32_t tmpID = 0x00001600;
+	bool dmrIDIsValid = ((dmrID >= MIN_TG_OR_PC_VALUE) && (dmrID <= MAX_TG_OR_PC_VALUE));
 
 	//  Default values are:
 	//
@@ -469,19 +480,116 @@ void codeplugChannelSetOptionalDMRID(uint32_t dmrID, struct_codeplugChannel_t *c
 	//
 
 	// Set DMRId and flag, if valid.
-	if ((dmrID >= MIN_TG_OR_PC_VALUE) && (dmrID <= MAX_TG_OR_PC_VALUE))
+	if (dmrIDIsValid)
 	{
-		channelBuf->LibreDMR_flag1 |= 0x80;
 		tmpID = dmrID;
 	}
-	else
-	{
-		channelBuf->LibreDMR_flag1 &= ~0x80;
-	}
+
+	setChannelFlag(&channelBuf->LibreDMR_flag1, CODEPLUG_CHANNEL_LIBREDMR_FLAG1_OPTIONAL_DMRID, dmrIDIsValid);
 
 	channelBuf->rxSignaling = (tmpID >> 16) & 0xFF;
 	channelBuf->artsInterval = (tmpID >> 8) & 0xFF;
 	channelBuf->encrypt = tmpID & 0xFF;
+}
+
+bool codeplugChannelIsFlagSet(struct_codeplugChannel_t *channelBuf, ChannelFlag_t flag)
+{
+	bool ret = false;
+
+	switch (flag)
+	{
+		case CHANNEL_FLAG_OPTIONAL_DMRID:
+			ret = ((channelBuf->LibreDMR_flag1 & CODEPLUG_CHANNEL_LIBREDMR_FLAG1_OPTIONAL_DMRID) != 0x00);
+			break;
+		case CHANNEL_FLAG_NO_BEEP:
+			ret = ((channelBuf->LibreDMR_flag1 & CODEPLUG_CHANNEL_LIBREDMR_FLAG1_NO_BEEP) != 0x00);
+			break;
+		case CHANNEL_FLAG_NO_ECO:
+			ret = ((channelBuf->LibreDMR_flag1 & CODEPLUG_CHANNEL_LIBREDMR_FLAG1_NO_ECO) != 0x00);
+			break;
+#if defined(PLATFORM_MD9600)
+		case CHANNEL_FLAG_OUT_OF_BAND:
+			ret = ((channelBuf->LibreDMR_flag1 & CODEPLUG_CHANNEL_LIBREDMR_FLAG1_OUT_OF_BAND) != 0x00);
+			break;
+#endif
+		case CHANNEL_FLAG_TIMESLOT_TWO:
+			ret = ((channelBuf->flag2 & CODEPLUG_CHANNEL_FLAG2_TIMESLOT_TWO) != 0x00);
+			break;
+		case CHANNEL_FLAG_DISABLE_ALL_LEDS:
+			ret = ((channelBuf->flag3 & CODEPLUG_CHANNEL_FLAG3_DISABLE_ALL_LEDS) != 0x00);
+			break;
+		case CHANNEL_FLAG_POWER:
+			ret = ((channelBuf->flag4 & CODEPLUG_CHANNEL_FLAG4_POWER) != 0x00);
+			break;
+		case CHANNEL_FLAG_VOX:
+			ret = ((channelBuf->flag4 & CODEPLUG_CHANNEL_FLAG4_VOX) != 0x00);
+			break;
+		case CHANNEL_FLAG_ZONE_SKIP:
+			ret = ((channelBuf->flag4 & CODEPLUG_CHANNEL_FLAG4_ZONE_SKIP) != 0x00);
+			break;
+		case CHANNEL_FLAG_ALL_SKIP:
+			ret = ((channelBuf->flag4 & CODEPLUG_CHANNEL_FLAG4_ALL_SKIP) != 0x00);
+			break;
+		case CHANNEL_FLAG_RX_ONLY:
+			ret = ((channelBuf->flag4 & CODEPLUG_CHANNEL_FLAG4_RX_ONLY) != 0x00);
+			break;
+		case CHANNEL_FLAG_BW_25K:
+			ret = ((channelBuf->flag4 & CODEPLUG_CHANNEL_FLAG4_BW_25K) != 0x00);
+			break;
+		case CHANNEL_FLAG_SQUELCH:
+			ret = ((channelBuf->flag4 & CODEPLUG_CHANNEL_FLAG4_SQUELCH) != 0x00);
+			break;
+	}
+
+	return ret;
+}
+
+void codeplugChannelSetFlag(struct_codeplugChannel_t *channelBuf, ChannelFlag_t flag, bool enabled)
+{
+	switch (flag)
+	{
+		case CHANNEL_FLAG_OPTIONAL_DMRID:
+			setChannelFlag(&channelBuf->LibreDMR_flag1, CODEPLUG_CHANNEL_LIBREDMR_FLAG1_OPTIONAL_DMRID, enabled);
+			break;
+		case CHANNEL_FLAG_NO_BEEP:
+			setChannelFlag(&channelBuf->LibreDMR_flag1, CODEPLUG_CHANNEL_LIBREDMR_FLAG1_NO_BEEP, enabled);
+			break;
+		case CHANNEL_FLAG_NO_ECO:
+			setChannelFlag(&channelBuf->LibreDMR_flag1, CODEPLUG_CHANNEL_LIBREDMR_FLAG1_NO_ECO, enabled);
+			break;
+#if defined(PLATFORM_MD9600)
+		case CHANNEL_FLAG_OUT_OF_BAND:
+			setChannelFlag(&channelBuf->LibreDMR_flag1, CODEPLUG_CHANNEL_LIBREDMR_FLAG1_OUT_OF_BAND, enabled);
+			break;
+#endif
+		case CHANNEL_FLAG_TIMESLOT_TWO:
+			setChannelFlag(&channelBuf->flag2, CODEPLUG_CHANNEL_FLAG2_TIMESLOT_TWO, enabled);
+			break;
+		case CHANNEL_FLAG_DISABLE_ALL_LEDS:
+			setChannelFlag(&channelBuf->flag3, CODEPLUG_CHANNEL_FLAG3_DISABLE_ALL_LEDS, enabled);
+			break;
+		case CHANNEL_FLAG_POWER:
+			setChannelFlag(&channelBuf->flag4, CODEPLUG_CHANNEL_FLAG4_POWER, enabled);
+			break;
+		case CHANNEL_FLAG_VOX:
+			setChannelFlag(&channelBuf->flag4, CODEPLUG_CHANNEL_FLAG4_VOX, enabled);
+			break;
+		case CHANNEL_FLAG_ZONE_SKIP:
+			setChannelFlag(&channelBuf->flag4, CODEPLUG_CHANNEL_FLAG4_ZONE_SKIP, enabled);
+			break;
+		case CHANNEL_FLAG_ALL_SKIP:
+			setChannelFlag(&channelBuf->flag4, CODEPLUG_CHANNEL_FLAG4_ALL_SKIP, enabled);
+			break;
+		case CHANNEL_FLAG_RX_ONLY:
+			setChannelFlag(&channelBuf->flag4, CODEPLUG_CHANNEL_FLAG4_RX_ONLY, enabled);
+			break;
+		case CHANNEL_FLAG_BW_25K:
+			setChannelFlag(&channelBuf->flag4, CODEPLUG_CHANNEL_FLAG4_BW_25K, enabled);
+			break;
+		case CHANNEL_FLAG_SQUELCH:
+			setChannelFlag(&channelBuf->flag4, CODEPLUG_CHANNEL_FLAG4_SQUELCH, enabled);
+			break;
+	}
 }
 
 void codeplugChannelGetDataWithOffsetAndLengthForIndex(int index, struct_codeplugChannel_t *channelBuf, uint8_t offset, int length)
@@ -535,6 +643,12 @@ void codeplugChannelGetDataForIndex(int index, struct_codeplugChannel_t *channel
 bool codeplugChannelSaveDataForIndex(int index, struct_codeplugChannel_t *channelBuf)
 {
 	bool retVal = true;
+#if defined(PLATFORM_MD9600)
+	bool outOfBandFlag = ((channelBuf->LibreDMR_flag1 & CODEPLUG_CHANNEL_LIBREDMR_FLAG1_OUT_OF_BAND) != 0);
+
+	// Clear the out of band flag, blindly.
+	channelBuf->LibreDMR_flag1 &= ~CODEPLUG_CHANNEL_LIBREDMR_FLAG1_OUT_OF_BAND;
+#endif
 
 	channelBuf->chMode = (channelBuf->chMode == RADIO_MODE_ANALOG) ? 0 : 1;
 	// Convert normal integers into legacy codeplug tx and rx freq values
@@ -577,7 +691,7 @@ bool codeplugChannelSaveDataForIndex(int index, struct_codeplugChannel_t *channe
 		retVal = SPI_Flash_eraseSector(flashSector * 4096);
 		if (!retVal)
 		{
-			return false;
+			goto errorExit;
 		}
 
 		for (int i = 0; i < 16; i++)
@@ -585,7 +699,7 @@ bool codeplugChannelSaveDataForIndex(int index, struct_codeplugChannel_t *channe
 			retVal = SPI_Flash_writePage(flashSector * 4096 + i * 256, SPI_Flash_sectorbuffer + i * 256);
 			if (!retVal)
 			{
-				return false;
+				goto errorExit;
 			}
 		}
 
@@ -601,7 +715,7 @@ bool codeplugChannelSaveDataForIndex(int index, struct_codeplugChannel_t *channe
 
 			if (!retVal)
 			{
-				return false;
+				goto errorExit;
 			}
 			for (int i = 0; i < 16; i++)
 			{
@@ -609,15 +723,22 @@ bool codeplugChannelSaveDataForIndex(int index, struct_codeplugChannel_t *channe
 
 				if (!retVal)
 				{
-					return false;
+					goto errorExit;
 				}
 			}
 
 		}
 	}
 
-	// Need to restore the values back to what we need for the operation of the firmware rather than the BCD values the codeplug uses
+errorExit:
+#if defined(PLATFORM_MD9600)
+	if (outOfBandFlag)
+	{
+		channelBuf->LibreDMR_flag1 |= CODEPLUG_CHANNEL_LIBREDMR_FLAG1_OUT_OF_BAND;
+	}
+#endif
 
+	// Need to restore the values back to what we need for the operation of the firmware rather than the BCD values the codeplug uses
 	channelBuf->chMode = (channelBuf->chMode == 0) ? RADIO_MODE_ANALOG : RADIO_MODE_DIGITAL;
 	// Convert the the legacy codeplug tx and rx freq values into normal integers
 	channelBuf->txFreq = bcd2int(channelBuf->txFreq);
@@ -738,7 +859,8 @@ int codeplugContactIndexByTGorPCFromNumber(int number, uint32_t tgorpc, uint32_t
 	for (int i = number; i < numContacts; i++)
 	{
 		if (((codeplugContactsCache.contactsLookupCache[i].tgOrPCNum & 0xFFFFFF) == tgorpc) &&
-				((codeplugContactsCache.contactsLookupCache[i].tgOrPCNum >> 24) == callType))
+				/* All Call, hence ignore callType */
+				((tgorpc == ALL_CALL_VALUE) || ((codeplugContactsCache.contactsLookupCache[i].tgOrPCNum >> 24) == callType)))
 		{
 			// Check for the contact TS override
 			if (optionalTS > 0)
@@ -970,6 +1092,11 @@ void codeplugContactsCacheRemoveContactAt(int index)
 			return;
 		}
 	}
+}
+
+uint32_t codeplugContactGetPackedId(struct_codeplugContact_t *contact)
+{
+	return ((contact->callType == CONTACT_CALLTYPE_PC) ? (contact->tgNumber | (PC_CALL_FLAG << 24)) : contact->tgNumber);
 }
 
 int codeplugContactGetFreeIndex(void)
@@ -1410,3 +1537,28 @@ int codeplugGetPasswordPin(int32_t *pinCode)
 	}
 	return pinLength;
 }
+/*
+void codeplugSetTAForTS(struct_codeplugChannel_t *tmpChannel, int ts,uint32_t newValue)
+{
+	uint32_t shift = ts==0?0:2;
+	int v = (tmpChannel->flag1 >> shift) & 0b00000011;
+
+	if (ts==0)
+	{
+		tmpChannel->flag1 &= 0b11111100;
+	}
+	else
+	{
+		tmpChannel->flag1 &= 0b11110011;
+	}
+
+	tmpChannel->flag1 |= (v << shift);
+}
+
+
+uint32_t codeplugGetTAForTS(struct_codeplugChannel_t *tmpChannel, int ts)
+{
+	uint32_t shift = ts==0?0:2;
+
+	return (tmpChannel->flag1 >> shift) & 0b00000011;
+}*/

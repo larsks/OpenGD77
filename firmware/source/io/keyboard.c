@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2019      Kai Ludwig, DG4KLU
  * Copyright (C) 2019-2020 Alex, DL4LEX
- * Copyright (C) 2019-2021 Roger Clark, VK3KYY / G4KYF
+ * Copyright (C) 2019-2023 Roger Clark, VK3KYY / G4KYF
  *                         Daniel Caujolle-Bert, F1RMB
  *
  *

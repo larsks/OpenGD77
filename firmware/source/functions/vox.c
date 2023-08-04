@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2021 Roger Clark, VK3KYY / G4KYF
+ * Copyright (C) 2020-2023 Roger Clark, VK3KYY / G4KYF
  *                         Daniel Caujolle-Bert, F1RMB
  *
  *
@@ -48,9 +48,9 @@ typedef struct
 	uint16_t sampled;
 	uint16_t averaged;
 	uint16_t noiseFloor;
-	uint32_t nextTimeSampling;
+	ticksTimer_t nextTimeSamplingTimer;
 	uint8_t  tailUnits;
-	uint32_t tailTime;
+	ticksTimer_t tailTimer;
 	uint16_t settleCount;
 } voxData_t;
 
@@ -77,7 +77,7 @@ void voxSetParameters(uint8_t threshold, uint8_t tailHalfSecond)
 
 bool voxIsEnabled(void)
 {
-	return ((currentChannelData->flag4 & 0x40) && (settingsUsbMode != USB_MODE_HOTSPOT));
+	return (codeplugChannelIsFlagSet(currentChannelData, CHANNEL_FLAG_VOX) && (settingsUsbMode != USB_MODE_HOTSPOT));
 }
 
 bool voxIsTriggered(void)
@@ -90,8 +90,8 @@ void voxReset(void)
 	vox.triggered = false;
 	vox.sampled = 0;
 	vox.averaged = 0;
-	vox.nextTimeSampling = ticksGetMillis() + PIT_COUNTS_PER_MS; // now + 1ms
-	vox.tailTime = 0;
+	ticksTimerStart(&vox.nextTimeSamplingTimer, PIT_COUNTS_PER_MS); // now + 1ms
+	ticksTimerReset(&vox.tailTimer);
 	vox.settleCount = VOX_SETTLE_TIME >> 1;
 	vox.preTrigger = 0;
 }
@@ -102,7 +102,7 @@ void voxTick(void)
 
 	if (voxIsEnabled())
 	{
-		if (ticksGetMillis() >= vox.nextTimeSampling)
+		if (ticksTimerHasExpired(&vox.nextTimeSamplingTimer))
 		{
 			if ((getAudioAmpStatus() & (AUDIO_AMP_MODE_RF | AUDIO_AMP_MODE_BEEP)))
 			{
@@ -130,7 +130,7 @@ void voxTick(void)
 					if (vox.preTrigger >= 100)
 					{
 						vox.triggered = true;
-						vox.tailTime = ticksGetMillis() + (vox.tailUnits * VOX_TAIL_TIME_UNIT);
+						ticksTimerStart(&vox.tailTimer, (vox.tailUnits * VOX_TAIL_TIME_UNIT));
 					}
 				}
 				else
@@ -146,13 +146,13 @@ void voxTick(void)
 				}
 			}
 
-			vox.nextTimeSampling = ticksGetMillis() + PIT_COUNTS_PER_MS; // now + 1ms
+			ticksTimerStart(&vox.nextTimeSamplingTimer, PIT_COUNTS_PER_MS); // now + 1ms
 		}
 
-		if ((vox.tailTime != 0) && (ticksGetMillis() >= vox.tailTime))
+		if ((vox.tailTimer.timeout != 0) && ticksTimerHasExpired(&vox.tailTimer))
 		{
 			vox.triggered = false;
-			vox.tailTime = 0;
+			ticksTimerReset(&vox.tailTimer);
 			vox.preTrigger = 0;
 		}
 	}

@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2019      Kai Ludwig, DG4KLU
- * Copyright (C) 2019-2021 Roger Clark, VK3KYY / G4KYF
+ * Copyright (C) 2019-2023 Roger Clark, VK3KYY / G4KYF
  *
  *
  * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions
@@ -109,9 +109,14 @@ const int MELODY_TX_TIMEOUT_BEEP[] = { 440, 60, 494, 60, 440, 60, 494, 60, 440, 
 const int MELODY_DMR_TX_START_BEEP[] = { 800, 50, -1, -1 };
 const int MELODY_DMR_TX_STOP_BEEP[] = { 500, 50, -1, -1 };
 const int MELODY_KEY_BEEP_FIRST_ITEM[] = { 800, 100, -1, -1 };
-const int MELODY_LOW_BATTERY[] = { 440, 200, 415, 200, 392, 200,-1, -1 };
+const int MELODY_LOW_BATTERY[] = { 440, 200, 415, 200, 392, 200, -1, -1 };
+const int MELODY_APO_TRIGGERED[] = { 440, 100, 392, 100, 440, 100, 392, 100, 440, 100, 392, 100, -1, -1 };
 const int MELODY_QUICKKEYS_CLEAR_ACK_BEEP[] = { 880, 120, 660, 120, 440, 120, 660, 120, 880, 120, -1, -1 };
-const int MELODY_RX_TGTSCC_WARNING_BEEP[] = { 880, 40, -1, -1 };
+const int MELODY_RX_TGTSCC_WARNING_BEEP[] = { 1200, 20, 0, 20, 1200, 20, 0, 20, 1200, 20, -1, -1 };
+const int MELODY_RX_BEEP_BEGIN_BEEP[] = { 1397, 60, -1, -1 };
+const int MELODY_RX_BEEP_END_BEEP[] = { 698, 60, -1, -1 };
+const int MELODY_RX_BEEP_CALLER_BEGIN_BEEP[] = { 660, 30, 1200, 30, -1, -1 };
+const int MELODY_RX_BEEP_CALLER_END_BEEP[] = { 880, 30, 660, 30, -1, -1 };
 
 // To calculate the pitch use a spreadsheet etc   =ROUND(98*POWER(2, (NOTE_NUMBER/12)),0)
 static const int freqs[64] = {0,104,110,117,123,131,139,147,156,165,175,185,196,208,220,233,247,262,277,294,311,330,349,370,392,415,440,466,494,523,554,587,622,659,698,740,784,831,880,932,988,1047,1109,1175,1245,1319,1397,1480,1568,1661,1760,1865,1976,2093,2217,2349,2489,2637,2794,2960,3136,3322,3520,3729};
@@ -120,6 +125,13 @@ volatile int *melody_play = NULL;
 volatile int melody_idx = 0;
 int soundBeepVolumeDivider;
 static volatile uint8_t audioAmpStatusMask = 0;
+
+volatile float dmrRxAGCrxPeakAverage = DMR_RX_AGC_DEFAULT_PEAK_SAMPLES;
+static volatile uint32_t dmrRxAGCpeakRx = 0;
+static volatile int lastDMRRxAGCGain = -99;// use initial out of range value for force reload
+static const uint32_t DMR_RX_AGC_PEAK_SAMPLES_WINDOW_AVERAGE_SIZE = 100;
+static int I2S_DAC_GAIN_LOOPUP[100] = { 29,23,18,14,11,9,7,6,4,2,2,1,1,1,0,0,0,0,0,0,-1,-1,-1,-1,-1,-1,-1,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-3,-3,-3,-3,-3,-3,-3,-3,-4,-4,-4,-4,-4,-4,-5,-5,-5,-5,-5,-5,-6,-6,-6,-6,-6,-6,-6,-6,-7,-7,-7,-7,-7,-7,-7,-7,-8,-8,-8,-8,-8,-8,-8,-8,-8,-8,-8,-9,-9,-9,-9,-9,-9,-9,-9,-9,-9,-9,-9,-9,-9,-9};
+
 
 uint8_t getAudioAmpStatus(void)
 {
@@ -157,15 +169,18 @@ void soundSetMelody(const int *melody)
 		voicePromptsTerminateNoTail(); // instant stop
 	}
 
-	taskENTER_CRITICAL();
-	if ((voicePromptsIsPlaying() == false) || (melody == NULL))
+	if ((melody == NULL) || (codeplugChannelIsFlagSet(currentChannelData, CHANNEL_FLAG_NO_BEEP) == false))
 	{
-		sine_beep_freq = 0;
-		sine_beep_duration = 0;
-		melody_play = (int *)melody;
-		melody_idx = 0;
+		taskENTER_CRITICAL();
+		if ((voicePromptsIsPlaying() == false) || (melody == NULL))
+		{
+			sine_beep_freq = 0;
+			sine_beep_duration = 0;
+			melody_play = (int *)melody;
+			melody_idx = 0;
+		}
+		taskEXIT_CRITICAL();
 	}
-	taskEXIT_CRITICAL();
 }
 
 void soundCreateSong(const uint8_t *melody)
@@ -260,14 +275,55 @@ void soundRetrieveBuffer(void)
 // This function is used by the I2S TX callback function to send the data through the bus
 bool soundRefillData(void)
 {
+	uint32_t samp;
+
 	if (wavbuffer_count > 0)
 	{
 		spi_soundBuf = spi_sound[g_SAI_TX_Handle.queueUser];
 
+		if (((wavbuffer_read_idx % 16) == 0) && !voicePromptsIsPlaying())
+		{
+			if ((nonVolatileSettings.DMR_RxAGC != 0) && (dmrRxAGCrxPeakAverage != 0))
+			{
+				int gain = dmrRxAGCrxPeakAverage / 250;
+
+				if (gain > 99)
+				{
+					gain = 99;
+				}
+
+				if (lastDMRRxAGCGain != gain)
+				{
+					lastDMRRxAGCGain = gain;
+					HRC6000SetDmrRxGain(I2S_DAC_GAIN_LOOPUP[gain] + ((nonVolatileSettings.DMR_RxAGC - 1) * 2));// 2 = 3dB
+				}
+			}
+		}
+
+		dmrRxAGCpeakRx = 0;
+
+
 		for (int i = 0; i < (WAV_BUFFER_SIZE / 2); i++)
 		{
-			*(spi_soundBuf + (4 * i) + 3) = audioAndHotspotDataBuffer.wavbuffer[wavbuffer_read_idx][(2 * i) + 1];
-			*(spi_soundBuf + (4 * i) + 2) = audioAndHotspotDataBuffer.wavbuffer[wavbuffer_read_idx][2 * i];
+			swapper.bytes8[1] = *(spi_soundBuf + (4 * i) + 3) = audioAndHotspotDataBuffer.wavbuffer[wavbuffer_read_idx][(2 * i) + 1];
+			swapper.bytes8[0] = *(spi_soundBuf + (4 * i) + 2) = audioAndHotspotDataBuffer.wavbuffer[wavbuffer_read_idx][2 * i];
+			samp = abs(swapper.byte16);
+
+			if (samp > dmrRxAGCpeakRx)
+			{
+				dmrRxAGCpeakRx = samp;
+			}
+		}
+
+		// filter out some but not all kerchunkers
+		if ((dmrRxAGCpeakRx > 200)  && !voicePromptsIsPlaying())
+		{
+			dmrRxAGCrxPeakAverage -= dmrRxAGCrxPeakAverage / DMR_RX_AGC_PEAK_SAMPLES_WINDOW_AVERAGE_SIZE;
+			dmrRxAGCrxPeakAverage += ((float)dmrRxAGCpeakRx) / DMR_RX_AGC_PEAK_SAMPLES_WINDOW_AVERAGE_SIZE;
+			if (dmrRxAGCpeakRx > 500)
+			{
+				LinkHead->rxAGCGain = dmrRxAGCrxPeakAverage;
+			}
 		}
 
 		// The transfer can fail

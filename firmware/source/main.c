@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2019      Kai Ludwig, DG4KLU
- * Copyright (C) 2019-2021 Roger Clark, VK3KYY / G4KYF
+ * Copyright (C) 2019-2023 Roger Clark, VK3KYY / G4KYF
  *                         Daniel Caujolle-Bert, F1RMB
  *
  *
@@ -75,6 +75,10 @@ bool headerRowIsDirty = false;
 bool isSuspended = false;
 
 static bool updateMessageOnScreen = false;
+
+#if !defined(PLATFORM_GD77S)
+ticksTimer_t apoTimer;
+#endif
 
 static void showErrorMessage(const char *message);
 static void wakeFromSleep(void);
@@ -164,10 +168,9 @@ static bool batteryisLowVoltageSuspendToPoweroff(void)
 
 static void batteryChecking(uiEvent_t *ev)
 {
-	static uint32_t lowBatteryBeepTimer = 0;
+	static ticksTimer_t lowBatteryBeepTimer = { 0, 0 };
+	static ticksTimer_t lowBatteryHeaderRedrawTimer = { 0, 0 };
 	static uint32_t lowBatteryCriticalCount = 0;
-	static uint32_t lowBatteryHeaderRedrawTime = 0;
-
 	bool lowBatteryWarning = batteryIsLowVoltageWarning();
 	bool batIsLow = false;
 
@@ -178,10 +181,10 @@ static void batteryChecking(uiEvent_t *ev)
 			: (lowBatteryCount ? -1 : 0));
 
 	// Do we need to redraw the header row now ?
-	if ((batIsLow = batteryIsLowWarning()) && (ticksGetMillis() > lowBatteryHeaderRedrawTime))
+	if ((batIsLow = batteryIsLowWarning()) && ticksTimerHasExpired(&lowBatteryHeaderRedrawTimer))
 	{
 		headerRowIsDirty = true;
-		lowBatteryHeaderRedrawTime = ticksGetMillis() + 500;
+		ticksTimerStart(&lowBatteryHeaderRedrawTimer, 500);
 	}
 
 	if ((settingsUsbMode != USB_MODE_HOTSPOT) &&
@@ -191,7 +194,7 @@ static void batteryChecking(uiEvent_t *ev)
 			(menuSystemGetCurrentMenuNumber() != UI_TX_SCREEN) &&
 #endif
 			batIsLow &&
-			(ticksGetMillis() > lowBatteryBeepTimer))
+			ticksTimerHasExpired(&lowBatteryBeepTimer))
 	{
 
 		if (melody_play == NULL)
@@ -207,7 +210,25 @@ static void batteryChecking(uiEvent_t *ev)
 				voicePromptsPlay();
 			}
 
-			lowBatteryBeepTimer = ticksGetMillis() + LOW_BATTERY_INTERVAL;
+			// Let the beep sound, or the VP, to finish to play before resuming the scan (otherwise is could be silent).
+			if (uiDataGlobal.Scan.active)
+			{
+				uiDataGlobal.Scan.active = false;
+				watchdogRun(false);
+
+				while ((melody_play != NULL) || voicePromptsIsPlaying())
+				{
+					voicePromptsTick();
+					soundTickMelody();
+
+					vTaskDelay((1 / portTICK_PERIOD_MS));
+				}
+
+				watchdogRun(true);
+				uiDataGlobal.Scan.active = true;
+			}
+
+			ticksTimerStart(&lowBatteryBeepTimer, LOW_BATTERY_INTERVAL);
 		}
 	}
 
@@ -241,7 +262,7 @@ static void batteryChecking(uiEvent_t *ev)
 			if (lowBatteryCriticalCount > LOW_BATTERY_VOLTAGE_RECOVERY_TIME)
 			{
 				showLowBattery();
-				powerOffFinalStage(false);
+				powerOffFinalStage(false, false);
 			}
 		}
 #if ! defined(PLATFORM_RD5R)
@@ -265,7 +286,7 @@ static void batteryChecking(uiEvent_t *ev)
 
 			if (suspend)
 			{
-				powerOffFinalStage(true);
+				powerOffFinalStage(true, false);
 			}
 			else
 			{
@@ -276,11 +297,70 @@ static void batteryChecking(uiEvent_t *ev)
 	}
 }
 
-static void die(bool usbMonitoring, bool maintainRTC)
+#if !defined(PLATFORM_GD77S)
+static void apoTick(bool eventFromOperator)
+{
+	if (nonVolatileSettings.apo > 0)
+	{
+		int currentMenu = menuSystemGetCurrentMenuNumber();
+
+		// Reset APO timer:
+		//   - on events
+		//   - when scanning
+		//   - when user has set a Satellite alarm
+		//   - when transmissing, while in hotspot mode or while using the CPS
+		//   - on RF activity
+		if (eventFromOperator ||
+				uiDataGlobal.Scan.active ||
+				((currentMenu == UI_TX_SCREEN) || (currentMenu == UI_HOTSPOT_MODE) || (currentMenu == UI_CPS)) ||
+				(uiDataGlobal.SatelliteAndAlarmData.alarmType != ALARM_TYPE_NONE))
+		{
+			if (uiNotificationIsVisible() && (uiNotificationGetId() == NOTIFICATION_ID_USER_APO))
+			{
+				uiNotificationHide(true);
+			}
+
+			ticksTimerStart(&apoTimer, ((nonVolatileSettings.apo * 30) * 60000U));
+		}
+
+		// No event in the last 'apo' time => Suspend
+		if (ticksTimerHasExpired(&apoTimer))
+		{
+			powerOffFinalStage(true, true);
+
+			// Hide notification and reset APO timer when resuming from suspension.
+			uiNotificationHide(true);
+			ticksTimerStart(&apoTimer, ((nonVolatileSettings.apo * 30) * 60000U));
+		}
+		else
+		{
+			 // 1 minute or less is remaining, it's time to show the APO notification
+			if ((ticksTimerRemaining(&apoTimer) <= 60000U) &&
+					((uiNotificationIsVisible() && (uiNotificationGetId() == NOTIFICATION_ID_USER_APO)) == false))
+			{
+				if (nonVolatileSettings.audioPromptMode < AUDIO_PROMPT_MODE_VOICE_LEVEL_1)
+				{
+					soundSetMelody(MELODY_APO_TRIGGERED);
+				}
+				else
+				{
+					voicePromptsInit();
+					voicePromptsAppendLanguageString(&currentLanguage->auto_power_off);
+					voicePromptsPlay();
+				}
+
+				uiNotificationShow(NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_USER_APO, 60000U, currentLanguage->auto_power_off, true);
+			}
+		}
+	}
+}
+#endif
+
+static void die(bool usbMonitoring, bool maintainRTC, bool forceSuspend)
 {
 #if !defined(PLATFORM_RD5R) && !defined(PLATFORM_GD77S)
 	uint32_t lowBatteryCriticalCount = 0;
-	uint32_t nextPITCounterRun = ticksGetMillis() + SUSPEND_LOW_BATTERY_RATE;
+	ticksTimer_t nextPITCounterRunTimer = { ticksGetMillis(), SUSPEND_LOW_BATTERY_RATE };
 
 	if (!maintainRTC)
 	{
@@ -309,6 +389,16 @@ static void die(bool usbMonitoring, bool maintainRTC)
 	{
 		uint8_t batteryLowRetries = 50;
 		int8_t batteryCriticalCount = 0;
+#if !defined(PLATFORM_GD77S)
+		uint32_t prevPowerSwitchState =
+#if !defined(PLATFORM_RD5R)
+				GPIO_PinRead(GPIO_Power_Switch, Pin_Power_Switch)
+#else
+				1
+#endif
+				;
+#endif
+
 		while(batteryLowRetries-- > 0)
 		{
 			batteryCriticalCount += (batteryLastReadingIsCritical() ? 1 : (batteryCriticalCount ? -1 : 0));
@@ -342,10 +432,29 @@ static void die(bool usbMonitoring, bool maintainRTC)
 				while(true);
 			}
 
-#if !defined(PLATFORM_RD5R) && !defined(PLATFORM_GD77S)
+#if !defined(PLATFORM_GD77S)
 			if (uiDataGlobal.SatelliteAndAlarmData.alarmType == ALARM_TYPE_NONE)
 			{
-				if (GPIO_PinRead(GPIO_Power_Switch, Pin_Power_Switch) == 0)
+				uint32_t powerSwitchState =
+#if !defined(PLATFORM_RD5R)
+						GPIO_PinRead(GPIO_Power_Switch, Pin_Power_Switch)
+#else
+						1
+#endif
+						;
+
+
+				// Safe Power On option is ON, user didn't press SK1 on power ON, so
+				// forceSuspend is true.
+				// Now, user just turned OFF the power switch, clear the forceSuspend flag to
+				// be able to handle the power ON event.
+				if ((powerSwitchState != 0) && forceSuspend)
+				{
+					forceSuspend = false;
+				}
+
+				if ((powerSwitchState == 0) && (forceSuspend == false) &&
+						((settingsIsOptionBitSet(BIT_SAFE_POWER_ON) ? (((buttonsRead() & BUTTON_SK1) != 0) && (powerSwitchState != prevPowerSwitchState)) : true)))
 				{
 					// User wants to go in bootloader mode
 					if (buttonsRead() == (BUTTON_SK1 | BUTTON_SK2))
@@ -356,9 +465,13 @@ static void die(bool usbMonitoring, bool maintainRTC)
 					wakeFromSleep();
 					return;
 				}
-			}
 
-			if (ticksGetMillis() > nextPITCounterRun)
+				prevPowerSwitchState = powerSwitchState;
+			}
+#endif
+
+#if !defined(PLATFORM_RD5R) && !defined(PLATFORM_GD77S)
+			if (ticksTimerHasExpired(&nextPITCounterRunTimer))
 			{
 				// Check if the battery has reached critical voltage (power off)
 				bool lowBatteryCritical = batteryisLowVoltageSuspendToPoweroff();
@@ -372,7 +485,7 @@ static void die(bool usbMonitoring, bool maintainRTC)
 					while(true);
 				}
 
-				nextPITCounterRun = ticksGetMillis() + SUSPEND_LOW_BATTERY_RATE;
+				ticksTimerStart(&nextPITCounterRunTimer, SUSPEND_LOW_BATTERY_RATE);
 			}
 
 			if (uiDataGlobal.SatelliteAndAlarmData.alarmType != ALARM_TYPE_NONE)
@@ -444,11 +557,20 @@ static void wakeFromSleep(void)
 		HRC6000InitDigitalDmrRx();
 	}
 #endif
+
+#if !defined(PLATFORM_GD77S)
+#warning REMOVE ME ONCE MCU HALT IS WORKING
+	if (nonVolatileSettings.apo > 0)
+	{
+		ticksTimerStart(&apoTimer, ((nonVolatileSettings.apo * 30) * 60000U));
+	}
+#endif
+
 	isSuspended = false;
 }
 
 
-void powerOffFinalStage(bool maintainRTC)
+void powerOffFinalStage(bool maintainRTC, bool forceSuspend)
 {
 	uint32_t m;
 
@@ -500,7 +622,7 @@ void powerOffFinalStage(bool maintainRTC)
 	}
 #endif
 
-	die(false, maintainRTC);
+	die(false, maintainRTC, forceSuspend);
 }
 
 static void showErrorMessage(const char *message)
@@ -566,6 +688,88 @@ static void keyBeepHandler(uiEvent_t *ev, bool ptttoggleddown)
 			}
 		}
 	}
+}
+
+static bool rxBeepsMustPlayMelody(uint8_t rxBitOption)
+{
+	return ((nonVolatileSettings.beepOptions & rxBitOption) && (settingsUsbMode != USB_MODE_HOTSPOT) &&
+			((uiDataGlobal.Scan.active == false) || (uiDataGlobal.Scan.active && (uiDataGlobal.Scan.state == SCAN_PAUSED))) &&
+			(nonVolatileSettings.audioPromptMode != AUDIO_PROMPT_MODE_SILENT) && (voicePromptsIsPlaying() == false));
+}
+
+static void rxBeepsCarrierEndCallback(void)
+{
+	soundSetMelody(MELODY_RX_BEEP_END_BEEP);
+}
+
+static bool rxBeepsHandler(void)
+{
+	if (uiDataGlobal.rxBeepState & RX_BEEP_CARRIER_HAS_STARTED_EXEC)
+	{
+		// Don't clear the RF start beep when scanning, it has to be played, so wait the scan has paused.
+		if ((uiDataGlobal.Scan.active &&
+				((uiDataGlobal.Scan.state == SCAN_SCANNING) || (uiDataGlobal.Scan.state == SCAN_SHORT_PAUSED))) == false)
+		{
+			uiDataGlobal.rxBeepState &= ~RX_BEEP_CARRIER_HAS_STARTED_EXEC;
+		}
+
+		if (rxBeepsMustPlayMelody(BEEP_RX_CARRIER))
+		{
+			// Cancel queued rx end beep, if any. In this case, there is no
+			// need to play another start beep, as the previous one has already
+			// been heard.
+			if (cancelTimerCallback(rxBeepsCarrierEndCallback, MENU_ANY) == false)
+			{
+				soundSetMelody(MELODY_RX_BEEP_BEGIN_BEEP);
+			}
+
+			return true;
+		}
+	}
+	else if (uiDataGlobal.rxBeepState & RX_BEEP_TALKER_HAS_STARTED_EXEC)
+	{
+		uiDataGlobal.rxBeepState &= ~(RX_BEEP_TALKER_HAS_STARTED_EXEC | RX_BEEP_TALKER_HAS_ENDED | RX_BEEP_TALKER_HAS_ENDED_EXEC);
+
+		if ((nonVolatileSettings.beepOptions & BEEP_RX_TALKER_BEGIN) && rxBeepsMustPlayMelody(BEEP_RX_TALKER))
+		{
+			soundSetMelody(MELODY_RX_BEEP_CALLER_BEGIN_BEEP);
+
+			return true;
+		}
+	}
+	else if (uiDataGlobal.rxBeepState & RX_BEEP_TALKER_HAS_ENDED_EXEC)
+	{
+		// FM: Replace Carrier beeps with Talker beeps if Caller beep option is selected.
+		if ((trxGetMode() == RADIO_MODE_ANALOG) && ((nonVolatileSettings.beepOptions & BEEP_RX_CARRIER) == 0) && (nonVolatileSettings.beepOptions & BEEP_RX_TALKER))
+		{
+			uiDataGlobal.rxBeepState = RX_BEEP_UNSET;
+		}
+		else
+		{
+			uiDataGlobal.rxBeepState &= ~(RX_BEEP_TALKER_HAS_ENDED_EXEC | RX_BEEP_TALKER_HAS_STARTED | RX_BEEP_TALKER_HAS_STARTED_EXEC | RX_BEEP_TALKER_IDENTIFIED);
+		}
+
+		if (rxBeepsMustPlayMelody(BEEP_RX_TALKER))
+		{
+			soundSetMelody(MELODY_RX_BEEP_CALLER_END_BEEP);
+
+			return true;
+		}
+	}
+	else if (uiDataGlobal.rxBeepState & RX_BEEP_CARRIER_HAS_ENDED)
+	{
+		uiDataGlobal.rxBeepState = RX_BEEP_UNSET;
+
+		if (rxBeepsMustPlayMelody(BEEP_RX_CARRIER))
+		{
+			// Delays end beep tone by 100ms, as it could played immediately after CALLER_END_BEEP on some conditions
+			(void)addTimerCallback(rxBeepsCarrierEndCallback, 150, MENU_ANY, false);
+
+			return true;
+		}
+	}
+
+	return false;
 }
 
 #if !defined(PLATFORM_GD77S)
@@ -666,7 +870,7 @@ void mainTaskFunction(void *data)
 	{
 		showErrorMessage("CAL DATA ERROR");
 		USB_DeviceApplicationInit();
-		die(true, false);
+		die(true, false, false);
 	}
 
 	// Check if DMR codec is available
@@ -702,7 +906,7 @@ void mainTaskFunction(void *data)
 #if !defined(PLATFORM_RD5R)
 		GPIO_PinWrite(GPIO_Keep_Power_On, Pin_Keep_Power_On, 0);
 #endif
-		die(false, false);
+		die(false, false, false);
 	}
 
 	HRC6000InitTask();
@@ -778,6 +982,13 @@ void mainTaskFunction(void *data)
 		voicePromptsAppendString((nonVolatileSettings.hotspotType == HOTSPOT_TYPE_MMDVM) ? "MMDVM" : "BlueDV");
 		voicePromptsPlay();
 	}
+#else
+#if !defined(PLATFORM_MD9600)
+	if (settingsIsOptionBitSet(BIT_SAFE_POWER_ON) && ((buttons & BUTTON_SK1) != BUTTON_SK1))
+	{
+		powerOffFinalStage(true, true);
+	}
+#endif
 #endif
 
 	menuSystemInit();
@@ -795,6 +1006,10 @@ void mainTaskFunction(void *data)
 	keys.key = 0;
 
 	watchdogInit();
+
+#if !defined(PLATFORM_GD77S)
+	ticksTimerStart(&apoTimer, ((nonVolatileSettings.apo * 30) * 60000U));
+#endif
 
 	while (1U)
 	{
@@ -814,6 +1029,52 @@ void mainTaskFunction(void *data)
 
 			rotarySwitchCheckRotaryEvent(&rotary, &rotary_event); // Rotary switch state and event (GD-77S only)
 
+#if !defined(PLATFORM_RD5R)
+			// Circumvent defective/weak Orange button, using SK1 + GREEN combination
+			if (buttons & BUTTON_SK1)
+			{
+				bool clearSK1 = false;
+
+				if (keys.key == KEY_GREEN)
+				{
+					buttons |= BUTTON_ORANGE;
+					button_event = EVENT_BUTTON_CHANGE;
+					clearSK1 = true;
+
+					if ((keys.event & (KEY_MOD_PRESS | KEY_MOD_LONG)) == (KEY_MOD_PRESS | KEY_MOD_LONG))
+					{
+						buttons |= BUTTON_ORANGE_EXTRA_LONG_DOWN;
+					}
+					else if ((keys.event & (KEY_MOD_DOWN | KEY_MOD_LONG)) == (KEY_MOD_DOWN | KEY_MOD_LONG))
+					{
+						buttons |= BUTTON_ORANGE_LONG_DOWN;
+					}
+					else if ((keys.event & (KEY_MOD_UP | KEY_MOD_LONG)) == KEY_MOD_UP)
+					{
+						buttons |= BUTTON_ORANGE_SHORT_UP;
+					}
+					else if (keys.event & KEY_MOD_UP)
+					{
+						buttons = EVENT_BUTTON_NONE;
+					}
+
+					keys.event = EVENT_KEY_NONE;
+					keys.key = 0;
+				}
+
+				if (clearSK1)
+				{
+					// Clear all SK1 flags
+					buttons &= ~(BUTTON_SK1 | BUTTON_SK1_SHORT_UP | BUTTON_SK1_LONG_DOWN | BUTTON_SK1_EXTRA_LONG_DOWN);
+
+					if (buttons == BUTTON_NONE)
+					{
+						button_event = EVENT_BUTTON_NONE;
+					}
+				}
+			}
+#endif
+
 			if (uiDataGlobal.SatelliteAndAlarmData.alarmType != ALARM_TYPE_NONE && (buttons & BUTTON_SK1 & BUTTON_SK2))
 			{
 				wakeFromSleep();
@@ -825,14 +1086,21 @@ void mainTaskFunction(void *data)
 				wasRestoringDefaultsettings = false;
 				updateMessageOnScreen = true;
 
-				snprintf(uiDataGlobal.MessageBox.message, MESSAGEBOX_MESSAGE_LEN_MAX, "%s", "Settings\nupdate");
+				menuSystemPushNewMenu(MENU_LANGUAGE);
+
+				snprintf(uiDataGlobal.MessageBox.message, MESSAGEBOX_MESSAGE_LEN_MAX, "%s", "Settings\nUpdated");
 				uiDataGlobal.MessageBox.type = MESSAGEBOX_TYPE_INFO;
 				uiDataGlobal.MessageBox.decoration = MESSAGEBOX_DECORATION_FRAME;
-				uiDataGlobal.MessageBox.buttons = MESSAGEBOX_BUTTONS_OK;
+				uiDataGlobal.MessageBox.buttons =
+#if defined(PLATFORM_MD9600)
+						MESSAGEBOX_BUTTONS_ENT;
+#else
+						MESSAGEBOX_BUTTONS_OK;
+#endif
 				uiDataGlobal.MessageBox.validatorCallback = validateUpdateCallback;
 				menuSystemPushNewMenu(UI_MESSAGE_BOX);
 
-				addTimerCallback(settingsUpdateAudioAlert, 500, UI_MESSAGE_BOX, false);// Need to delay playing this for a while, because otherwise it may get played before the volume is turned up enough to hear it.
+				(void)addTimerCallback(settingsUpdateAudioAlert, 100, UI_MESSAGE_BOX, false);// Need to delay playing this for a while, because otherwise it may get played before the volume is turned up enough to hear it.
 			}
 #endif
 
@@ -882,7 +1150,7 @@ void mainTaskFunction(void *data)
 			}
 
 			// EVENT_*_CHANGED can be cleared later, so check this now as hasEvent has to be set anyway.
-			keyOrButtonChanged = ((key_event != NO_EVENT) || (button_event != NO_EVENT) || (rotary_event != NO_EVENT));
+			keyOrButtonChanged = ((key_event != EVENT_KEY_NONE) || (button_event != EVENT_BUTTON_NONE) || (rotary_event != EVENT_ROTARY_NONE));
 
 			if (headerRowIsDirty == true)
 			{
@@ -1040,7 +1308,7 @@ void mainTaskFunction(void *data)
 				PTTToggledDown = false;
 				button_event = EVENT_BUTTON_CHANGE;
 				buttons = BUTTON_NONE;
-				key_event = NO_EVENT;
+				key_event = EVENT_KEY_NONE;
 				keys.key = 0;
 			}
 
@@ -1265,30 +1533,92 @@ void mainTaskFunction(void *data)
 				else
 				{
 #endif
-					if ((keyFunction != 0) && (currentMenu == UI_CHANNEL_MODE || currentMenu == UI_VFO_MODE || currentMenu == menuFunction))
+					if ((keyFunction != 0) &&
+							((currentMenu == UI_CHANNEL_MODE) || (currentMenu == UI_VFO_MODE) || (currentMenu == menuFunction)))
 					{
 						if (QUICKKEY_TYPE(keyFunction) == QUICKKEY_MENU)
 						{
-							if ((menuFunction > 0) && (menuFunction < NUM_MENU_ENTRIES))
-							{
-								if (currentMenu != menuFunction)
-								{
-									menuSystemPushNewMenu(menuFunction);
+							bool inChannelMenu;
+							bool qkIsValid = true;
 
-									// Store the beep build by the new menu status. It will be restored after
-									// the call of menuSystemCallCurrentMenuTick(), below
-									quickkeyPushedMenuMelody = nextKeyBeepMelody;
+							//
+							// QuickMenu special cases:
+							//
+							//   It's permited to share filter quickkeys between Channels and VFO screen.
+							//   For this, the itemIndex value needs to be tweaked.
+							//
+							//   Other QuickMenu entries will simply be ignored if the current Channel/VFO screen doesn't
+							//   match the QuickKey menuId.
+							//
+							if ((inChannelMenu = (currentMenu == UI_CHANNEL_MODE)) || (currentMenu == UI_VFO_MODE))
+							{
+								// The current QuickKey menu destination doesn't match the current menu (Channel or VFO)
+								if (menuFunction == (inChannelMenu ? UI_VFO_QUICK_MENU : UI_CHANNEL_QUICK_MENU))
+								{
+									int entryId = QUICKKEY_ENTRYID(keyFunction);
+
+									// Convert filters positions
+									if ((entryId >= (inChannelMenu ? VFO_SCREEN_QUICK_MENU_FILTER_FM : CH_SCREEN_QUICK_MENU_FILTER_FM))
+											&& (entryId <= (inChannelMenu ? VFO_SCREEN_QUICK_MENU_FILTER_DMR_TS : CH_SCREEN_QUICK_MENU_FILTER_DMR_TS)))
+									{
+										// Apply entry offset to match the filter position on the opposite screen
+										if (inChannelMenu)
+										{
+#if defined(PLATFORM_DM1801)
+											entryId -= 1;
+#else
+											entryId -= 2;
+#endif
+										}
+										else
+										{
+#if defined(PLATFORM_DM1801)
+											entryId += 1;
+#else
+											entryId += 2;
+#endif
+										}
+
+										int kf = QUICKKEY_MENUVALUE((inChannelMenu ? UI_CHANNEL_QUICK_MENU : UI_VFO_QUICK_MENU), entryId, QUICKKEY_FUNCTIONID(keyFunction));
+										keyFunction = kf;
+										menuFunction = (inChannelMenu ? UI_CHANNEL_QUICK_MENU : UI_VFO_QUICK_MENU);
+									}
+									else
+									{
+										// We can't use other VFO/Channel QuickMenu entry in a mismatching screen.
+										qkIsValid = false;
+										keyFunction = NO_EVENT;
+									}
 								}
 							}
-							ev.function = keyFunction;
-							buttons = BUTTON_NONE;
-							rotary = 0;
-							key_event = EVENT_KEY_NONE;
-							button_event = EVENT_BUTTON_NONE;
-							rotary_event = EVENT_ROTARY_NONE;
-							keys.key = 0;
-							keys.event = 0;
-							function_event = FUNCTION_EVENT;
+
+							if (qkIsValid)
+							{
+								if ((menuFunction > 0) && (menuFunction < NUM_MENU_ENTRIES))
+								{
+									if (currentMenu != menuFunction)
+									{
+										menuSystemPushNewMenu(menuFunction);
+
+										// Store the beep build by the new menu status. It will be restored after
+										// the call of menuSystemCallCurrentMenuTick(), below
+										quickkeyPushedMenuMelody = nextKeyBeepMelody;
+									}
+								}
+								ev.function = keyFunction;
+								buttons = BUTTON_NONE;
+								rotary = 0;
+								key_event = EVENT_KEY_NONE;
+								button_event = EVENT_BUTTON_NONE;
+								rotary_event = EVENT_ROTARY_NONE;
+								keys.key = 0;
+								keys.event = 0;
+								function_event = FUNCTION_EVENT;
+							}
+							else
+							{
+								menuFunction = 0;
+							}
 						}
 						else if ((QUICKKEY_TYPE(keyFunction) == QUICKKEY_CONTACT) && (currentMenu != menuFunction))
 						{
@@ -1330,7 +1660,7 @@ void mainTaskFunction(void *data)
 			ev.keys = keys;
 			ev.rotary = rotary;
 			ev.events = function_event | (button_event << 1) | (rotary_event << 3) | key_event;
-			ev.hasEvent = keyOrButtonChanged || function_event;
+			ev.hasEvent = keyOrButtonChanged || (function_event != NO_EVENT);
 			ev.time = ticksGetMillis();
 
 			/*
@@ -1385,15 +1715,20 @@ void mainTaskFunction(void *data)
 				{
 					soundStopMelody();
 				}
+
+				(void)rxBeepsHandler(); // It will remain silent, only clearing the rxToneState bits.
 			}
 			else
 			{
-				if ((menuSystemGetCurrentMenuNumber() != UI_SPLASH_SCREEN) &&
-						((((key_event == EVENT_KEY_CHANGE) || (button_event == EVENT_BUTTON_CHANGE))
-								&& ((buttons & BUTTON_PTT) == 0) && (ev.keys.key != 0))
-								|| (function_event == FUNCTION_EVENT)))
+				if (rxBeepsHandler() == false)
 				{
-					keyBeepHandler(&ev, PTTToggledDown);
+					if ((menuSystemGetCurrentMenuNumber() != UI_SPLASH_SCREEN) &&
+							((((key_event == EVENT_KEY_CHANGE) || (button_event == EVENT_BUTTON_CHANGE))
+									&& ((buttons & BUTTON_PTT) == 0) && (ev.keys.key != 0))
+									|| (function_event == FUNCTION_EVENT)))
+					{
+						keyBeepHandler(&ev, PTTToggledDown);
+					}
 				}
 			}
 
@@ -1437,6 +1772,12 @@ void mainTaskFunction(void *data)
 				uiNotificationHide(true);
 			}
 
+#if !defined(PLATFORM_GD77S)
+			// APO checkings
+			apoTick((keyOrButtonChanged || (function_event != NO_EVENT) ||
+					(settingsIsOptionBitSet(BIT_APO_WITH_RF) ? (getAudioAmpStatus() & AUDIO_AMP_MODE_RF) : false)));
+#endif
+
 			timer_maintask = 1; // Reset PIT Counter
 		}
 
@@ -1474,10 +1815,10 @@ void mainTaskFunction(void *data)
 							}
 							else
 							{
-								if (ticksGetMillis() > readDMRRSSI)
+								if (ticksTimerHasExpired((ticksTimer_t *)&readDMRRSSITimer))
 								{
 									trxReadRSSIAndNoise(false);
-									readDMRRSSI = ticksGetMillis() + 10000;// hold of for a very long time
+									ticksTimerStart((ticksTimer_t *)&readDMRRSSITimer, 10000); // hold of for a very long time
 								}
 								hasSignal = true;
 							}

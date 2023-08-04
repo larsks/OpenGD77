@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2021 Roger Clark, VK3KYY / G4KYF
+ * Copyright (C) 2019-2023 Roger Clark, VK3KYY / G4KYF
  *                         Daniel Caujolle-Bert, F1RMB
  *
  *
@@ -35,7 +35,11 @@
 #include "functions/voicePrompts.h"
 
 
-#define MENU_MAX_DISPLAYED_ENTRIES 3
+#if defined(PLATFORM_MD380) || defined(PLATFORM_MDUV380)
+#define MENU_MAX_DISPLAYED_ENTRIES 7 // Should be an odd value
+#else
+#define MENU_MAX_DISPLAYED_ENTRIES 3 // Should be an odd value
+#endif
 
 // Short press event
 #define BUTTONCHECK_SHORTUP(e, sk) (((e)->keys.key == 0) && ((e)->buttons & sk ## _SHORT_UP))
@@ -85,6 +89,17 @@ typedef enum
 	NOTIFICATION_TYPE_MAX
 } uiNotificationType_t;
 
+typedef enum
+{
+	NOTIFICATION_ID_NONE = 0,
+	NOTIFICATION_ID_SQUELCH,
+	NOTIFICATION_ID_POWER,
+	NOTIFICATION_ID_MESSAGE,
+	NOTIFICATION_ID_USER /* Could use _USER, _USER + 1, + 2, etc... */
+} uiNotificationID_t;
+
+#define NOTIFICATION_ID_USER_APO (NOTIFICATION_ID_USER)
+
 
 typedef struct
 {
@@ -128,7 +143,10 @@ typedef struct
 void menuDisplayTitle(const char *title);
 void menuDisplayEntry(int loopOffset, int focusedItem,const char *entryText);
 
-int menuGetMenuOffset(int maxMenuEntries, int loopOffset);
+// menuGetMenuOffset() return values
+#define MENU_OFFSET_BEFORE_FIRST_ENTRY -1
+#define MENU_OFFSET_AFTER_LAST_ENTRY   -2
+int menuGetMenuOffset(int maxMenuItems, int loopOffset);
 
 void uiChannelModeUpdateScreen(int txTimeSecs);
 void uiChannelModeColdStart(void);
@@ -206,11 +224,12 @@ void uiChannelModeHeartBeatActivityForGD77S(uiEvent_t *ev);
 #endif
 
 
-void uiNotificationShow(uiNotificationType_t type, uint32_t msTimeout, const char *message, bool immediateRender);
+void uiNotificationShow(uiNotificationType_t type, uiNotificationID_t id, uint32_t msTimeout, const char *message, bool immediateRender);
 void uiNotificationRefresh(void);
 bool uiNotificationHasTimedOut(void);
 bool uiNotificationIsVisible(void);
 void uiNotificationHide(bool immediateRender);
+uiNotificationID_t uiNotificationGetId(void);
 
 
 
@@ -247,6 +266,8 @@ enum MENU_SCREENS
 	MENU_CONTACT_LIST_SUBMENU,
 	MENU_CONTACT_DETAILS,
 	MENU_LANGUAGE,
+	UI_CHANNEL_QUICK_MENU,
+	UI_VFO_QUICK_MENU,
 	// *** Add new menus to be accessed using quickkey (ID: 0..31) above this line ***
 	UI_MESSAGE_BOX,
 	UI_HOTSPOT_MODE,
@@ -259,12 +280,44 @@ enum MENU_SCREENS
 	UI_CHANNEL_MODE,
 	MENU_FIRMWARE_INFO,
 	MENU_CHANNEL_DETAILS,
-	UI_CHANNEL_QUICK_MENU,
-	UI_VFO_QUICK_MENU,
 	UI_LOCK_SCREEN,
 	UI_PRIVATE_CALL,
 	MENU_CONTACT_NEW,
 	NUM_MENU_ENTRIES
+};
+
+
+// QuickMenus
+enum CHANNEL_SCREEN_QUICK_MENU_ITEMS
+{
+	CH_SCREEN_QUICK_MENU_COPY2VFO = 0,
+	CH_SCREEN_QUICK_MENU_COPY_FROM_VFO,
+	CH_SCREEN_QUICK_MENU_FILTER_FM,
+	CH_SCREEN_QUICK_MENU_FILTER_DMR,
+	CH_SCREEN_QUICK_MENU_DMR_CC_SCAN,
+	CH_SCREEN_QUICK_MENU_FILTER_DMR_TS,
+	NUM_CH_SCREEN_QUICK_MENU_ITEMS
+};
+
+enum VFO_SCREEN_QUICK_MENU_ITEMS
+{
+#if defined(PLATFORM_GD77) || defined(PLATFORM_GD77S) || defined(PLATFORM_RD5R) || defined(PLATFORM_DM1801A) || defined(PLATFORM_MD9600) || defined(PLATFORM_MDUV380) || defined(PLATFORM_MD380)
+	VFO_SCREEN_QUICK_MENU_VFO_A_B = 0,
+	VFO_SCREEN_QUICK_MENU_TX_SWAP_RX,
+#elif defined(PLATFORM_DM1801)
+	VFO_SCREEN_QUICK_MENU_TX_SWAP_RX = 0,
+#endif
+	VFO_SCREEN_QUICK_MENU_BOTH_TO_RX,
+	VFO_SCREEN_QUICK_MENU_BOTH_TO_TX,
+	VFO_SCREEN_QUICK_MENU_FILTER_FM,
+	VFO_SCREEN_QUICK_MENU_FILTER_DMR,
+	VFO_SCREEN_QUICK_MENU_DMR_CC_SCAN,
+	VFO_SCREEN_QUICK_MENU_FILTER_DMR_TS,
+	VFO_SCREEN_QUICK_MENU_VFO_TO_NEW,
+	VFO_SCREEN_QUICK_MENU_TONE_SCAN,
+	VFO_SCREEN_QUICK_MENU_DUAL_SCAN,
+	VFO_SCREEN_QUICK_MENU_FREQ_BIND_MODE,
+	NUM_VFO_SCREEN_QUICK_MENU_ITEMS
 };
 
 
@@ -280,11 +333,13 @@ enum MENU_SCREENS
 #define QUICKKEY_MENULONGVALUE(m, e)  ((QUICKKEY_MENU << 15) | ((m & 0x1f) << 10) | (e & 0x1ff))
 #define QUICKKEY_CONTACTVALUE(c)      (c)
 
-enum QUICK_FUNCTIONS {  FUNC_START_SCANNING = QUICKKEY_MENUVALUE(0, 0, 1),
-						FUNC_RIGHT = 0x11,
-						FUNC_LEFT = 0x12,
-						FUNC_TOGGLE_TORCH = QUICKKEY_MENUVALUE(0, 0, 2),
-						FUNC_REDRAW = QUICKKEY_MENUVALUE(0, 0, 3)
+enum QUICK_FUNCTIONS
+{
+	FUNC_START_SCANNING = QUICKKEY_MENUVALUE(0, 0, 1),
+	FUNC_RIGHT = 0x11,
+	FUNC_LEFT = 0x12,
+	FUNC_TOGGLE_TORCH = QUICKKEY_MENUVALUE(0, 0, 2),
+	FUNC_REDRAW = QUICKKEY_MENUVALUE(0, 0, 3)
 };
 
 // This is used to store current position in menus. The system keeps track of its value, e.g entering in
@@ -295,7 +350,7 @@ typedef struct
 {
 	int32_t 				currentItemIndex;
 	int32_t 				startIndex;
-	int32_t 				endIndex;
+	int32_t 				numItems;
 	int 					lightTimer;
 	menuItemNewData_t		*currentMenuList;
 	menuControlDataStruct_t	controlData;
@@ -305,7 +360,11 @@ typedef struct
 	const menuItemsList_t	*data[];
 } menuDataGlobal_t;
 
-enum { RADIO_INFOS_BATTERY_LEVEL = 0, RADIO_INFOS_CURRENT_TIME, RADIO_INFOS_DATE, RADIO_INFOS_LOCATION, RADIO_INFOS_TEMPERATURE_LEVEL, RADIO_INFOS_BATTERY_GRAPH, NUM_RADIO_INFOS_MENU_ITEMS, RADIO_INFOS_UP_TIME, RADIO_INFOS_TIME_ALARM };
+enum { RADIO_INFOS_BATTERY_LEVEL = 0, RADIO_INFOS_CURRENT_TIME, RADIO_INFOS_DATE, RADIO_INFOS_LOCATION,
+#if defined(PLATFORM_MD9600) || defined(PLATFORM_MDUV380) || defined(PLATFORM_MD380)
+	RADIO_INFOS_GPS,
+#endif
+	RADIO_INFOS_TEMPERATURE_LEVEL, RADIO_INFOS_BATTERY_GRAPH, NUM_RADIO_INFOS_MENU_ITEMS, RADIO_INFOS_UP_TIME, RADIO_INFOS_TIME_ALARM };
 
 extern menuDataGlobal_t 		menuDataGlobal;
 extern const menuItemsList_t 	menuDataMainMenu;

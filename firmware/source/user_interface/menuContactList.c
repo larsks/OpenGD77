@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2021 Roger Clark, VK3KYY / G4KYF
+ * Copyright (C) 2019-2023 Roger Clark, VK3KYY / G4KYF
  *                         Daniel Caujolle-Bert, F1RMB
  *
  *
@@ -80,11 +80,11 @@ static void overrideWithSelectedContact(void)
 
 static void reloadContactList(contactListContactType_t type)
 {
-	menuDataGlobal.endIndex = (type == MENU_CONTACT_LIST_CONTACT_DIGITAL) ? codeplugContactsGetCount(contactCallType) : codeplugDTMFContactsGetCount();
+	menuDataGlobal.numItems = (type == MENU_CONTACT_LIST_CONTACT_DIGITAL) ? codeplugContactsGetCount(contactCallType) : codeplugDTMFContactsGetCount();
 
-	if (menuDataGlobal.endIndex > 0)
+	if (menuDataGlobal.numItems > 0)
 	{
-		if (menuDataGlobal.currentItemIndex >= menuDataGlobal.endIndex)
+		if (menuDataGlobal.currentItemIndex >= menuDataGlobal.numItems)
 		{
 			menuDataGlobal.currentItemIndex = 0;
 		}
@@ -208,7 +208,7 @@ static void updateScreen(bool isFirstRun)
 		case MENU_CONTACT_LIST_DISPLAY:
 			menuDisplayTitle((char *) calltypeName[((contactListType == MENU_CONTACT_LIST_CONTACT_DIGITAL) ? contactCallType : 3)]);
 
-			if (menuDataGlobal.endIndex == 0)
+			if (menuDataGlobal.numItems == 0)
 			{
 				displayPrintCentered((DISPLAY_SIZE_Y / 2), currentLanguage->empty_list, FONT_SIZE_3);
 
@@ -216,9 +216,18 @@ static void updateScreen(bool isFirstRun)
 			}
 			else
 			{
-				for (int i = -1; i <= 1; i++)
+				for(int i = 1 - ((MENU_MAX_DISPLAYED_ENTRIES - 1) / 2) - 1; i <= (MENU_MAX_DISPLAYED_ENTRIES - ((MENU_MAX_DISPLAYED_ENTRIES - 1) / 2) - 1); i++)
 				{
-					mNum = menuGetMenuOffset(menuDataGlobal.endIndex, i);
+					mNum = menuGetMenuOffset(menuDataGlobal.numItems, i);
+					if (mNum == MENU_OFFSET_BEFORE_FIRST_ENTRY)
+					{
+						continue;
+					}
+					else if (mNum == MENU_OFFSET_AFTER_LAST_ENTRY)
+					{
+						break;
+					}
+
 					idx = (contactListType == MENU_CONTACT_LIST_CONTACT_DIGITAL)
 							? codeplugContactGetDataForNumberInType(mNum + 1, contactCallType, &contact)
 							: codeplugDTMFContactGetDataForNumber(mNum + 1, &dtmfContact);
@@ -297,7 +306,7 @@ static void handleEvent(uiEvent_t *ev)
 		case MENU_CONTACT_LIST_DISPLAY:
 			if (KEYCHECK_PRESS(ev->keys, KEY_DOWN))
 			{
-				menuSystemMenuIncrement(&menuDataGlobal.currentItemIndex, menuDataGlobal.endIndex);
+				menuSystemMenuIncrement(&menuDataGlobal.currentItemIndex, menuDataGlobal.numItems);
 				uiDataGlobal.currentSelectedContactIndex = (contactListType == MENU_CONTACT_LIST_CONTACT_DIGITAL)
 						? codeplugContactGetDataForNumberInType(menuDataGlobal.currentItemIndex + 1, contactCallType, &contactListContactData)
 						: codeplugDTMFContactGetDataForNumber(menuDataGlobal.currentItemIndex + 1, &contactListDTMFContactData);
@@ -307,7 +316,7 @@ static void handleEvent(uiEvent_t *ev)
 			}
 			else if (KEYCHECK_PRESS(ev->keys, KEY_UP))
 			{
-				menuSystemMenuDecrement(&menuDataGlobal.currentItemIndex, menuDataGlobal.endIndex);
+				menuSystemMenuDecrement(&menuDataGlobal.currentItemIndex, menuDataGlobal.numItems);
 				uiDataGlobal.currentSelectedContactIndex = (contactListType == MENU_CONTACT_LIST_CONTACT_DIGITAL)
 						? codeplugContactGetDataForNumberInType(menuDataGlobal.currentItemIndex + 1, contactCallType, &contactListContactData)
 						: codeplugDTMFContactGetDataForNumber(menuDataGlobal.currentItemIndex + 1, &contactListDTMFContactData);
@@ -338,7 +347,7 @@ static void handleEvent(uiEvent_t *ev)
 				{
 					if (contactListType == MENU_CONTACT_LIST_CONTACT_DIGITAL)
 					{
-						if (menuDataGlobal.endIndex > 0)
+						if (menuDataGlobal.numItems > 0)
 						{
 							if (currentMode == RADIO_MODE_DIGITAL)
 							{
@@ -369,7 +378,7 @@ static void handleEvent(uiEvent_t *ev)
 				}
 
 				// Display submenu for DTMF contact list
-				if (menuDataGlobal.endIndex > 0) // display action list only if contact list is non empty
+				if (menuDataGlobal.numItems > 0) // display action list only if contact list is non empty
 				{
 					if ((currentMenu == MENU_CONTACT_LIST) ||
 							((currentMenu == MENU_DTMF_CONTACT_LIST) && (currentMode == RADIO_MODE_ANALOG)))
@@ -457,9 +466,18 @@ static void updateSubMenuScreen(void)
 	codeplugUtilConvertBufToString((contactListType == MENU_CONTACT_LIST_CONTACT_DIGITAL) ? contactListContactData.name : contactListDTMFContactData.name, buf, 16);
 	menuDisplayTitle(buf);
 
-	for(int i = -1; i <= 1; i++)
+	for(int i = 1 - ((MENU_MAX_DISPLAYED_ENTRIES - 1) / 2) - 1; i <= (MENU_MAX_DISPLAYED_ENTRIES - ((MENU_MAX_DISPLAYED_ENTRIES - 1) / 2) - 1); i++)
 	{
 		mNum = menuGetMenuOffset(((contactListType == MENU_CONTACT_LIST_CONTACT_DIGITAL) ? NUM_CONTACT_LIST_QUICK_MENU_ITEMS : 1), i);
+		if (mNum == MENU_OFFSET_BEFORE_FIRST_ENTRY)
+		{
+			continue;
+		}
+		else if (mNum == MENU_OFFSET_AFTER_LAST_ENTRY)
+		{
+			break;
+		}
+
 		buf[0] = 0;
 
 		switch(mNum)

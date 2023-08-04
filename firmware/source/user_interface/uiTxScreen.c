@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2021 Roger Clark, VK3KYY / G4KYF
+ * Copyright (C) 2019-2023 Roger Clark, VK3KYY / G4KYF
  *                         Daniel Caujolle-Bert, F1RMB
  *
  *
@@ -38,9 +38,10 @@
 static void updateScreen(void);
 static void handleEvent(uiEvent_t *ev);
 
-static const int PIT_COUNTS_PER_SECOND = 1000;
+#define PIT_COUNTS_PER_SECOND    1000U
+
 static int timeInSeconds;
-static uint32_t nextSecondPIT;
+static ticksTimer_t nextSecondTimer = { 0, 0 };
 static bool isShowingLastHeard;
 static bool startBeepPlayed;
 static uint32_t m = 0, micm = 0, mto = 0;
@@ -62,6 +63,8 @@ menuStatus_t menuTxScreen(uiEvent_t *ev, bool isFirstRun)
 		keepScreenShownOnError = false;
 		timeInSeconds = 0;
 		pttWasReleased = false;
+		xmitErrorTimer = 0;
+		ticksTimerReset(&nextSecondTimer);
 
 		if (trxGetMode() == RADIO_MODE_DIGITAL)
 		{
@@ -79,9 +82,13 @@ menuStatus_t menuTxScreen(uiEvent_t *ev, bool isFirstRun)
 			updateScreen();
 		}
 
-		if (((currentChannelData->flag4 & 0x04) == 0x00) && ((nonVolatileSettings.txFreqLimited == BAND_LIMITS_NONE) || trxCheckFrequencyInAmateurBand(currentChannelData->txFreq)))
+		if ((codeplugChannelIsFlagSet(currentChannelData, CHANNEL_FLAG_RX_ONLY) == false) && ((nonVolatileSettings.txFreqLimited == BAND_LIMITS_NONE) || trxCheckFrequencyInAmateurBand(currentChannelData->txFreq)
+#if defined(PLATFORM_MD9600)
+				|| codeplugChannelIsFlagSet(currentChannelData, CHANNEL_FLAG_OUT_OF_BAND)
+#endif
+		))
 		{
-			nextSecondPIT = ticksGetMillis() + PIT_COUNTS_PER_SECOND;
+			ticksTimerStart(&nextSecondTimer, PIT_COUNTS_PER_SECOND);
 			timeInSeconds = currentChannelData->tot * 15;
 
 			LEDs_PinWrite(GPIO_LEDgreen, Pin_LEDgreen, 0);
@@ -112,7 +119,7 @@ menuStatus_t menuTxScreen(uiEvent_t *ev, bool isFirstRun)
 		}
 		else
 		{
-			menuTxScreenHandleTxTermination(ev, (((currentChannelData->flag4 & 0x04) != 0x00) ? TXSTOP_RX_ONLY : TXSTOP_OUT_OF_BAND));
+			menuTxScreenHandleTxTermination(ev, (codeplugChannelIsFlagSet(currentChannelData, CHANNEL_FLAG_RX_ONLY) ? TXSTOP_RX_ONLY : TXSTOP_OUT_OF_BAND));
 		}
 
 		m = micm = ev->time;
@@ -147,8 +154,10 @@ menuStatus_t menuTxScreen(uiEvent_t *ev, bool isFirstRun)
 
 		if (trxTransmissionEnabled && ((HRC6000GetIsWakingState() == WAKING_MODE_NONE) || (HRC6000GetIsWakingState() == WAKING_MODE_AWAKEN)))
 		{
-			if (ticksGetMillis() >= nextSecondPIT)
+			if (ticksTimerHasExpired(&nextSecondTimer))
 			{
+				ticksTimerStart(&nextSecondTimer, PIT_COUNTS_PER_SECOND);
+
 				if (currentChannelData->tot == 0)
 				{
 					timeInSeconds++;
@@ -177,8 +186,6 @@ menuStatus_t menuTxScreen(uiEvent_t *ev, bool isFirstRun)
 						updateScreen();
 					}
 				}
-
-				nextSecondPIT = ticksGetMillis() + PIT_COUNTS_PER_SECOND;
 			}
 			else
 			{
@@ -479,7 +486,7 @@ void menuTxScreenHandleTxTermination(uiEvent_t *ev, txTerminationReason_t reason
 
 #if !defined(PLATFORM_GD77S)
 	displayClearBuf();
-	displayDrawRoundRectWithDropShadow(4, 4, 120, (DISPLAY_SIZE_Y - 6), 5, true);
+	displayDrawRoundRectWithDropShadow(4, 4, 120 + DISPLAY_H_EXTRA_PIXELS, (DISPLAY_SIZE_Y - 6), 5, true);
 #endif
 
 	switch (reason)
@@ -487,23 +494,23 @@ void menuTxScreenHandleTxTermination(uiEvent_t *ev, txTerminationReason_t reason
 		case TXSTOP_RX_ONLY:
 		case TXSTOP_OUT_OF_BAND:
 #if !defined(PLATFORM_GD77S)
-			displayPrintCentered(4, currentLanguage->error, FONT_SIZE_4);
+			displayPrintCentered(4 + (DISPLAY_V_EXTRA_PIXELS / 4), currentLanguage->error, FONT_SIZE_4);
 #endif
 
 			voicePromptsAppendLanguageString(&currentLanguage->error);
 			voicePromptsAppendPrompt(PROMPT_SILENCE);
 
-			if ((currentChannelData->flag4 & 0x04) != 0x00)
+			if (codeplugChannelIsFlagSet(currentChannelData, CHANNEL_FLAG_RX_ONLY))
 			{
 #if !defined(PLATFORM_GD77S)
-				displayPrintCentered((DISPLAY_SIZE_Y - 24), currentLanguage->rx_only, FONT_SIZE_3);
+				displayPrintCentered((DISPLAY_SIZE_Y - 24) - (DISPLAY_V_EXTRA_PIXELS / 4), currentLanguage->rx_only, FONT_SIZE_3);
 #endif
 				voicePromptsAppendLanguageString(&currentLanguage->rx_only);
 			}
 			else
 			{
 #if !defined(PLATFORM_GD77S)
-				displayPrintCentered((DISPLAY_SIZE_Y - 24), currentLanguage->out_of_band, FONT_SIZE_3);
+				displayPrintCentered((DISPLAY_SIZE_Y - 24) - (DISPLAY_V_EXTRA_PIXELS / 4), currentLanguage->out_of_band, FONT_SIZE_3);
 #endif
 				voicePromptsAppendLanguageString(&currentLanguage->out_of_band);
 			}
@@ -512,7 +519,7 @@ void menuTxScreenHandleTxTermination(uiEvent_t *ev, txTerminationReason_t reason
 
 		case TXSTOP_TIMEOUT:
 #if !defined(PLATFORM_GD77S)
-			displayPrintCentered(16, currentLanguage->timeout, FONT_SIZE_4);
+			displayPrintCentered(((DISPLAY_SIZE_Y - FONT_SIZE_4_HEIGHT) / 2), currentLanguage->timeout, FONT_SIZE_4);
 #endif
 			voicePromptsAppendLanguageString(&currentLanguage->timeout);
 

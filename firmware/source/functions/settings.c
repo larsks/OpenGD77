@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2019      Kai Ludwig, DG4KLU
- * Copyright (C) 2019-2021 Roger Clark, VK3KYY / G4KYF
+ * Copyright (C) 2019-2023 Roger Clark, VK3KYY / G4KYF
  *                         Daniel Caujolle-Bert, F1RMB
  *
  *
@@ -37,8 +37,10 @@
 #include "functions/rxPowerSaving.h"
 
 
-#define STORAGE_MAGIC_NUMBER          0x4765 // NOTE: never use 0xDEADBEEF, it's reserved value
+#define STORAGE_MAGIC_NUMBER          0x4768 // NOTE: never use 0xDEADBEEF, it's reserved value
 // 0x4764: moves location at the top of the struct, make it upgradable.
+// 0x4767: adds apo entry, upgradable.
+// 0x4768: settings struct reorg
 
 const uint32_t SETTINGS_UNITIALISED_LOCATION_LAT = 0x7F000000;
 
@@ -88,6 +90,7 @@ bool settingsSaveSettings(bool includeVFOs)
 bool settingsLoadSettings(void)
 {
 	bool hasRestoredDefaultsettings = false;
+
 	if (!settingsStorageRead((uint8_t *)&nonVolatileSettings, sizeof(settingsStruct_t)))
 	{
 		nonVolatileSettings.magicNumber = 0;// flag settings could not be loaded
@@ -95,8 +98,7 @@ bool settingsLoadSettings(void)
 
 	if (nonVolatileSettings.magicNumber != STORAGE_MAGIC_NUMBER)
 	{
-		settingsRestoreDefaultSettings();
-		hasRestoredDefaultsettings = true;
+		hasRestoredDefaultsettings = settingsRestoreDefaultSettings();
 	}
 
 	// Force Hotspot mode to off for existing RD-5R users.
@@ -142,7 +144,7 @@ bool settingsLoadSettings(void)
 
 		if (nonVolatileSettings.timezone == 0)
 		{
-			nonVolatileSettings.timezone 	= SETTINGS_TIMEZONE_UTC;
+			nonVolatileSettings.timezone = SETTINGS_TIMEZONE_UTC;
 		}
 
 	}
@@ -182,8 +184,7 @@ bool settingsLoadSettings(void)
 		nonVolatileSettings.initialMenuNumber = UI_VFO_MODE;
 	}
 
-
-	nonVolatileSettings.dmrCcTsFilter |= DMR_CC_FILTER_PATTERN;// Force CC Filter to be enabled
+	HRC6000SetTalkerAliasLocation();
 
 	return hasRestoredDefaultsettings;
 }
@@ -203,14 +204,17 @@ void settingsInitVFOChannel(int vfoNumber)
 	}
 }
 
-void settingsRestoreDefaultSettings(void)
+// returns true on default settings, false if upgraded.
+bool settingsRestoreDefaultSettings(void)
 {
+	bool ret = true;
+
 	// Upgrade location settings
-	if ((nonVolatileSettings.magicNumber >= 0x4764) == false)
+	//if ((nonVolatileSettings.magicNumber >= 0x4764) == false)
 	{
-		nonVolatileSettings.locationLat 	= SETTINGS_UNITIALISED_LOCATION_LAT;// Value that are out of range, so that it can be detected in the Satellite menu;
-		nonVolatileSettings.locationLon 	= 0;
-		nonVolatileSettings.timezone 		= SETTINGS_TIMEZONE_UTC;
+		nonVolatileSettings.locationLat = SETTINGS_UNITIALISED_LOCATION_LAT;// Value that are out of range, so that it can be detected in the Satellite menu;
+		nonVolatileSettings.locationLon = 0;
+		nonVolatileSettings.timezone = SETTINGS_TIMEZONE_UTC;
 	}
 
 	nonVolatileSettings.magicNumber = STORAGE_MAGIC_NUMBER;
@@ -335,14 +339,22 @@ void settingsRestoreDefaultSettings(void)
 	nonVolatileSettings.batteryCalibration = (0x05) + (0x07 << 4);// Time is in upper 4 bits battery calibration in upper 4 bits
 
 	nonVolatileSettings.ecoLevel = 1;
+	nonVolatileSettings.DMR_RxAGC = 0;// disabled
+	nonVolatileSettings.apo = 0;
 
 	nonVolatileSettings.vfoSweepSettings = ((((sizeof(VFO_SWEEP_SCAN_RANGE_SAMPLE_STEP_TABLE) / sizeof(VFO_SWEEP_SCAN_RANGE_SAMPLE_STEP_TABLE[0])) - 1) << 12) | (VFO_SWEEP_RSSI_NOISE_FLOOR_DEFAULT << 7) | VFO_SWEEP_GAIN_DEFAULT);
 
 	currentChannelData = &settingsVFOChannel[nonVolatileSettings.currentVFONumber];// Set the current channel data to point to the VFO data since the default screen will be the VFO
 
+	//readDone: // Used when upgrading
+
 	settingsDirty = true;
 
 	settingsSaveSettings(false);
+
+	HRC6000SetTalkerAliasLocation();
+
+	return ret;
 }
 
 void enableVoicePromptsIfLoaded(bool enableFullPrompts)

@@ -1,6 +1,6 @@
 /* -*- coding: windows-1252-unix; -*- */
 /*
- * Copyright (C) 2019-2021 Roger Clark, VK3KYY / G4KYF
+ * Copyright (C) 2019-2023 Roger Clark, VK3KYY / G4KYF
  *
  *
  * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions
@@ -29,7 +29,7 @@
  * Translators: DG3GSP, DL4LEX
  *
  *
- * Rev: 4.8
+ * Rev: 4.9
 */
 #ifndef USER_INTERFACE_LANGUAGES_GERMAN_H_
 #define USER_INTERFACE_LANGUAGES_GERMAN_H_
@@ -115,7 +115,7 @@ const stringsTable_t germanLanguage =
 .on						= "Ein", // MaxLen: 16 (with ':' + .band_limits)
 .timeout_beep			= "Timeout-Ton", // MaxLen: 16 (with ':' + .off or 5..20)
 .list_full				= "Liste voll",
-.UNUSED_1			= "",
+.dmr_cc_scan			= "CC Scan", // MaxLen: 12 (with ':' + settings: .on or .off)
 .band_limits			= "Band Limit", // MaxLen: 16 (with ':' + .on or .off)
 .beep_volume			= "Beep Lauts", // MaxLen: 16 (with ':' + -24..6 + 'dB')
 .dmr_mic_gain			= "DMR Mikro", // MaxLen: 16 (with ':' + -33..12 + 'dB')
@@ -164,10 +164,10 @@ const stringsTable_t germanLanguage =
 .vox_tail                               = "VOX Dauer", // MaxLen 16 (with ':' + .n_a or '0.0s')
 .audio_prompt				= "Ansage",// Maxlen 16 (with ':' + .silent, .beep or .voice_prompt_level_1)
 .silent                                 = "Still", // Maxlen 16 (with : + audio_prompt)
-.UNUSED_2			= "",
+.rx_beep				= "RX beep", // MaxLen 16 (with ':' + .carrier/.talker/.both/.none)
 .beep					= "Töne", // Maxlen 16 (with : + audio_prompt)
 .voice_prompt_level_1					= "Stimme L1", // Maxlen 16 (with : + audio_prompt)
-.transmitTalkerAlias	= "TA senden", // Maxlen 16 (with : + .on or .off)
+.transmitTalkerAliasTS1	= "TA Tx TS1", // Maxlen 16 (with : + .on or .off)
 .squelch_VHF			= "VHF Squelch",// Maxlen 16 (with : + XX%)
 .squelch_220			= "220 Squelch",// Maxlen 16 (with : + XX%)
 .squelch_UHF			= "UHF Squelch", // Maxlen 16 (with : + XX%)
@@ -180,7 +180,7 @@ const stringsTable_t germanLanguage =
 .voice_prompt_level_2	= "Stimme L2", // Maxlen 16 (with : + audio_prompt)
 .voice_prompt_level_3	= "Stimme L3", // Maxlen 16 (with : + audio_prompt)
 .dmr_filter				= "DMR Filter",// MaxLen: 12 (with ':' + settings: "TG" or "Ct" or "RxG")
-.UNUSED_4				= "",
+.talker					= "Talker",
 .dmr_ts_filter			= "TS Filter", // MaxLen: 12 (with ':' + settings: .on or .off)
 .dtmf_contact_list			= "FM DTMF Kontakte", // Maxlen: 16
 .channel_power				= "Ch Leist.", //Displayed as "Ch Power:" + .from_master or "Ch Power:"+ power text e.g. "Power:500mW" . Max total length 16
@@ -208,9 +208,9 @@ const stringsTable_t germanLanguage =
 .high					= "Hoch",
 .dmr_id					= "DMR ID",
 .scan_on_boot				= "Scan @ Start", //Maxlen: 12 chars
-.dtmf_entry				= "DTMF entry",
+.dtmf_entry				= "DTMF Eintrag",
 .name					= "Name",
-.UNUSED_3				= "",
+.carrier				= "Träger",
 .openDM1801A 				= "OpenDM1801A", // Do not translate
 .time					= "Zeit",
 .uptime					= "Uptime",
@@ -234,7 +234,30 @@ const stringsTable_t germanLanguage =
 .symbols				= "NSOW", // symbols: N,S,E,W
 .not_set				= "NICHT GESETZT",
 .general_options			= "Einstellungen",
-.radio_options				= "Radio Optionen"
+.radio_options				= "Radio Optionen",
+.openMD9600				= "OpenMD9600",
+.dmr_rx_agc				= "DMR Rx AGC",
+.speaker_click_suppress			= "Klick Unterd.",
+.gps					= "GPS",
+.end_only				= "am Ende",
+.dmr_crc				= "DMR crc",
+.eco					= "Eco",
+.safe_power_on				= "ges. Ansch.", // MaxLen: 16 (with ':' + .on or .off)
+.auto_power_off				= "Auto Pwr-Off", // MaxLen: 16 (with ':' + 30/60/90/120/180 or .no)
+.apo_with_rf				= "APO with RF", // MaxLen: 16 (with ':' + .yes or .no or .n_a)
+.openMDUV380			= "OpenMDUV380",
+.openMD380				= "OpenMD380",
+.gps_acquiring			= "GPS Übern.", 
+.altitude				= "Höhe",
+.calibration            = "Radio Calibration",
+.freq_set                = "Freq Adjust",
+.cal_frequency          = "Cal Freq",
+.cal_pwr                = "Cal Power",
+.pwr_set                = "Power Adjust",
+.factory_reset          = "Factory Cal",
+.rx_tune				= "Rx Tuning",
+.transmitTalkerAliasTS2	= "TA Tx TS2", // Maxlen 16 (with : + .ta_text, 'APRS' , .both or .off)
+.ta_text				= "Text",
 };
 /********************************************************************
  *

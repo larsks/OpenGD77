@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2021 Roger Clark, VK3KYY / G4KYF
+ * Copyright (C) 2019-2023 Roger Clark, VK3KYY / G4KYF
  *                         Daniel Caujolle-Bert, F1RMB
  *
  *
@@ -77,7 +77,7 @@ typedef enum
 	PROMPT_SWEEP_SCAN_MODE,
 	PROMPT_ECO_MODE,
 	PROMPT_DURATION,
-	PROMPT_UNUSED_4,
+	PROMPT_REVERSE_REPEATER,
 	PROMPT_UNUSED_5,
 	PROMPT_UNUSED_6,
 	PROMPT_UNUSED_7,

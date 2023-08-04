@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2021 Roger Clark, VK3KYY / G4KYF
+ * Copyright (C) 2019-2023 Roger Clark, VK3KYY / G4KYF
  *                         Daniel Caujolle-Bert, F1RMB
  *
  *
@@ -42,9 +42,18 @@ enum GENERAL_OPTIONS_MENU_LIST {	GENERAL_OPTIONS_MENU_KEYPAD_TIMER_LONG = 0U,
 									GENERAL_OPTIONS_MENU_HOTSPOT_TYPE,
 									GENERAL_OPTIONS_MENU_TEMPERATURE_CALIBRATON,
 									GENERAL_OPTIONS_MENU_BATTERY_CALIBRATON,
+#if !defined(PLATFORM_MD9600)
 									GENERAL_OPTIONS_MENU_ECO_LEVEL,
-#if !defined(PLATFORM_RD5R) && !defined(PLATFORM_GD77S)
+#endif
+#if !defined(PLATFORM_RD5R) && !defined(PLATFORM_GD77S) && !defined(PLATFORM_MD9600)
 									GENERAL_OPTIONS_MENU_POWEROFF_SUSPEND,
+#endif
+#if !defined(PLATFORM_MD9600) && !defined(PLATFORM_GD77S)
+									GENERAL_OPTIONS_SAFE_POWER_ON,
+#endif
+#if !defined(PLATFORM_GD77S)
+									GENERAL_OPTIONS_APO,
+									GENERAL_OPTIONS_APO_WITH_RF,
 #endif
 									GENERAL_OPTIONS_MENU_SATELLITE_MANUAL_AUTO,
 									NUM_GENERAL_OPTIONS_MENU_ITEMS};
@@ -56,7 +65,7 @@ menuStatus_t menuGeneralOptions(uiEvent_t *ev, bool isFirstRun)
 		menuDataGlobal.menuOptionsSetQuickkey = 0;
 		menuDataGlobal.menuOptionsTimeout = 0;
 		menuDataGlobal.newOptionSelected = true;
-		menuDataGlobal.endIndex = NUM_GENERAL_OPTIONS_MENU_ITEMS;
+		menuDataGlobal.numItems = NUM_GENERAL_OPTIONS_MENU_ITEMS;
 
 		if (originalNonVolatileSettings.magicNumber == 0xDEADBEEF)
 		{
@@ -99,12 +108,20 @@ static void updateScreen(bool isFirstRun)
 	displayClearBuf();
 	bool settingOption = uiShowQuickKeysChoices(buf, SCREEN_LINE_BUFFER_SIZE, currentLanguage->general_options);
 
-	// Can only display 3 of the options at a time menu at -1, 0 and +1
-	for(int i = -1; i <= 1; i++)
+	for(int i = 1 - ((MENU_MAX_DISPLAYED_ENTRIES - 1) / 2) - 1; i <= (MENU_MAX_DISPLAYED_ENTRIES - ((MENU_MAX_DISPLAYED_ENTRIES - 1) / 2) - 1); i++)
 	{
 		if ((settingOption == false) || (i == 0))
 		{
 			mNum = menuGetMenuOffset(NUM_GENERAL_OPTIONS_MENU_ITEMS, i);
+			if (mNum == MENU_OFFSET_BEFORE_FIRST_ENTRY)
+			{
+				continue;
+			}
+			else if (mNum == MENU_OFFSET_AFTER_LAST_ENTRY)
+			{
+				break;
+			}
+
 			buf[0] = 0;
 			buf[2] = 0;
 			leftSide = NULL;
@@ -168,14 +185,48 @@ static void updateScreen(bool isFirstRun)
 						snprintf(rightSideVar, SCREEN_LINE_BUFFER_SIZE, "%sV", buf2);
 					}
 					break;
+#if !defined(PLATFORM_MD9600)
 				case GENERAL_OPTIONS_MENU_ECO_LEVEL:
 					leftSide = (char * const *)&currentLanguage->eco_level;
 					snprintf(rightSideVar, SCREEN_LINE_BUFFER_SIZE, "%d", (nonVolatileSettings.ecoLevel));
 					break;
-#if !defined(PLATFORM_RD5R) && !defined(PLATFORM_GD77S)
+#endif
+#if !defined(PLATFORM_RD5R) && !defined(PLATFORM_GD77S) && !defined(PLATFORM_MD9600)
 				case GENERAL_OPTIONS_MENU_POWEROFF_SUSPEND:
 					leftSide = (char * const *)&currentLanguage->suspend;
 					rightSideConst = (char * const *)(settingsIsOptionBitSet(BIT_POWEROFF_SUSPEND) ? &currentLanguage->on : &currentLanguage->off);
+					break;
+#endif
+#if !defined(PLATFORM_MD9600) && !defined(PLATFORM_GD77S)
+				case GENERAL_OPTIONS_SAFE_POWER_ON:
+					leftSide = (char * const *)&currentLanguage->safe_power_on;
+					rightSideConst = (char * const *)(settingsIsOptionBitSet(BIT_SAFE_POWER_ON) ? &currentLanguage->on : &currentLanguage->off);
+					break;
+#endif
+#if !defined(PLATFORM_GD77S)
+				case GENERAL_OPTIONS_APO:
+					leftSide = (char * const *)&currentLanguage->auto_power_off;
+
+					if (nonVolatileSettings.apo == 0)
+					{
+						rightSideConst = (char * const *)&currentLanguage->no;
+					}
+					else
+					{
+						snprintf(rightSideVar, SCREEN_LINE_BUFFER_SIZE, "%d", (nonVolatileSettings.apo * 30));
+						rightSideUnitsPrompt = PROMPT_MINUTES;
+					}
+					break;
+				case GENERAL_OPTIONS_APO_WITH_RF:
+					leftSide = (char * const *)&currentLanguage->apo_with_rf;
+					if (nonVolatileSettings.apo == 0)
+					{
+						rightSideConst = (char * const *)&currentLanguage->n_a;
+					}
+					else
+					{
+						rightSideConst = (char * const *)(settingsIsOptionBitSet(BIT_APO_WITH_RF) ? &currentLanguage->yes : &currentLanguage->no);
+					}
 					break;
 #endif
 				case GENERAL_OPTIONS_MENU_SATELLITE_MANUAL_AUTO:
@@ -299,7 +350,7 @@ static void handleEvent(uiEvent_t *ev)
 
 	if ((ev->events & KEY_EVENT) && (menuDataGlobal.menuOptionsSetQuickkey == 0) && (menuDataGlobal.menuOptionsTimeout == 0))
 	{
-		if (KEYCHECK_PRESS(ev->keys, KEY_DOWN) && (menuDataGlobal.endIndex != 0))
+		if (KEYCHECK_PRESS(ev->keys, KEY_DOWN) && (menuDataGlobal.numItems != 0))
 		{
 			isDirty = true;
 			menuSystemMenuIncrement(&menuDataGlobal.currentItemIndex, NUM_GENERAL_OPTIONS_MENU_ITEMS);
@@ -318,6 +369,9 @@ static void handleEvent(uiEvent_t *ev)
 			settingsSaveIfNeeded(true);
 			resetOriginalSettingsData();
 			rxPowerSavingSetLevel(nonVolatileSettings.ecoLevel);
+#if !defined(PLATFORM_GD77S)
+			ticksTimerStart(&apoTimer, ((nonVolatileSettings.apo * 30) * 60000U));
+#endif
 			menuSystemPopAllAndDisplayRootMenu();
 			return;
 		}
@@ -382,17 +436,41 @@ static void handleEvent(uiEvent_t *ev)
 						}
 					}
 					break;
+#if !defined(PLATFORM_MD9600)
 				case GENERAL_OPTIONS_MENU_ECO_LEVEL:
 					if (nonVolatileSettings.ecoLevel < ECO_LEVEL_MAX)
 					{
 						settingsIncrement(nonVolatileSettings.ecoLevel, 1);
 					}
 					break;
-#if !defined(PLATFORM_RD5R) && !defined(PLATFORM_GD77S)
+#endif
+#if !defined(PLATFORM_RD5R) && !defined(PLATFORM_GD77S) && !defined(PLATFORM_MD9600)
 				case GENERAL_OPTIONS_MENU_POWEROFF_SUSPEND:
 					if (settingsIsOptionBitSet(BIT_POWEROFF_SUSPEND) == false)
 					{
 						settingsSetOptionBit(BIT_POWEROFF_SUSPEND, true);
+					}
+					break;
+#endif
+#if !defined(PLATFORM_MD9600) && !defined(PLATFORM_GD77S)
+				case GENERAL_OPTIONS_SAFE_POWER_ON:
+					if (settingsIsOptionBitSet(BIT_SAFE_POWER_ON) == false)
+					{
+						settingsSetOptionBit(BIT_SAFE_POWER_ON, true);
+					}
+					break;
+#endif
+#if !defined(PLATFORM_GD77S)
+				case GENERAL_OPTIONS_APO:
+					if (nonVolatileSettings.apo < 6) // 180 minutes max
+					{
+						settingsIncrement(nonVolatileSettings.apo, ((nonVolatileSettings.apo == 4) ? 2 : 1));
+					}
+					break;
+				case GENERAL_OPTIONS_APO_WITH_RF:
+					if ((nonVolatileSettings.apo != 0) && (settingsIsOptionBitSet(BIT_APO_WITH_RF) == false))
+					{
+						settingsSetOptionBit(BIT_APO_WITH_RF, true);
 					}
 					break;
 #endif
@@ -445,17 +523,41 @@ static void handleEvent(uiEvent_t *ev)
 						}
 					}
 					break;
+#if !defined(PLATFORM_MD9600)
 				case GENERAL_OPTIONS_MENU_ECO_LEVEL:
 					if (nonVolatileSettings.ecoLevel > 0)
 					{
 						settingsDecrement(nonVolatileSettings.ecoLevel, 1);
 					}
 					break;
-#if !defined(PLATFORM_RD5R) && !defined(PLATFORM_GD77S)
+#endif
+#if !defined(PLATFORM_RD5R) && !defined(PLATFORM_GD77S) && !defined(PLATFORM_MD9600)
 				case GENERAL_OPTIONS_MENU_POWEROFF_SUSPEND:
 					if (settingsIsOptionBitSet(BIT_POWEROFF_SUSPEND))
 					{
 						settingsSetOptionBit(BIT_POWEROFF_SUSPEND, false);
+					}
+					break;
+#endif
+#if !defined(PLATFORM_MD9600) && !defined(PLATFORM_GD77S)
+				case GENERAL_OPTIONS_SAFE_POWER_ON:
+					if (settingsIsOptionBitSet(BIT_SAFE_POWER_ON))
+					{
+						settingsSetOptionBit(BIT_SAFE_POWER_ON, false);
+					}
+					break;
+#endif
+#if !defined(PLATFORM_GD77S)
+				case GENERAL_OPTIONS_APO:
+					if (nonVolatileSettings.apo > 0)
+					{
+						settingsDecrement(nonVolatileSettings.apo, ((nonVolatileSettings.apo == 6) ? 2 : 1));
+					}
+					break;
+				case GENERAL_OPTIONS_APO_WITH_RF:
+					if ((nonVolatileSettings.apo != 0) && settingsIsOptionBitSet(BIT_APO_WITH_RF))
+					{
+						settingsSetOptionBit(BIT_APO_WITH_RF, false);
 					}
 					break;
 #endif

@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2019      Kai Ludwig, DG4KLU
- * Copyright (C) 2020-2021 Roger Clark, VK3KYY / G4KYF
+ * Copyright (C) 2020-2023 Roger Clark, VK3KYY / G4KYF
  *                         Daniel Caujolle-Bert, F1RMB
  *
  *
@@ -41,7 +41,9 @@
 #include "functions/rxPowerSaving.h"
 #include "functions/ticks.h"
 
+
 #define QSODATA_TIMER_TIMEOUT            2400
+#define QSODATA_RX_BEEP_TIMER_TIMEOUT   (QSODATA_TIMER_TIMEOUT - 1000)
 // we can't immediately use the LC data out of the chip, as it will return the header from the previous
 // reception (except in hotspot mode), and mess up all the lastheard, contact data, display QSO Info
 #define QSODATA_THRESHOLD_COUNT             2 // number of frames sequence #1 before sending data to the UI.
@@ -65,7 +67,7 @@
 #define START_TICK_TIMEOUT                 20
 #define END_TICK_TIMEOUT                   13
 
-#define CC_HOLD_TIME                     1000 // 1 second
+#define CC_HOLD_TIME                     5000 // 5 second
 #define TS_SYNC_STARTUP_TIMEOUT          2500 // 2.5 seconds timeout while synchronizing timeslot
 #define TS_SYNC_SCAN_TIMEOUT       (360 + 30) // 1 superframe + 1 TS timeout, for timeslot sync while scanning
 
@@ -77,7 +79,8 @@
 
 #define SUPERFRAME_NUM_FRAMES               6
 
-#define CC_PROBE_MAX_COUNT                  5
+#define CC_PROBE_MAX_COUNT                 (4 * 2)
+#define CC_PROBE_LOCKED                    (CC_PROBE_MAX_COUNT + 1)
 
 
 Task_t hrc6000Task;
@@ -271,7 +274,7 @@ static struct
 	volatile int qsoDataTimeout;
 	volatile int txSequence;
 	volatile int timeCode;
-	volatile int rxColorCode;
+	volatile uint8_t rxColorCode;
 	volatile int repeaterWakeupResponseTimeout;
 	volatile int isWaking;
 	volatile int tsAgreed;
@@ -283,14 +286,17 @@ static struct
 	volatile int dmrMonitorCapturedTimeout;
 	volatile int TAPhase;
 	volatile bool keepMonitorCapturedTSAfterTxing;
-	volatile int lastRxColorCode;
+	volatile uint8_t lastRxColorCode;
 	volatile int lastRxColorCodeCount;
+	volatile uint32_t lastRxColorCodeTime;
 	volatile bool ccHold;
 	uint8_t bufferLimitReachedCount;
-	int ccHoldTimer;
+	volatile int ccHoldTimer;
+	volatile uint32_t ccHoldReleaseTickTime;
 	int wakeTriesCount;
 	int hotspotPostponedFrameHandling;
 	char talkAliasText[33];
+	uint8_t talkAliasLocation[7];
 } hrc = {
 		.hasEncodedAudio = false,
 		.hasAudioData = false,
@@ -327,18 +333,21 @@ static struct
 		.dmrMonitorCapturedTimeout = 0,
 		.TAPhase = 0,
 		.keepMonitorCapturedTSAfterTxing = false,
-		.lastRxColorCode = -1,
+		.lastRxColorCode = 0xFF,
 		.lastRxColorCodeCount = 0,
+		.lastRxColorCodeTime = 0,
 		.bufferLimitReachedCount = 0,
 		.ccHold = true,
 		.ccHoldTimer = 0,
+		.ccHoldReleaseTickTime = 0,
 		.wakeTriesCount = 0,
 		.hotspotPostponedFrameHandling = 0,
-		.talkAliasText = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }
+		.talkAliasText = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+		.talkAliasLocation = { 0, 0, 0, 0, 0, 0, 0}
 };
 
-volatile int slotState;
-volatile uint32_t readDMRRSSI = 0;
+volatile int slotState = DMR_STATE_IDLE;
+volatile ticksTimer_t readDMRRSSITimer = { 0, 0 };
 volatile bool updateLastHeard = false;
 volatile int dmrMonitorCapturedTS = -1;
 
@@ -352,6 +361,39 @@ static inline void hrc6000TxInterruptHandler(void);
 static void hrc6000TransitionToTx(void);
 static void hrc6000InitDigitalState(void);
 static void hrc6000TriggerPrivateCallQSODataDisplay(void);
+
+
+uint8_t getCurrentTATxFlag(void)
+{
+	uint8_t flag;
+	uint8_t taTxFlagTS1 = currentChannelData->flag1 & 0b00000011;
+	uint8_t taTxFlagTS2 = (currentChannelData->flag1 >> 2) & 0b00000011;
+	if (trxDMRModeTx == DMR_MODE_DMO)
+	{
+		flag = taTxFlagTS1 | taTxFlagTS2;
+	}
+	else
+	{
+		if (trxGetDMRTimeSlot() == 0)
+		{
+			flag =  taTxFlagTS1;
+		}
+		else
+		{
+			flag =  taTxFlagTS2;
+		}
+	}
+
+	if (flag == TA_TX_APRS && nonVolatileSettings.locationLat == SETTINGS_UNITIALISED_LOCATION_LAT)
+	{
+		flag = TA_TX_OFF;
+	}
+#if defined(USING_EXTERNAL_DEBUGGER)
+	SEGGER_RTT_printf(0, "%02x\n",flag);
+#endif
+	return flag;
+
+}
 
 
 static void hrc6000WriteSPIRegister0x04Multi(const uint8_t values[][2], uint8_t length)
@@ -410,12 +452,24 @@ void HRC6000Init(void)
 
 	HRC6000SetMicGainDMR(nonVolatileSettings.micGainDMR); //CODEC   LineOut Gain 6dB, Mic Stage 1 Gain 0dB, Mic Stage 2 Gain default is 11 =  33dB
 
+	HRC6000SetDmrRxGain((nonVolatileSettings.DMR_RxAGC - 1) * 2);
+
 	HRC6000ClearActiveDMRID();
 }
 
 void HRC6000SetMicGainDMR(uint8_t gain)
 {
 	SPI0WritePageRegByte(0x04, 0xE4, 0xC0 + gain);
+}
+
+static inline bool hrc6000CrcIsValid(void)
+{
+	if ((settingsUsbMode != USB_MODE_HOTSPOT) && (nonVolatileSettings.bitfieldOptions & BIT_DMR_CRC_IGNORED))
+	{
+		return true;
+	}
+
+	return hrc.rxCRCisValid;
 }
 
 static int hrc6000GetTSTimeoutValue(void)
@@ -474,6 +528,12 @@ bool HRC6000CheckTalkGroupFilter(void)
 		return ((nonVolatileSettings.privateCalls != 0) || ((trxTalkGroupOrPcId >> 24) == PC_CALL_FLAG));
 	}
 
+	// All call bypasses filtering
+	if (hrc.receivedTgOrPcId == ALL_CALL_VALUE)
+	{
+		return true;
+	}
+
 	switch(nonVolatileSettings.dmrDestinationFilter)
 	{
 		case DMR_DESTINATION_FILTER_TG:
@@ -510,6 +570,25 @@ static bool hrc6000CheckColourCodeFilter(void)
 
 static void hrc6000TransmitTalkerAlias(void)
 {
+	int loopSize;
+	uint8_t flag  = getCurrentTATxFlag();
+
+	switch(flag)
+	{
+		case TA_TX_APRS:
+			loopSize = 2;
+		break;
+		case TA_TX_TEXT:
+			loopSize = 9;
+		break;
+		case TA_TX_BOTH:
+			loopSize = (nonVolatileSettings.locationLat == SETTINGS_UNITIALISED_LOCATION_LAT)? 9 : 11;
+		break;
+		default:
+			loopSize = 0;// This should not occur as this function should not be called if the flag is TA_TX_OFF
+			break;
+	}
+
 	if (hrc.TAPhase % 2 == 0)
 	{
 		hrc6000SendPcOrTgLCHeader();
@@ -519,8 +598,14 @@ static void hrc6000TransmitTalkerAlias(void)
 		uint8_t TA_LCBuf[LC_DATA_LENGTH] = {0,0,0,0,0,0,0,0,0,0,0,0};
 		int taPosition = 2;
 		int taOffset, taLength;
+		uint32_t phase = hrc.TAPhase / 2;
 
-		switch(hrc.TAPhase / 2)
+		if (flag == TA_TX_APRS)
+		{
+			phase = 4;
+		}
+
+		switch(phase)
 		{
 			case 0:
 				taPosition 	= 3;
@@ -540,19 +625,32 @@ static void hrc6000TransmitTalkerAlias(void)
 				taOffset	= 20;
 				taLength	= 7;
 				break;
+			case 4:
+				taOffset	= 20;// not used for this phase
+				taLength	= 7;
+				break;
 			default:
 				taOffset	= 0;
 				taLength	= 0;
 				break;
 		}
 
-		TA_LCBuf[0]= (hrc.TAPhase/2) + 0x04;
-		memcpy(&TA_LCBuf[taPosition], &hrc.talkAliasText[taOffset], taLength);
+		TA_LCBuf[0]= (phase) + 0x04;
+
+		if (phase <= 3)
+		{
+			memcpy(&TA_LCBuf[taPosition], &hrc.talkAliasText[taOffset], taLength);
+		}
+		else
+		{
+			memcpy(&TA_LCBuf[taPosition], &hrc.talkAliasLocation[0], 7);
+		}
 
 		SPI0WritePageRegByteArray(0x02, 0x00, (uint8_t*)TA_LCBuf, taPosition + taLength);// put LC into hardware
 	}
 
-	hrc.TAPhase = ((hrc.TAPhase + 1) % 9);
+
+	hrc.TAPhase = ((hrc.TAPhase + 1) % loopSize);
 }
 
 static void hrc6000HandleLCData(void)
@@ -560,7 +658,7 @@ static void hrc6000HandleLCData(void)
 	uint8_t LCBuf[LC_DATA_LENGTH];
 	bool lcResult = (SPI0ReadPageRegByteArray(0x02, 0x00, LCBuf, LC_DATA_LENGTH) == kStatus_Success); // read the LC from the C6000
 
-	if (lcResult && hrc.rxCRCisValid && hrc.ccHold && (hrc.tsAgreed > TS_STABLE_THRESHOLD))
+	if (lcResult && hrc6000CrcIsValid() && hrc.ccHold && (hrc.tsAgreed > TS_STABLE_THRESHOLD))
 	{
 		bool lcSent = false;
 
@@ -573,6 +671,9 @@ static void hrc6000HandleLCData(void)
 			{
 				if ((LCBuf[0] == TG_CALL_FLAG) || (LCBuf[0] == PC_CALL_FLAG))
 				{
+					uint32_t prevTgOrPcId = hrc.receivedTgOrPcId;
+					uint32_t prevSrcId = hrc.receivedSrcId;
+
 					hrc.receivedTgOrPcId = (LCBuf[0] << 24) + (LCBuf[3] << 16) + (LCBuf[4] << 8) + (LCBuf[5] << 0); // used by the call accept filter
 					hrc.receivedSrcId    = (LCBuf[6] << 16) + (LCBuf[7] << 8) + (LCBuf[8] << 0); // used by the call accept filter
 
@@ -593,6 +694,32 @@ static void hrc6000HandleLCData(void)
 							// Don't update the screen until it's synced, or after the QSO turn has ended
 							lcSent = updateLastHeard = ((slotState != DMR_STATE_IDLE) && (hrc.qsoDataTimeout > 0));
 							monitorModeData.qsoInfoUpdated = true;
+
+							if (uiDataGlobal.rxBeepState & RX_BEEP_CARRIER_HAS_STARTED)
+							{
+								// ID or TG/PC has changed too fast (mostly because people are stepping on others toes),
+								// hence we were unable to play the CALLER_HAS_ENDED beep.
+								if (((prevTgOrPcId > 0) && (prevTgOrPcId != hrc.receivedTgOrPcId)) ||
+										((prevSrcId > 0) && (prevSrcId != hrc.receivedSrcId)))
+								{
+									if ((uiDataGlobal.rxBeepState & RX_BEEP_TALKER_HAS_STARTED) && ((uiDataGlobal.rxBeepState & RX_BEEP_TALKER_HAS_ENDED) == 0))
+									{
+										uiDataGlobal.rxBeepState |= (RX_BEEP_TALKER_HAS_ENDED | RX_BEEP_TALKER_HAS_ENDED_EXEC);
+									}
+
+									// Clearing this bit, as we don't want the qso info timeout trigger that beep again.
+									uiDataGlobal.rxBeepState &= ~(RX_BEEP_TALKER_IDENTIFIED | RX_BEEP_TALKER_HAS_STARTED | RX_BEEP_TALKER_HAS_STARTED_EXEC);
+								}
+								else
+								{
+									uiDataGlobal.rxBeepState |= RX_BEEP_TALKER_IDENTIFIED;
+
+									if ((uiDataGlobal.rxBeepState & RX_BEEP_TALKER_HAS_STARTED) == 0)
+									{
+										uiDataGlobal.rxBeepState |= (RX_BEEP_TALKER_HAS_STARTED | RX_BEEP_TALKER_HAS_STARTED_EXEC);
+									}
+								}
+							}
 						}
 					}
 				}
@@ -615,6 +742,19 @@ static void hrc6000HandleLCData(void)
 							// Don't update the screen until it's synced, or after the QSO turn has ended
 							lcSent = updateLastHeard = ((slotState != DMR_STATE_IDLE) && (hrc.qsoDataTimeout > 0));
 							monitorModeData.qsoInfoUpdated = true;
+
+							if (uiDataGlobal.rxBeepState & RX_BEEP_CARRIER_HAS_STARTED)
+							{
+								if ((uiDataGlobal.rxBeepState & RX_BEEP_TALKER_IDENTIFIED) == 0)
+								{
+									uiDataGlobal.rxBeepState |= RX_BEEP_TALKER_IDENTIFIED;
+								}
+
+								if ((uiDataGlobal.rxBeepState & RX_BEEP_TALKER_HAS_STARTED) == 0)
+								{
+									uiDataGlobal.rxBeepState |= (RX_BEEP_TALKER_HAS_STARTED | RX_BEEP_TALKER_HAS_STARTED_EXEC);
+								}
+							}
 						}
 					}
 				}
@@ -634,7 +774,10 @@ void PORTC_IRQHandler(void)
 
 	if (interruptsWasPinTriggered(Port_INT_C6000_SYS, Pin_INT_C6000_SYS))
 	{
-		hrc6000SysInterruptHandler();
+		if (rxPowerSavingIsRxOn())
+		{
+			hrc6000SysInterruptHandler();
+		}
 		interruptsClearPinFlags(Port_INT_C6000_SYS, Pin_INT_C6000_SYS);
 	}
 
@@ -746,7 +889,7 @@ static inline void hrc6000SysPostAccessInt(void)
 			In MSK mode, this interrupt has no substatus registers.
 	 */
 	// Late entry into ongoing RX
-	if ((slotState == DMR_STATE_IDLE) && (hrc.ccHold == true) && hrc6000CheckColourCodeFilter())
+	if ((slotState == DMR_STATE_IDLE) && hrc.ccHold && hrc6000CheckColourCodeFilter())
 	{
 		codecInit(false);
 		LEDs_PinWrite(GPIO_LEDgreen, Pin_LEDgreen, 1);
@@ -802,7 +945,7 @@ static inline void hrc6000SysReceivedDataInt(void)
 
 	//read_SPI_page_reg_byte_SPI0(0x04, 0x57, &reg_0x57);// Kai said that the official firmware uses this register instead of 0x52 for the timecode
 
-	rxDataType 	= (reg_0x51 >> 4) & 0x0f;//Data Type or Voice Frame sequence number
+	rxDataType 	= (reg_0x51 >> 4) & 0x0F;//Data Type or Voice Frame sequence number
 	rxSyncClass = (reg_0x51 >> 0) & 0x03;//Received Sync Class  0=Sync Header 1=Voice 2=data 3=RC
 	hrc.rxCRCisValid = (((reg_0x51 >> 2) & 0x01) == 0);// CRC is OK if its 0
 	rxPrivacyIndicator = (reg_0x51 >> 3) & 0x01;
@@ -824,7 +967,7 @@ static inline void hrc6000SysReceivedDataInt(void)
 	}
 
 	if (((slotState == DMR_STATE_RX_1) || (slotState == DMR_STATE_RX_2)) &&
-			((rxPrivacyIndicator != 0) || (hrc.rxCRCisValid == false) || (hrc6000CheckColourCodeFilter() == false)))
+			((rxPrivacyIndicator != 0) || (hrc6000CrcIsValid() == false) || (hrc6000CheckColourCodeFilter() == false)))
 	{
 		// Something is not correct
 		return;
@@ -847,7 +990,7 @@ static inline void hrc6000SysReceivedDataInt(void)
 
 	// Note only detect terminator frames in Active mode, because in passive we can see our own terminators echoed back which can be a problem
 
-	if (hrc.rxCRCisValid && (rxSyncClass == SYNC_CLASS_DATA) && (rxDataType == 2))        //Terminator with LC
+	if (hrc6000CrcIsValid() && (rxSyncClass == SYNC_CLASS_DATA) && (rxDataType == 2))        //Terminator with LC
 	{
 		if ((trxDMRModeRx == DMR_MODE_DMO) && hrc6000CallAcceptFilter())
 		{
@@ -867,13 +1010,13 @@ static inline void hrc6000SysReceivedDataInt(void)
 		}
 	}
 
-	if (hrc.rxCRCisValid && (slotState != DMR_STATE_IDLE) && (hrc.skipCount > 0) && (rxSyncClass != SYNC_CLASS_DATA) && ((rxDataType & 0x07) == 0x01))
+	if (hrc6000CrcIsValid() && (slotState != DMR_STATE_IDLE) && (hrc.skipCount > 0) && (rxSyncClass != SYNC_CLASS_DATA) && ((rxDataType & 0x07) == 0x01))
 	{
 		hrc.skipCount--;
 	}
 
 	// Check for correct received packet
-	if (hrc.rxCRCisValid && (rxPrivacyIndicator == 0) && (slotState < DMR_STATE_TX_START_1))
+	if (hrc6000CrcIsValid() && (rxPrivacyIndicator == 0) && (slotState < DMR_STATE_TX_START_1))
 	{
 		// Start RX
 		if (slotState == DMR_STATE_IDLE)
@@ -915,7 +1058,7 @@ static inline void hrc6000SysReceivedDataInt(void)
 					(slotState == DMR_STATE_RX_1) // We are only listening on DMR_STATE_RX_1, in both DMO and RMO
 					&& HRC6000CheckTalkGroupFilter() && hrc6000CheckColourCodeFilter())
 			{
-				bool ccLocked = (((nonVolatileSettings.dmrCcTsFilter & DMR_CC_FILTER_PATTERN) == 0) ? (hrc.lastRxColorCodeCount == CC_PROBE_MAX_COUNT) : true);
+				bool ccLocked = (((nonVolatileSettings.dmrCcTsFilter & DMR_CC_FILTER_PATTERN) == 0) ? (hrc.lastRxColorCodeCount == CC_PROBE_LOCKED) : true);
 
 				// We just got a valid audio, while in Monitor Mode, hence, we need to
 				// (re)send the QSO info
@@ -1085,7 +1228,7 @@ static inline void hrc6000SysAbnormalExitInt(void)
 		through Bit2~Bit0 of register address 0x98.
 	 */
 
-	if ((hrc.ccHold == true) && hrc6000CheckColourCodeFilter() && (hrc.transmissionEnabled == false) && (hrc.tsAgreed == TS_IS_LOCKED))
+	if (hrc.ccHold && hrc6000CheckColourCodeFilter() && (hrc.transmissionEnabled == false) && (hrc.tsAgreed == TS_IS_LOCKED))
 	{
 		if ((settingsUsbMode != USB_MODE_HOTSPOT) && ((reg_0x98 >> (hrc.tsLockedTS + 1)) & 0x01)) // Check if it did happened on the TS we're locked on.
 		{
@@ -1104,35 +1247,67 @@ static inline void hrc6000SysInterruptHandler(void)
 	bool reg82Result = (SPI0ReadPageRegByte(0x04, 0x82, &reg_0x82) == kStatus_Success); // Read Interrupt Flag Register1
 	bool reg52Result = (SPI0ReadPageRegByte(0x04, 0x52, &reg0x52) == kStatus_Success);  // Read Received CC and CACH
 
-
 	if (reg52Result)
 	{
-		hrc.rxColorCode = (reg0x52 >> 4) & 0x0f;
+		hrc.rxColorCode = (reg0x52 >> 4) & 0x0F;
 	}
 
 	if (hrc.transmissionEnabled == false)
 	{
-		if (reg52Result && ((hrc.ccHold == false) && ((nonVolatileSettings.dmrCcTsFilter & DMR_CC_FILTER_PATTERN) == 0)))
+		if ((hrc.ccHold == false) && ((nonVolatileSettings.dmrCcTsFilter & DMR_CC_FILTER_PATTERN) == 0) && reg52Result)
 		{
-			if(hrc.rxColorCode == hrc.lastRxColorCode)
+			if (trxGetSNRMargindBm() >= 5) // Minimum SNR Margin
 			{
-				if (hrc.lastRxColorCodeCount < CC_PROBE_MAX_COUNT)
+				uint32_t timeDiff = (ticksGetMillis() - hrc.lastRxColorCodeTime);
+
+				// Too much time has passed since last turn, reset hrc.lastRxColorCodeCount.
+				// Also, if a CC detection failed (no ccHold), we have to reset the counter to
+				// restart the whole detection process.
+				if (timeDiff > 200)
 				{
-					hrc.lastRxColorCodeCount++;
-					trxSetDMRColourCode(hrc.rxColorCode);
+					hrc.lastRxColorCode = 0xFF;
+				}
+
+				if(hrc.rxColorCode == hrc.lastRxColorCode)
+				{
+					if (hrc.lastRxColorCodeCount < CC_PROBE_MAX_COUNT)
+					{
+						if (hrc.lastRxColorCodeCount % 2) // Slow down calling trxSetDMRColourCode() otherwise the FW will crash
+						{
+							trxSetDMRColourCode(hrc.rxColorCode);
+							SPI0WritePageRegByte(0x04, 0x40, 0xC3);  // Enable DMR Tx, DMR Rx, Passive Timing, Normal mode
+
+							if (trxDMRModeTx == DMR_MODE_RMO) // we need to do extra config while in RMO, otherwise the chip will get stuck on a wrong CC
+							{
+								SPI0WritePageRegByte(0x04, 0x41, 0x20);  // Set Sync Fail Bit (Reset?))
+								SPI0WritePageRegByte(0x04, 0x41, 0x00);  // Reset
+								SPI0WritePageRegByte(0x04, 0x41, 0x20);  // Set Sync Fail Bit (Reset?)
+								SPI0WritePageRegByte(0x04, 0x41, 0x50);  // Receive during next Timeslot
+							}
+
+							// Give the HR-C6000 a bit of time.
+							uint32_t m = ticksGetMillis();
+							while ((ticksGetMillis() - m) < 3);
+						}
+
+						hrc.lastRxColorCodeCount++;
+					}
+					else
+					{
+						hrc.ccHold = true;
+						headerRowIsDirty = true; // force the UI to display the correct CC
+						hrc.lastRxColorCodeCount = CC_PROBE_LOCKED;
+						hrc.ccHoldTimer = 0;
+					}
 				}
 				else
 				{
-					hrc.ccHold = true;
-					headerRowIsDirty = true; // force the UI to display the correct CC
+					hrc.lastRxColorCodeCount = 0;
 				}
-			}
-			else
-			{
-				hrc.lastRxColorCodeCount = 0;
-			}
 
-			hrc.lastRxColorCode = hrc.rxColorCode;
+				hrc.lastRxColorCode = hrc.rxColorCode;
+				hrc.lastRxColorCodeTime = ticksGetMillis();
+			}
 		}
 	}
 	else
@@ -1444,13 +1619,19 @@ static inline void hrc6000TimeslotInterruptHandler(void)
 			// Once the TS lock is acquired start listening one TS out of two
 			if (hrc.tsAgreed == TS_IS_LOCKED)
 			{
+				if ((hrc.transmissionEnabled == false) && ((uiDataGlobal.rxBeepState & RX_BEEP_CARRIER_HAS_STARTED) == 0))
+				{
+					uiDataGlobal.rxBeepState |= (RX_BEEP_CARRIER_HAS_STARTED | RX_BEEP_CARRIER_HAS_STARTED_EXEC);
+					uiDataGlobal.rxBeepState &= ~(RX_BEEP_TALKER_IDENTIFIED | RX_BEEP_TALKER_HAS_ENDED_EXEC);
+				}
+
 				SPI0WritePageRegByte(0x04, 0x41, 0x00); // No Transmit or receive in next timeslot
 				slotState = DMR_STATE_RX_2;
 			}
 
 			if (!trxDMRSynchronisedRSSIReadPending)
 			{
-				readDMRRSSI = ticksGetMillis() + (180 + 15); // wait 3 * 60ms complete frames + 15 ticks (of approximately 15mS) before reading the RSSI, in the middle of a TS
+				ticksTimerStart((ticksTimer_t *)&readDMRRSSITimer, (180 + 15)); // wait 3 * 60ms complete frames + 15 ticks (of approximately 15mS) before reading the RSSI, in the middle of a TS
 				trxDMRSynchronisedRSSIReadPending = true;
 			}
 			break;
@@ -1465,6 +1646,19 @@ static inline void hrc6000TimeslotInterruptHandler(void)
 			HRC6000InitDigitalDmrRx();
 			disableAudioAmp(AUDIO_AMP_MODE_RF);
 			LEDs_PinWrite(GPIO_LEDgreen, Pin_LEDgreen, 0);
+
+			if (uiDataGlobal.rxBeepState & RX_BEEP_CARRIER_HAS_STARTED)
+			{
+				uiDataGlobal.rxBeepState |= RX_BEEP_CARRIER_HAS_ENDED;
+
+				// In DMO (HT to HT), otherwise Talker end beep won't be played.
+				// The beep will be played first, followed 100ms later with carrier ending beep
+				if ((uiDataGlobal.rxBeepState & RX_BEEP_TALKER_HAS_STARTED) && ((uiDataGlobal.rxBeepState & RX_BEEP_TALKER_HAS_ENDED) == 0))
+				{
+					uiDataGlobal.rxBeepState |= (RX_BEEP_TALKER_HAS_ENDED | RX_BEEP_TALKER_HAS_ENDED_EXEC);
+				}
+			}
+
 			uiDataGlobal.displayQSOState = QSO_DISPLAY_DEFAULT_SCREEN;
 			slotState = DMR_STATE_IDLE;
 			hrc.tsLockedTS = -1;
@@ -1550,12 +1744,9 @@ static inline void hrc6000TimeslotInterruptHandler(void)
 				}
 				else
 				{
-					if (nonVolatileSettings.bitfieldOptions & BIT_TRANSMIT_TALKER_ALIAS)
+					if((hrc.txSequence == 0) && (getCurrentTATxFlag() != TA_TX_OFF))
 					{
-						if(hrc.txSequence == 0)
-						{
-							hrc6000TransmitTalkerAlias();
-						}
+						hrc6000TransmitTalkerAlias();
 					}
 
 					if (hrc.ambeBufferCount >= NUM_AMBE_BLOCK_PER_DMR_FRAME)
@@ -1590,7 +1781,7 @@ static inline void hrc6000TimeslotInterruptHandler(void)
 			break;
 
 		case DMR_STATE_TX_END_1: // Stop TX (first step)
-			if (nonVolatileSettings.bitfieldOptions & BIT_TRANSMIT_TALKER_ALIAS)
+			if (getCurrentTATxFlag() != TA_TX_OFF)
 			{
 				hrc6000SendPcOrTgLCHeader();
 			}
@@ -1703,6 +1894,19 @@ static inline void hrc6000TimeslotInterruptHandler(void)
 			HRC6000ClearActiveDMRID();
 			disableAudioAmp(AUDIO_AMP_MODE_RF);
 			LEDs_PinWrite(GPIO_LEDgreen, Pin_LEDgreen, 0);
+
+			if (uiDataGlobal.rxBeepState & RX_BEEP_CARRIER_HAS_STARTED)
+			{
+				uiDataGlobal.rxBeepState |= RX_BEEP_CARRIER_HAS_ENDED;
+
+				// In DMO (HT to HT), otherwise Talker end beep won't be played.
+				// The beep will be played first, followed 100ms later with carrier ending beep
+				if ((uiDataGlobal.rxBeepState & RX_BEEP_TALKER_HAS_STARTED) && ((uiDataGlobal.rxBeepState & RX_BEEP_TALKER_HAS_ENDED) == 0))
+				{
+					uiDataGlobal.rxBeepState |= (RX_BEEP_TALKER_HAS_ENDED | RX_BEEP_TALKER_HAS_ENDED_EXEC);
+				}
+			}
+
 			uiDataGlobal.displayQSOState = QSO_DISPLAY_DEFAULT_SCREEN;
 			slotState = DMR_STATE_IDLE;
 			trxIsTransmitting = false;
@@ -1737,13 +1941,14 @@ static void hrc6000InitDigitalState(void)
 	hrc.receivedFramesCount = -1;
 	hrc.insertSilenceFrame = false;
 	hrc.tsDisagreed = 0;
-	hrc.lastRxColorCode = -1;
-	hrc.lastRxColorCodeCount = 0;
 	hrc.tsLockedTS = -1;
 	hrc.qsoDataSeqCount = 0;
 	hrc.hasAudioData = false;
 	hrc.qsoDataTimeout = 0;
 	hrc.skipOneTS = false;
+	hrc.lastRxColorCode = 0xFF;
+	hrc.lastRxColorCodeCount = 0;
+	monitorModeData.dmrIsValid = false;
 }
 
 void HRC6000InitInterrupts(void)
@@ -1769,7 +1974,7 @@ void HRC6000InitDigitalDmrRx(void)
 	hrc.qsoDataSeqCount = 0;
 	hrc.hasAudioData = false;
 	hrc.qsoDataTimeout = 0;
-	hrc.lastRxColorCode = -1;
+	hrc.lastRxColorCode = 0xFF;
 	hrc.lastRxColorCodeCount = 0;
 }
 
@@ -1794,6 +1999,9 @@ void HRC6000ResetTimeSlotDetection(void)
 		hrc.hasAudioData = false;
 		hrc.qsoDataTimeout = 0;
 		hrc.skipOneTS = false;
+		hrc.lastRxColorCode = 0xFF;
+		hrc.lastRxColorCodeCount = 0;
+		uiDataGlobal.rxBeepState = RX_BEEP_UNSET;
 	}
 }
 
@@ -1884,30 +2092,53 @@ static bool hrc6000CallAcceptFilter(void)
 	}
 }
 
-static void hrc6000Tick(void)
+static void hrc6000ManageCCHoldState(void)
 {
-	if((nonVolatileSettings.dmrCcTsFilter & DMR_CC_FILTER_PATTERN) == 0)
+	uint32_t m = ticksGetMillis();
+
+	if ((m - hrc.ccHoldReleaseTickTime) >= 1)
 	{
-		if (slotState == DMR_STATE_IDLE)
+		hrc.ccHoldReleaseTickTime = m;
+
+		if ((nonVolatileSettings.dmrCcTsFilter & DMR_CC_FILTER_PATTERN) && (hrc.ccHold == false))
 		{
-			if (hrc.ccHoldTimer < CC_HOLD_TIME)
+			hrc.ccHold = true;
+		}
+		else if((hrc.transmissionEnabled == false) && ((nonVolatileSettings.dmrCcTsFilter & DMR_CC_FILTER_PATTERN) == 0) && hrc.ccHold)
+		{
+			if (slotState == DMR_STATE_IDLE)
 			{
-				hrc.ccHoldTimer++;
+				if ((getAudioAmpStatus() & AUDIO_AMP_MODE_RF) == 0)
+				{
+					hrc.ccHoldTimer++;
+				}
+				else
+				{
+					hrc.ccHoldTimer -= ((hrc.ccHoldTimer > 0) ? 1 : 0);
+				}
+
+				if (hrc.ccHoldTimer >= CC_HOLD_TIME)
+				{
+					hrc.ccHold = false;
+					hrc.ccHoldTimer = 0;
+					hrc.lastRxColorCode = 0xFF;
+					hrc.lastRxColorCodeCount = 0;
+					monitorModeData.dmrIsValid = false;
+				}
 			}
 			else
 			{
-				hrc.ccHold = false;
-				hrc.lastRxColorCodeCount = 0;
-				monitorModeData.dmrIsValid = false;
+				hrc.ccHoldTimer = 0;
 			}
 		}
-		else
-		{
-			hrc.ccHoldTimer = 0;
-		}
 	}
+}
 
-	if ((hrc.transmissionEnabled == true) && (hrc.isWaking == WAKING_MODE_NONE))
+static void hrc6000Tick(void)
+{
+	hrc6000ManageCCHoldState();
+
+	if (hrc.transmissionEnabled && (hrc.isWaking == WAKING_MODE_NONE))
 	{
 		// DMO: Start transmitting
 		// RMO: Waking up the repeater if it's not already listening to it.
@@ -2122,7 +2353,7 @@ static void hrc6000Tick(void)
 		// receiving RF DMR
 		if (settingsUsbMode == USB_MODE_HOTSPOT)
 		{
-			if ((hrc.hotspotDMRRxFrameBufferAvailable == true) && hrc.rxCRCisValid && hrc.ccHold && (hrc.tsAgreed > TS_STABLE_THRESHOLD) && hrc6000CheckColourCodeFilter())
+			if ((hrc.hotspotDMRRxFrameBufferAvailable == true) && hrc6000CrcIsValid() && hrc.ccHold && (hrc.tsAgreed > TS_STABLE_THRESHOLD) && hrc6000CheckColourCodeFilter())
 			{
 				hotspotRxFrameHandler((uint8_t *)DMR_frame_buffer);
 				hrc.hotspotDMRRxFrameBufferAvailable = false;
@@ -2132,7 +2363,7 @@ static void hrc6000Tick(void)
 		{
 			if (monitorModeData.isEnabled && (monitorModeData.dmrTimeout > 0))
 			{
-				if (!hrc.rxCRCisValid)
+				if (hrc.rxCRCisValid == false) // Here, we shouldn't use hrc6000CrcIsValid(), otherwise monitor mode will get stuck in DMR
 				{
 					monitorModeData.dmrTimeout--;
 					if (monitorModeData.dmrTimeout == 0)
@@ -2218,6 +2449,14 @@ static void hrc6000Tick(void)
 			if (uiDataGlobal.PrivateCall.state != PRIVATE_CALL_ACCEPT)
 			{
 				hrc.qsoDataTimeout--;
+				if (hrc.qsoDataTimeout == QSODATA_RX_BEEP_TIMER_TIMEOUT)
+				{
+					if ((uiDataGlobal.rxBeepState & RX_BEEP_CARRIER_HAS_STARTED) && (uiDataGlobal.rxBeepState & RX_BEEP_TALKER_IDENTIFIED) &&
+							(uiDataGlobal.rxBeepState & RX_BEEP_TALKER_HAS_STARTED) && ((uiDataGlobal.rxBeepState & RX_BEEP_TALKER_HAS_ENDED) == 0))
+					{
+						uiDataGlobal.rxBeepState |= (RX_BEEP_TALKER_HAS_ENDED | RX_BEEP_TALKER_HAS_ENDED_EXEC);
+					}
+				}
 
 				if (hrc.qsoDataTimeout == 0)
 				{
@@ -2273,10 +2512,10 @@ static void hrc6000TaskFunction(void *data)
 {
 	while (1U)
 	{
+		hrc6000Task.AliveCount = TASK_FLAGGED_ALIVE;
+
 		if (timer_hrc6000task == 0)
 		{
-			hrc6000Task.AliveCount = TASK_FLAGGED_ALIVE;
-
 			// Update our atomic transmission state
 			hrc.transmissionEnabled = trxTransmissionEnabled;
 
@@ -2286,8 +2525,16 @@ static void hrc6000TaskFunction(void *data)
 				hrc6000Tick();
 			}
 
-			timer_hrc6000task = 1; // Reset PIT Counter
+			timer_hrc6000task = 1; // Reset ISR activity marker
 		}
+		else
+		{
+			if (trxGetMode() == RADIO_MODE_DIGITAL)
+			{
+				hrc6000ManageCCHoldState();
+			}
+		}
+
 		vTaskDelay((0 / portTICK_PERIOD_MS));
 	}
 }
@@ -2377,9 +2624,37 @@ void HRC6000ClearTimecodeSynchronisation(void)
 	hrc.timeCode = -1;
 }
 
+void HRC6000ClearColorCodeSynchronisation(void)
+{
+	if (hrc.transmissionEnabled == false)
+	{
+		hrc.ccHold = ((nonVolatileSettings.dmrCcTsFilter & DMR_CC_FILTER_PATTERN) != 0);
+		hrc.lastRxColorCode = 0xFF;
+		hrc.lastRxColorCodeCount = 0;
+		hrc.ccHoldTimer = 0;
+	}
+}
+
 void HRC6000SetTalkerAlias(const char *text)
 {
 	snprintf(hrc.talkAliasText, sizeof(hrc.talkAliasText), "%s", text);
+}
+
+
+void HRC6000SetTalkerAliasLocation(void)
+{
+	float Long = latLongFixedToDouble(nonVolatileSettings.locationLon);
+	int32_t intLong = (33554432 * Long) / 360;
+	hrc.talkAliasLocation[0] = (intLong >> 24) & 0x01;
+	hrc.talkAliasLocation[1] = (intLong >> 16) & 0xFF;
+	hrc.talkAliasLocation[2] = (intLong >> 8) & 0xFF;
+	hrc.talkAliasLocation[3] = (intLong ) & 0xFF;
+
+	float Lat = latLongFixedToDouble(nonVolatileSettings.locationLat);
+	int32_t intLat = (16777216 * Lat) / 180;
+	hrc.talkAliasLocation[4] = (intLat >> 16) & 0xFF;
+	hrc.talkAliasLocation[5] = (intLat >> 8) & 0xFF;
+	hrc.talkAliasLocation[6] = (intLat >> 0) & 0xFF;
 }
 
 bool HRC6000IRQHandlerIsRunning(void)
@@ -2390,4 +2665,16 @@ bool HRC6000IRQHandlerIsRunning(void)
 bool HRC6000HasGotSync(void)
 {
 	return ((hrc.timeCode != -1) || (hrc.inIRQHandler));
+}
+
+bool HRC6000CCIsHeld(void)
+{
+	return hrc.ccHold;
+}
+
+void HRC6000SetDmrRxGain(int8_t gain)
+{
+	gain = CLAMP(gain, -31, 31);
+	uint8_t val = (0x80 + ((gain > 0) * 0x40)) | (gain & 0x1F);
+	SPI0WritePageRegByte(0x04, 0x37, val);
 }

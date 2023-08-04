@@ -1,5 +1,6 @@
 /*
- * Copyright (C) 2019-2021 Roger Clark, VK3KYY / G4KYF
+ * Copyright (C) 2019-2023 Roger Clark, VK3KYY / G4KYF
+ *                         Daniel Caujolle-Bert, F1RMB
  *
  *
  * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions
@@ -45,7 +46,7 @@ static bool EEPROM_Write_UNLOCKED(int address, uint8_t *buf, int size)
 	i2c_master_transfer_t masterXfer;
 	status_t status;
 
-	while(size > 0)
+	while (size > 0)
 	{
 		transferSize = (size > EEPROM_PAGE_SIZE) ? EEPROM_PAGE_SIZE : size;
 		tmpBuf[0] = address >> 8;
@@ -68,7 +69,7 @@ static bool EEPROM_Write_UNLOCKED(int address, uint8_t *buf, int size)
 		status = kStatus_Success;
 		do
 		{
-			if(status != kStatus_Success)
+			if (status != kStatus_Success)
 			{
 				uint32_t pit = ticksGetMillis();
 
@@ -77,27 +78,27 @@ static bool EEPROM_Write_UNLOCKED(int address, uint8_t *buf, int size)
 
 			status = I2C_MasterTransferBlocking(I2C0, &masterXfer);
 
-		} while((status != kStatus_Success) && (timeoutCount-- > 0));
+		} while ((status != kStatus_Success) && (timeoutCount-- > 0));
+
+		if (status == kStatus_Success)
+		{
+			memset(&masterXfer, 0, sizeof(masterXfer));
+			masterXfer.slaveAddress = EEPROM_ADDRESS;
+			masterXfer.direction = kI2C_Write;
+			masterXfer.subaddress = 0;
+			masterXfer.subaddressSize = 0;
+			masterXfer.data = buf;
+			masterXfer.dataSize = transferSize;
+			masterXfer.flags = kI2C_TransferNoStartFlag;//kI2C_TransferDefaultFlag;
+
+			status = I2C_MasterTransferBlocking(I2C0, &masterXfer);
+		}
 
 		if (status != kStatus_Success)
 		{
 			return false;
 		}
 
-		memset(&masterXfer, 0, sizeof(masterXfer));
-		masterXfer.slaveAddress = EEPROM_ADDRESS;
-		masterXfer.direction = kI2C_Write;
-		masterXfer.subaddress = 0;
-		masterXfer.subaddressSize = 0;
-		masterXfer.data = buf;
-		masterXfer.dataSize = transferSize;
-		masterXfer.flags = kI2C_TransferNoStartFlag;//kI2C_TransferDefaultFlag;
-
-		status = I2C_MasterTransferBlocking(I2C0, &masterXfer);
-		if (status != kStatus_Success)
-		{
-			return false;
-		}
 		address += transferSize;
 		size -= transferSize;
 	}
@@ -119,7 +120,7 @@ bool EEPROM_Write(int address, uint8_t *buf, int size)
 	taskENTER_CRITICAL();
 	isI2cInUse = 2;
 
-	if (address / 128 == (address + size) / 128)
+	if ((address / EEPROM_PAGE_SIZE) == ((address + size) / EEPROM_PAGE_SIZE))
 	{
 		// All of the data is in the same page in the EEPROM so can just be written sequentially in one write
 		retVal = EEPROM_Write_UNLOCKED(address, buf, size);
@@ -127,7 +128,7 @@ bool EEPROM_Write(int address, uint8_t *buf, int size)
 	else
 	{
 		// Either there is more data than the page size or the data needs to be split across multiple page boundaries
-		int writeSize = 128 - (address % 128);
+		int writeSize = EEPROM_PAGE_SIZE - (address % EEPROM_PAGE_SIZE);
 		retVal = true;// First time though need to prime the while loop
 
 		while ((writeSize > 0) && (retVal == true))
@@ -136,14 +137,7 @@ bool EEPROM_Write(int address, uint8_t *buf, int size)
 			address += writeSize;
 			buf += writeSize;
 			size -= writeSize;
-			if (size > 128)
-			{
-				writeSize = 128;
-			}
-			else
-			{
-				writeSize = size;
-			}
+			writeSize = (size > EEPROM_PAGE_SIZE) ? EEPROM_PAGE_SIZE : size;
 		}
 	}
 
@@ -186,7 +180,7 @@ bool EEPROM_Read(int address, uint8_t *buf, int size)
 	status = kStatus_Success;
 	do
 	{
-		if(status != kStatus_Success)
+		if (status != kStatus_Success)
 		{
 			uint32_t pit = ticksGetMillis();
 
@@ -195,34 +189,24 @@ bool EEPROM_Read(int address, uint8_t *buf, int size)
 
 		status = I2C_MasterTransferBlocking(I2C0, &masterXfer);
 
-	} while((status != kStatus_Success) && (timeoutCount-- > 0));
+	} while ((status != kStatus_Success) && (timeoutCount-- > 0));
 
-	if (status != kStatus_Success)
+	if (status == kStatus_Success)
 	{
-		isI2cInUse = 0;
-		taskEXIT_CRITICAL();
-		return false;
-	}
+		memset(&masterXfer, 0, sizeof(masterXfer));
+		masterXfer.slaveAddress = EEPROM_ADDRESS;
+		masterXfer.direction = kI2C_Read;
+		masterXfer.subaddress = 0;
+		masterXfer.subaddressSize = 0;
+		masterXfer.data = buf;
+		masterXfer.dataSize = size;
+		masterXfer.flags = kI2C_TransferRepeatedStartFlag;
 
-	memset(&masterXfer, 0, sizeof(masterXfer));
-	masterXfer.slaveAddress = EEPROM_ADDRESS;
-	masterXfer.direction = kI2C_Read;
-	masterXfer.subaddress = 0;
-	masterXfer.subaddressSize = 0;
-	masterXfer.data = buf;
-	masterXfer.dataSize = size;
-	masterXfer.flags = kI2C_TransferRepeatedStartFlag;
-
-	status = I2C_MasterTransferBlocking(I2C0, &masterXfer);
-	if (status != kStatus_Success)
-	{
-		isI2cInUse = 0;
-		taskEXIT_CRITICAL();
-		return false;
+		status = I2C_MasterTransferBlocking(I2C0, &masterXfer);
 	}
 
 	isI2cInUse = 0;
 	taskEXIT_CRITICAL();
 
-	return true;
+	return (status == kStatus_Success);
 }

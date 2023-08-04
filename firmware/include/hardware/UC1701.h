@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2021 Roger Clark, VK3KYY / G4KYF
+ * Copyright (C) 2019-2023 Roger Clark, VK3KYY / G4KYF
  *                         Daniel Caujolle-Bert, F1RMB
  *
  *
@@ -54,6 +54,9 @@ typedef enum
 typedef enum
 {
 	CHOICE_OK = 0,
+#if defined(PLATFORM_MD9600)
+	CHOICE_ENT,
+#endif
 	CHOICE_YESNO,
 	CHOICE_DISMISS,
 	CHOICES_OKARROWS,// QuickKeys
@@ -62,9 +65,11 @@ typedef enum
 
 #if defined(PLATFORM_RD5R)
 #define FONT_SIZE_3_HEIGHT                        8
+#define FONT_SIZE_4_HEIGHT                       16
 #define DISPLAY_SIZE_Y                           48
 #else
 #define FONT_SIZE_3_HEIGHT                       16
+#define FONT_SIZE_4_HEIGHT                       32
 #define DISPLAY_SIZE_Y                           64
 #endif
 
@@ -79,9 +84,9 @@ void displayClearRows(int16_t startRow, int16_t endRow, bool isInverted);
 void displayRenderWithoutNotification(void);
 void displayRender(void);
 void displayRenderRows(int16_t startRow, int16_t endRow);
-void displayPrintCentered(uint8_t y,const  char *text, ucFont_t fontSize);
-void displayPrintAt(uint8_t x, uint8_t y,const  char *text, ucFont_t fontSize);
-int displayPrintCore(int16_t x, int16_t y,const char *szMsg, ucFont_t fontSize, ucTextAlign_t alignment, bool isInverted);
+void displayPrintCentered(uint16_t y, const char *text, ucFont_t fontSize);
+void displayPrintAt(uint16_t x, uint16_t y,const  char *text, ucFont_t fontSize);
+int displayPrintCore(int16_t x, int16_t y, const char *szMsg, ucFont_t fontSize, ucTextAlign_t alignment, bool isInverted);
 
 int16_t displaySetPixel(int16_t x, int16_t y, bool color);
 

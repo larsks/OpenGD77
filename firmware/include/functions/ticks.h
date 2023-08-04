@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2019      Kai Ludwig, DG4KLU
- * Copyright (C) 2019-2021 Roger Clark, VK3KYY / G4KYF
+ * Copyright (C) 2019-2023 Roger Clark, VK3KYY / G4KYF
  *
  *
  * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions
@@ -37,11 +37,22 @@
 
 typedef void (*timerCallback_t)(void);
 
+typedef struct
+{
+		uint32_t start;
+		uint32_t timeout;
+} ticksTimer_t;
+
 extern uint32_t ticksGetMillis(void);
 
 bool addTimerCallback(timerCallback_t funPtr, uint32_t delayIn_mS, int menuDest, bool updateExistingCallbackTime);
+bool cancelTimerCallback(timerCallback_t funPtr, int menuDest);
 void handleTimerCallbacks(void);
+
+void ticksTimerReset(ticksTimer_t *timer);
+void ticksTimerStart(ticksTimer_t *timer, uint32_t timeout);
+bool ticksTimerHasExpired(ticksTimer_t *timer);
+uint32_t ticksTimerRemaining(ticksTimer_t *timer);
 
 
 #endif /* _OPENGD77_TICKS_H_ */
-

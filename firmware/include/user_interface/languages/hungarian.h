@@ -1,6 +1,6 @@
-/* -*- coding: windows-1252-unix; -*- */
+/* -*- coding: binary; -*- */
 /*
- * Copyright (C) 2019-2021 Roger Clark, VK3KYY / G4KYF
+ * Copyright (C) 2019-2023 Roger Clark, VK3KYY / G4KYF
  *
  *
  * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions
@@ -115,7 +115,7 @@ const stringsTable_t hungarianLanguage=
 .on					= "Be",
 .timeout_beep				= "TOT jelzés",
 .list_full				= "Teljes lista",
-.UNUSED_1				= "",
+.dmr_cc_scan				= "CC keresés",
 .band_limits				= "Sáv limit",
 .beep_volume				= "Bip szint",
 .dmr_mic_gain				= "DMR mikr.",
@@ -164,10 +164,10 @@ const stringsTable_t hungarianLanguage=
 .vox_tail				= "VOX tartás",
 .audio_prompt				= "Segéd",
 .silent					= "Nincs",
-.UNUSED_2				= "",
+.rx_beep				= "RX beep", // MaxLen 16 (with ':' + .carrier/.talker/.both/.none)
 .beep					= "Bip",
 .voice_prompt_level_1			= "Hang",
-.transmitTalkerAlias			= "TA továbbít",
+.transmitTalkerAliasTS1			= "TA továbbít 1",
 .squelch_VHF				= "Zajzár VHF",
 .squelch_220				= "Zajzár 220",
 .squelch_UHF				= "Zajzár UHF",
@@ -180,7 +180,7 @@ const stringsTable_t hungarianLanguage=
 .voice_prompt_level_2			= "Hang 2",
 .voice_prompt_level_3			= "Hang 3",
 .dmr_filter				= "DMR szûrõ",
-.UNUSED_4				= "",
+.talker					= "Talker",
 .dmr_ts_filter				= "TS szûrõ",
 .dtmf_contact_list			= "DTMF kapcsolatok",
 .channel_power				= "Csat.telj",
@@ -210,9 +210,9 @@ const stringsTable_t hungarianLanguage=
 .scan_on_boot				= "Ker.ind.kor",
 .dtmf_entry				= "DTMF küldés",
 .name					= "Név",
-.UNUSED_3				= "",
+.carrier				= "Carrier",
 .openDM1801A 				= "OpenDM1801A",
-.time					= "Idõ",
+.time					= "Id£, mód",
 .uptime					= "Üzemidõ",
 .hours					= "Órák",
 .minutes				= "Percek",
@@ -228,13 +228,36 @@ const stringsTable_t hungarianLanguage=
 .inHHMMSS				= "in",
 .predicting				= "Elõrejelzés",
 .maximum				= "Max",
-.satellite_short			= "SAT",
+.satellite_short			= "Köv. SAT",
 .local					= "Helyi",
 .UTC					= "UTC",
 .symbols				= "ÉDKN", 		// symbols: N,S,E,W
 .not_set				= "NINCS BEÁLLÍTVA",
 .general_options			= "Általános",
-.radio_options				= "Rádió beáll."
+.radio_options				= "Rádió beáll.",
+.openMD9600				= "OpenMD9600",
+.dmr_rx_agc				= "DMR Rx AGC",
+.speaker_click_suppress			= "Katt.elnyom",
+.gps					= "GPS",
+.end_only				= "Végén",
+.dmr_crc				= "DMR crc",
+.eco					= "Takarékos",
+.safe_power_on				= "Bizt.BEkapcs.", // MaxLen: 16 (with ':' + .on or .off)
+.auto_power_off				= "AUto LEkapcs", // MaxLen: 16 (with ':' + 30/60/90/120/180 or .no)
+.apo_with_rf				= "AULE RF-el", // MaxLen: 16 (with ':' + .yes or .no or .n_a)
+.openMDUV380			= "OpenMDUV380",
+.openMD380				= "OpenMD380",
+.gps_acquiring			= "Acquiring", 
+.altitude				= "Alt",
+.calibration            = "Radio Calibration",
+.freq_set                = "Freq Adjust",
+.cal_frequency          = "Cal Freq",
+.cal_pwr                = "Cal Power",
+.pwr_set                = "Power Adjust",
+.factory_reset          = "Factory Cal",
+.rx_tune				= "Rx Tuning",
+.transmitTalkerAliasTS2	= "TA Tx TS2", // Maxlen 16 (with : + .ta_text, 'APRS' , .both or .off)
+.ta_text				= "Text",
 };
 /********************************************************************
  *

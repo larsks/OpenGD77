@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2021 Roger Clark, VK3KYY / G4KYF
+ * Copyright (C) 2019-2023 Roger Clark, VK3KYY / G4KYF
  *                         Daniel Caujolle-Bert, F1RMB
  *
  *
@@ -37,20 +37,23 @@ static void updateScreen(bool isFirstRun);
 static void handleEvent(uiEvent_t *ev);
 
 static menuStatus_t menuOptionsExitCode = MENU_STATUS_SUCCESS;
-enum RADIO_OPTIONS_MENU_LIST { 	RADIO_OPTIONS_MENU_TX_FREQ_LIMITS = 0U,
-								RADIO_OPTIONS_MENU_DMR_MONITOR_CAPTURE_TIMEOUT,
-								RADIO_OPTIONS_MENU_SCAN_DELAY,
-								RADIO_OPTIONS_MENU_SCAN_STEP_TIME,
-								RADIO_OPTIONS_MENU_SCAN_MODE,
-								RADIO_OPTIONS_MENU_SCAN_ON_BOOT,
-								RADIO_OPTIONS_MENU_SQUELCH_DEFAULT_VHF,
-								RADIO_OPTIONS_MENU_SQUELCH_DEFAULT_220MHz,
-								RADIO_OPTIONS_MENU_SQUELCH_DEFAULT_UHF,
-								RADIO_OPTIONS_MENU_PTT_TOGGLE,
-								RADIO_OPTIONS_MENU_TALKER_ALIAS_TX,
-								RADIO_OPTIONS_MENU_PRIVATE_CALLS,
-								RADIO_OPTIONS_MENU_USER_POWER,
-								NUM_RADIO_OPTIONS_MENU_ITEMS};
+enum RADIO_OPTIONS_MENU_LIST
+{
+	RADIO_OPTIONS_MENU_TX_FREQ_LIMITS = 0U,
+	RADIO_OPTIONS_MENU_DMR_MONITOR_CAPTURE_TIMEOUT,
+	RADIO_OPTIONS_MENU_SCAN_DELAY,
+	RADIO_OPTIONS_MENU_SCAN_STEP_TIME,
+	RADIO_OPTIONS_MENU_SCAN_MODE,
+	RADIO_OPTIONS_MENU_SCAN_ON_BOOT,
+	RADIO_OPTIONS_MENU_SQUELCH_DEFAULT_VHF,
+	RADIO_OPTIONS_MENU_SQUELCH_DEFAULT_220MHz,
+	RADIO_OPTIONS_MENU_SQUELCH_DEFAULT_UHF,
+	RADIO_OPTIONS_MENU_PTT_TOGGLE,
+	RADIO_OPTIONS_MENU_PRIVATE_CALLS,
+	RADIO_OPTIONS_MENU_USER_POWER,
+	RADIO_OPTIONS_MENU_DMR_CRC,
+	NUM_RADIO_OPTIONS_MENU_ITEMS
+};
 
 menuStatus_t menuRadioOptions(uiEvent_t *ev, bool isFirstRun)
 {
@@ -59,7 +62,7 @@ menuStatus_t menuRadioOptions(uiEvent_t *ev, bool isFirstRun)
 		menuDataGlobal.menuOptionsSetQuickkey = 0;
 		menuDataGlobal.menuOptionsTimeout = 0;
 		menuDataGlobal.newOptionSelected = true;
-		menuDataGlobal.endIndex = NUM_RADIO_OPTIONS_MENU_ITEMS;
+		menuDataGlobal.numItems = NUM_RADIO_OPTIONS_MENU_ITEMS;
 
 		if (originalNonVolatileSettings.magicNumber == 0xDEADBEEF)
 		{
@@ -101,12 +104,20 @@ static void updateScreen(bool isFirstRun)
 	displayClearBuf();
 	bool settingOption = uiShowQuickKeysChoices(buf, SCREEN_LINE_BUFFER_SIZE, currentLanguage->radio_options);
 
-	// Can only display 3 of the options at a time menu at -1, 0 and +1
-	for(int i = -1; i <= 1; i++)
+	for(int i = 1 - ((MENU_MAX_DISPLAYED_ENTRIES - 1) / 2) - 1; i <= (MENU_MAX_DISPLAYED_ENTRIES - ((MENU_MAX_DISPLAYED_ENTRIES - 1) / 2) - 1); i++)
 	{
 		if ((settingOption == false) || (i == 0))
 		{
 			mNum = menuGetMenuOffset(NUM_RADIO_OPTIONS_MENU_ITEMS, i);
+			if (mNum == MENU_OFFSET_BEFORE_FIRST_ENTRY)
+			{
+				continue;
+			}
+			else if (mNum == MENU_OFFSET_AFTER_LAST_ENTRY)
+			{
+				break;
+			}
+
 			buf[0] = 0;
 			buf[2] = 0;
 			leftSide = NULL;
@@ -178,10 +189,6 @@ static void updateScreen(bool isFirstRun)
 					leftSide = (char * const *)&currentLanguage->ptt_toggle;
 					rightSideConst = (char * const *)(settingsIsOptionBitSet(BIT_PTT_LATCH) ? &currentLanguage->on : &currentLanguage->off);
 					break;
-				case RADIO_OPTIONS_MENU_TALKER_ALIAS_TX:
-					leftSide = (char * const *)&currentLanguage->transmitTalkerAlias;
-					rightSideConst = (char * const *)(settingsIsOptionBitSet(BIT_TRANSMIT_TALKER_ALIAS) ? &currentLanguage->on : &currentLanguage->off);
-					break;
 				case RADIO_OPTIONS_MENU_PRIVATE_CALLS:
 					leftSide = (char * const *)&currentLanguage->private_call_handling;
 					const char * const *allowPCOptions[] = { &currentLanguage->off, &currentLanguage->on, &currentLanguage->ptt, &currentLanguage->Auto};
@@ -190,6 +197,10 @@ static void updateScreen(bool isFirstRun)
 				case RADIO_OPTIONS_MENU_USER_POWER:
 					leftSide = (char * const *)&currentLanguage->user_power;
 					snprintf(rightSideVar, SCREEN_LINE_BUFFER_SIZE, "%d", (nonVolatileSettings.userPower));
+					break;
+				case RADIO_OPTIONS_MENU_DMR_CRC:
+					leftSide = (char * const *)&currentLanguage->dmr_crc;
+					rightSideConst = settingsIsOptionBitSet(BIT_DMR_CRC_IGNORED) ? (char * const *)&currentLanguage->off : (char * const *)&currentLanguage->on;
 					break;
 			}
 
@@ -295,7 +306,7 @@ static void handleEvent(uiEvent_t *ev)
 
 	if ((ev->events & KEY_EVENT) && (menuDataGlobal.menuOptionsSetQuickkey == 0) && (menuDataGlobal.menuOptionsTimeout == 0))
 	{
-		if (KEYCHECK_PRESS(ev->keys, KEY_DOWN) && (menuDataGlobal.endIndex != 0))
+		if (KEYCHECK_PRESS(ev->keys, KEY_DOWN) && (menuDataGlobal.numItems != 0))
 		{
 			isDirty = true;
 			menuSystemMenuIncrement(&menuDataGlobal.currentItemIndex, NUM_RADIO_OPTIONS_MENU_ITEMS);
@@ -403,13 +414,6 @@ static void handleEvent(uiEvent_t *ev)
 						settingsSetOptionBit(BIT_PTT_LATCH, true);
 					}
 					break;
-					break;
-				case RADIO_OPTIONS_MENU_TALKER_ALIAS_TX:
-					if (settingsIsOptionBitSet(BIT_TRANSMIT_TALKER_ALIAS) == false)
-					{
-						settingsSetOptionBit(BIT_TRANSMIT_TALKER_ALIAS, true);
-					}
-					break;
 				case RADIO_OPTIONS_MENU_PRIVATE_CALLS:
 					// Note. Currently the "AUTO" option is not available
 					if (nonVolatileSettings.privateCalls < ALLOW_PRIVATE_CALLS_PTT)
@@ -427,6 +431,12 @@ static void handleEvent(uiEvent_t *ev)
 
 						settingsSet(nonVolatileSettings.userPower, newVal);
 						trxUpdate_PA_DAC_Drive();
+					}
+					break;
+				case RADIO_OPTIONS_MENU_DMR_CRC:
+					if (settingsIsOptionBitSet(BIT_DMR_CRC_IGNORED))
+					{
+						settingsSetOptionBit(BIT_DMR_CRC_IGNORED, false);
 					}
 					break;
 			}
@@ -497,12 +507,6 @@ static void handleEvent(uiEvent_t *ev)
 						settingsSetOptionBit(BIT_PTT_LATCH, false);
 					}
 					break;
-				case RADIO_OPTIONS_MENU_TALKER_ALIAS_TX:
-					if (settingsIsOptionBitSet(BIT_TRANSMIT_TALKER_ALIAS))
-					{
-						settingsSetOptionBit(BIT_TRANSMIT_TALKER_ALIAS, false);
-					}
-					break;
 				case RADIO_OPTIONS_MENU_PRIVATE_CALLS:
 					if (nonVolatileSettings.privateCalls > 0)
 					{
@@ -519,6 +523,12 @@ static void handleEvent(uiEvent_t *ev)
 
 						settingsSet(nonVolatileSettings.userPower, newVal);
 						trxUpdate_PA_DAC_Drive();
+					}
+					break;
+				case RADIO_OPTIONS_MENU_DMR_CRC:
+					if (settingsIsOptionBitSet(BIT_DMR_CRC_IGNORED) == false)
+					{
+						settingsSetOptionBit(BIT_DMR_CRC_IGNORED, true);
 					}
 					break;
 			}

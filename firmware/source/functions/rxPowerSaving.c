@@ -1,5 +1,6 @@
 /*
- * Copyright (C) 2021 Roger Clark, VK3KYY / G4KYF
+ * Copyright (C) 2021-2023 Roger Clark, VK3KYY / G4KYF
+ *                         Daniel Caujolle-Bert, F1RMB
  *
  *
  * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions
@@ -32,7 +33,7 @@
 
 
 static ecoPhase_t rxPowerSavingState = ECOPHASE_POWERSAVE_INACTIVE;
-static uint32_t ecoPhaseCounter = 0;
+static ticksTimer_t ecoPhaseTimer = { 0, 0 };
 volatile static int powerSavingLevel = 1;
 static bool hrc6000IsPoweredOff = false;
 
@@ -99,7 +100,7 @@ void rxPowerSavingSetState(ecoPhase_t newState)
 				resumeBeepAndC6000Tasks();
 			}
 
-			ecoPhaseCounter = ticksGetMillis() + ((12 - (MIN(powerSavingLevel, 4) * 2)) * 1000);
+			ticksTimerStart(&ecoPhaseTimer, ((12 - (MIN(powerSavingLevel, 4) * 2)) * 1000));
 		}
 	}
 }
@@ -129,17 +130,19 @@ void rxPowerSavingTick(uiEvent_t *ev, bool hasSignal)
 			}
 
 			// Postpone entering the ECOPHASE_POWERSAVE_INACTIVE
-			ecoPhaseCounter = ticksGetMillis() + ((12 - (MIN(powerSavingLevel, 4) * 2)) * 1000);
+			ticksTimerStart(&ecoPhaseTimer, ((12 - (MIN(powerSavingLevel, 4) * 2)) * 1000));
 		}
 		else
 		{
-			if ((ticksGetMillis() >= ecoPhaseCounter) && (powerSavingLevel > 0) && (melody_play == NULL) && (voicePromptsIsPlaying() == false))
+			if (ticksTimerHasExpired(&ecoPhaseTimer) &&
+					((powerSavingLevel > 0) && (codeplugChannelIsFlagSet(currentChannelData, CHANNEL_FLAG_NO_ECO) == false)) &&
+					(melody_play == NULL) && (voicePromptsIsPlaying() == false))
 			{
 				int rxDuration = (130 - (10 * powerSavingLevel));
 				switch(rxPowerSavingState)
 				{
 					case ECOPHASE_POWERSAVE_INACTIVE:// wait before shutting down
-						ecoPhaseCounter = ticksGetMillis() + ((12 - (MIN(powerSavingLevel, 4) * 2)) * 1000);
+						ticksTimerStart(&ecoPhaseTimer, ((12 - (MIN(powerSavingLevel, 4) * 2)) * 1000));
 
 						if (powerSavingLevel > 1)
 						{
@@ -151,13 +154,13 @@ void rxPowerSavingTick(uiEvent_t *ev, bool hasSignal)
 
 					case ECOPHASE_POWERSAVE_ACTIVE___RX_IS_ON:
 						hrc6000IsPoweredOff = trxPowerUpDownRxAndC6000(false, (powerSavingLevel > 1));// Power down AT1846S, C6000 and preamp
-						ecoPhaseCounter = ticksGetMillis() + (rxDuration * (1 << (powerSavingLevel - 1)));
+						ticksTimerStart(&ecoPhaseTimer, (rxDuration * (1 << (powerSavingLevel - 1))));
 						rxPowerSavingState = ECOPHASE_POWERSAVE_ACTIVE___RX_IS_OFF;
 						break;
 
 					case ECOPHASE_POWERSAVE_ACTIVE___RX_IS_OFF:
 						hrc6000IsPoweredOff = trxPowerUpDownRxAndC6000(true, hrc6000IsPoweredOff);// Power up AT1846S, C6000 and preamps
-						ecoPhaseCounter = ticksGetMillis() + (rxDuration * 1);
+						ticksTimerStart(&ecoPhaseTimer, (rxDuration * 1));
 						trxPostponeReadRSSIAndNoise(0); // Give it a bit of time, after powering up, before checking the RSSI and Noise values
 						rxPowerSavingState = ECOPHASE_POWERSAVE_ACTIVE___RX_IS_ON;
 						break;

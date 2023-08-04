@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2021 Roger Clark, VK3KYY / G4KYF
+ * Copyright (C) 2019-2023 Roger Clark, VK3KYY / G4KYF
  *                         Daniel Caujolle-Bert, F1RMB
  *
  *
@@ -74,7 +74,7 @@ menuStatus_t menuNumericalEntry(uiEvent_t *ev, bool isFirstRun)
 		menuName[ENTRY_USER_DMR_ID] = ((uiDataGlobal.manualOverrideDMRId == 0) && (trxDMRID == uiDataGlobal.userDMRId)) ? currentLanguage->user_dmr_id : currentLanguage->dmr_id;
 		menuDataGlobal.currentItemIndex = inAnalog ? ENTRY_DTMF : ENTRY_TG;
 
-		menuDataGlobal.endIndex = NUM_ENTRY_ITEMS;
+		menuDataGlobal.numItems = NUM_ENTRY_ITEMS;
 		digits[0] = 0;
 		pcIdx = 0;
 		updateScreen(true);
@@ -149,7 +149,7 @@ static void updateScreen(bool inputModeHasChanged)
 
 	displayClearBuf();
 
-	displayDrawRoundRectWithDropShadow(2, y - 1, (DISPLAY_SIZE_X - 6), ((DISPLAY_SIZE_Y / 8) - 1) * 3, 3, true);
+	displayDrawRoundRectWithDropShadow(2, y - 1, (DISPLAY_SIZE_X - 6), TITLE_BOX_HEIGHT, 3, true);
 
 	// Not really centered, off by 2 pixels
 	displayPrintAt(((DISPLAY_SIZE_X - sLen) >> 1) - 2, y, (char *)menuName[menuDataGlobal.currentItemIndex], FONT_SIZE_3);

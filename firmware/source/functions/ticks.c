@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2019      Kai Ludwig, DG4KLU
- * Copyright (C) 2019-2021 Roger Clark, VK3KYY / G4KYF
+ * Copyright (C) 2019-2023 Roger Clark, VK3KYY / G4KYF
  *
  *
  * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions
@@ -38,7 +38,7 @@ typedef struct
 {
 	timerCallback_t  funPtr;
 	int              menuDestination;
-	uint32_t         PIT_TriggerTime;
+	ticksTimer_t     PIT_TriggerTimer;
 } timerCallbackbackStruct_t;
 
 #define MAX_NUM_TIMER_CALLBACKS 8
@@ -55,14 +55,19 @@ void handleTimerCallbacks(void)
 
 	while((callbacksArray[i].funPtr != NULL) && (i < MAX_NUM_TIMER_CALLBACKS))
 	{
-		if (ticksGetMillis() > callbacksArray[i].PIT_TriggerTime)
+		if (ticksTimerHasExpired(&callbacksArray[i].PIT_TriggerTimer))
 		{
 			// Does the current menu matches the desired destination menu
 			if ((callbacksArray[i].menuDestination == MENU_ANY) || (callbacksArray[i].menuDestination == menuSystemGetCurrentMenuNumber()))
 			{
 				callbacksArray[i].funPtr(); // call the function
 			}
-			memmove(&callbacksArray[i], &callbacksArray[i + 1], ((MAX_NUM_TIMER_CALLBACKS - 1) - i) * sizeof(timerCallbackbackStruct_t));
+
+			if (i != (MAX_NUM_TIMER_CALLBACKS - 1))
+			{
+				memmove(&callbacksArray[i], &callbacksArray[i + 1], ((MAX_NUM_TIMER_CALLBACKS - 1) - i) * sizeof(timerCallbackbackStruct_t));
+			}
+
 			callbacksArray[MAX_NUM_TIMER_CALLBACKS - 1].funPtr = NULL;
 		}
 		else
@@ -74,7 +79,7 @@ void handleTimerCallbacks(void)
 
 bool addTimerCallback(timerCallback_t funPtr, uint32_t delayIn_mS, int menuDest, bool updateExistingCallbackTime)
 {
-	uint32_t callBackTime = ticksGetMillis() + (delayIn_mS * PIT_COUNTS_PER_MS);
+	uint32_t callBackTime = (delayIn_mS * PIT_COUNTS_PER_MS);
 
 	for(int i = 0; i < MAX_NUM_TIMER_CALLBACKS; i++)
 	{
@@ -82,19 +87,19 @@ bool addTimerCallback(timerCallback_t funPtr, uint32_t delayIn_mS, int menuDest,
 		{
 			callbacksArray[i].funPtr = funPtr;
 			callbacksArray[i].menuDestination = menuDest;
-			callbacksArray[i].PIT_TriggerTime = callBackTime;
+			ticksTimerStart(&callbacksArray[i].PIT_TriggerTimer, callBackTime);
 			return true;
 		}
 
 		if ((callbacksArray[i].funPtr == funPtr) && updateExistingCallbackTime)
 		{
 			callbacksArray[i].menuDestination = menuDest;
-			callbacksArray[i].PIT_TriggerTime = callBackTime;
+			ticksTimerStart(&callbacksArray[i].PIT_TriggerTimer, callBackTime);
 			return true;
 		}
 
 		// callbacksArray[i] must be non-null pointer
-		if (callbacksArray[i].PIT_TriggerTime > callBackTime)
+		if (ticksTimerHasExpired(&callbacksArray[i].PIT_TriggerTimer))
 		{
 			if (i != (MAX_NUM_TIMER_CALLBACKS - 1))
 			{
@@ -103,9 +108,54 @@ bool addTimerCallback(timerCallback_t funPtr, uint32_t delayIn_mS, int menuDest,
 			}
 			callbacksArray[i].funPtr = funPtr;
 			callbacksArray[i].menuDestination = menuDest;
-			callbacksArray[i].PIT_TriggerTime = callBackTime;
+			ticksTimerStart(&callbacksArray[i].PIT_TriggerTimer, callBackTime);
 			return true;
 		}
 	}
 	return false;
+}
+
+bool cancelTimerCallback(timerCallback_t funPtr, int menuDest)
+{
+	for(int i = 0; i < MAX_NUM_TIMER_CALLBACKS; i++)
+	{
+		if ((callbacksArray[i].funPtr == funPtr) && (callbacksArray[i].menuDestination == menuDest))
+		{
+			if (i != (MAX_NUM_TIMER_CALLBACKS - 1))
+			{
+				memmove(&callbacksArray[i], &callbacksArray[i + 1], ((MAX_NUM_TIMER_CALLBACKS - 1) - i) * sizeof(timerCallbackbackStruct_t));
+			}
+			callbacksArray[MAX_NUM_TIMER_CALLBACKS - 1].funPtr = NULL;
+			return true;
+		}
+	}
+	return false;
+}
+
+void ticksTimerReset(ticksTimer_t *timer)
+{
+	timer->start = 0;
+	timer->timeout = 0;
+}
+
+void ticksTimerStart(ticksTimer_t *timer, uint32_t timeout)
+{
+	timer->start = ticksGetMillis();
+	timer->timeout = timeout;
+}
+
+bool ticksTimerHasExpired(ticksTimer_t *timer)
+{
+	return ((ticksGetMillis() - timer->start) >= timer->timeout);
+}
+
+uint32_t ticksTimerRemaining(ticksTimer_t *timer)
+{
+	if (timer->timeout > 0)
+	{
+		uint32_t elapsed = (ticksGetMillis() - timer->start);
+		return ((elapsed >= timer->timeout) ? 0 : timer->timeout - elapsed);
+	}
+
+	return 0;
 }

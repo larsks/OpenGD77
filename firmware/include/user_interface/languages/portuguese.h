@@ -1,6 +1,6 @@
 /* -*- coding: windows-1252-unix; -*- */
 /*
- * Copyright (C) 2019-2021 Roger Clark, VK3KYY / G4KYF
+ * Copyright (C) 2019-2023 Roger Clark, VK3KYY / G4KYF
  *
  *
  * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions
@@ -115,7 +115,7 @@ const stringsTable_t portuguesLanguage =
 .on						= "On",
 .timeout_beep			= "Beep timeout",
 .list_full				= "List full",
-.UNUSED_1			= "",
+.dmr_cc_scan			= "CC Scan", // MaxLen: 12 (with ':' + settings: .on or .off)
 .band_limits			= "Limites banda",
 .beep_volume			= "Volume beep",
 .dmr_mic_gain			= "Micro DMR",
@@ -164,10 +164,10 @@ const stringsTable_t portuguesLanguage =
 .vox_tail                               = "VOX Tail", // MaxLen 16 (with ':' + .n_a or '0.0s')
 .audio_prompt				= "Prompt",// Maxlen 16 (with ':' + .silent, .beep or .voice_prompt_level_1)
 .silent                                 = "Silent", // Maxlen 16 (with : + audio_prompt)
-.UNUSED_2			= "",
+.rx_beep				= "RX beep", // MaxLen 16 (with ':' + .carrier/.talker/.both/.none)
 .beep					= "Beep", // Maxlen 16 (with : + audio_prompt)
 .voice_prompt_level_1					= "Voice", // Maxlen 16 (with : + audio_prompt)
-.transmitTalkerAlias	= "TA Tx", // Maxlen 16 (with : + .on or .off)
+.transmitTalkerAliasTS1	= "TA Tx TS1", // Maxlen 16 (with : + .on or .off)
 .squelch_VHF			= "VHF Squelch",// Maxlen 16 (with : + XX%)
 .squelch_220			= "220 Squelch",// Maxlen 16 (with : + XX%)
 .squelch_UHF			= "UHF Squelch", // Maxlen 16 (with : + XX%)
@@ -180,7 +180,7 @@ const stringsTable_t portuguesLanguage =
 .voice_prompt_level_2	= "Voice L2", // Maxlen 16 (with : + audio_prompt)
 .voice_prompt_level_3	= "Voice L3", // Maxlen 16 (with : + audio_prompt)
 .dmr_filter				= "DMR Filter",// MaxLen: 12 (with ':' + settings: "TG" or "Ct" or "RxG")
-.UNUSED_4				= "",
+.talker					= "Talker",
 .dmr_ts_filter			= "TS Filter", // MaxLen: 12 (with ':' + settings: .on or .off)
 .dtmf_contact_list			= "FM DTMF contacts", // Maxlen: 16
 .channel_power				= "Ch Power", //Displayed as "Ch Power:" + .from_master or "Ch Power:"+ power text e.g. "Power:500mW" . Max total length 16
@@ -210,7 +210,7 @@ const stringsTable_t portuguesLanguage =
 .scan_on_boot				= "Scan On Boot",
 .dtmf_entry				= "DTMF entry",
 .name					= "Name",
-.UNUSED_3				= "",
+.carrier				= "Carrier",
 .openDM1801A 				= "OpenDM1801A", // Do not translate
 .time					= "Time",
 .uptime					= "Uptime",
@@ -234,7 +234,30 @@ const stringsTable_t portuguesLanguage =
 .symbols				= "NSEW", // symbols: N,S,E,W
 .not_set				= "NOT SET",
 .general_options		= "General options",
-.radio_options			= "Radio options"
+.radio_options			= "Radio options",
+.openMD9600				= "OpenMD9600",
+.dmr_rx_agc				= "DMR Rx AGC",
+.speaker_click_suppress			= "Click Suppr.",
+.gps					= "GPS",
+.end_only				= "End only",
+.dmr_crc				= "DMR crc",
+.eco					= "Eco",
+.safe_power_on				= "Safe Pwr-On", // MaxLen: 16 (with ':' + .on or .off)
+.auto_power_off				= "Auto Pwr-Off", // MaxLen: 16 (with ':' + 30/60/90/120/180 or .no)
+.apo_with_rf				= "APO with RF", // MaxLen: 16 (with ':' + .yes or .no or .n_a)
+.openMDUV380			= "OpenMDUV380",
+.openMD380				= "OpenMD380",
+.gps_acquiring			= "Acquiring", 
+.altitude				= "Alt",
+.calibration            = "Radio Calibration",
+.freq_set                = "Freq Adjust",
+.cal_frequency          = "Cal Freq",
+.cal_pwr                = "Cal Power",
+.pwr_set                = "Power Adjust",
+.factory_reset          = "Factory Cal",
+.rx_tune				= "Rx Tuning",
+.transmitTalkerAliasTS2	= "TA Tx TS2", // Maxlen 16 (with : + .ta_text, 'APRS' , .both or .off)
+.ta_text				= "Text",
 };
 /********************************************************************
  *

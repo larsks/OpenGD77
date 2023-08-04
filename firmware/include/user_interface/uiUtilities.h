@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2021 Roger Clark, VK3KYY / G4KYF
+ * Copyright (C) 2019-2023 Roger Clark, VK3KYY / G4KYF
  *                         Daniel Caujolle-Bert, F1RMB
  *
  *
@@ -107,6 +107,10 @@
 #define ANNOUNCE_STATIC static
 #endif
 
+#if defined(PLATFORM_MD9600)
+#define CLICK_DISCRIMINATOR 50U
+#endif
+
 #if defined(PLATFORM_GD77S)
 // Displaying ANNOUNCE_STATIC here is a bit overkill but it makes things clearer.
 ANNOUNCE_STATIC void announceRadioMode(bool voicePromptWasPlaying);
@@ -161,6 +165,7 @@ typedef enum
 	DISPLAY_INFO_CONTACT,
 	DISPLAY_INFO_CONTACT_OVERRIDE_FRAME,
 	DISPLAY_INFO_CHANNEL,
+	DISPLAY_INFO_CHANNEL_INVERTED,
 	DISPLAY_INFO_TONE_AND_SQUELCH,
 	DISPLAY_INFO_TX_TIMER,
 	DISPLAY_INFO_ZONE
@@ -200,7 +205,6 @@ void lastheardInitList(void);
 void lastHeardClearWorkingTAData(void);
 bool lastHeardListUpdate(uint8_t *dmrDataBuffer, bool forceOnHotspot);
 void lastHeardClearLastID(void);
-int getRSSIdBm(void);
 void uiUtilityDrawRSSIBarGraph(void);
 void uiUtilityDrawFMMicLevelBarGraph(void);
 void uiUtilityDrawDMRMicLevelBarGraph(void);
@@ -262,6 +266,8 @@ void resetOriginalSettingsData(void);
 struct tm *gmtime_r_Custom(const time_t_custom *__restrict tim_p, struct tm *__restrict res);
 time_t_custom mktime_custom(const struct tm * tb);
 
-uint8_t *coordsToMaidenhead(uint8_t *maidenheadBuffer, double longitude, double latitude);
+uint8_t *coordsToMaidenhead(uint8_t *maidenheadBuffer, double latitude, double longitude);
+double latLongFixedToDouble(uint32_t fixedVal);
+double distanceToLocation(double latitude, double longitude);
 
 #endif

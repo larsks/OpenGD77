@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2021 Roger Clark, VK3KYY / G4KYF
+ * Copyright (C) 2019-2023 Roger Clark, VK3KYY / G4KYF
  *                         Daniel Caujolle-Bert, F1RMB
  *
  *
@@ -34,6 +34,8 @@ enum { FIRMWARE_INFO_BUILD_DETAILS = 0 /* then all credits pages */ };
 
 #if defined(PLATFORM_RD5R)
 #define maxDisplayedCreditsLines  3
+#elif defined(PLATFORM_MD380) || defined(PLATFORM_MDUV380)
+#define maxDisplayedCreditsLines  11
 #else
 #define maxDisplayedCreditsLines  5
 #endif
@@ -54,7 +56,7 @@ menuStatus_t menuFirmwareInfoScreen(uiEvent_t *ev, bool isFirstRun)
 {
 	if (isFirstRun)
 	{
-		menuDataGlobal.endIndex = 0;
+		menuDataGlobal.numItems = 0;
 		updateScreen(isFirstRun);
 	}
 	else
@@ -181,7 +183,7 @@ static void displayBuildDetails(bool playVP)
 		voicePromptsAppendString(buf);
 		promptsPlayNotAfterTx();
 	}
-	displayFillTriangle(63, (DISPLAY_SIZE_Y - 1), 59, (DISPLAY_SIZE_Y - 3), 67, (DISPLAY_SIZE_Y - 3), blink);
+	displayFillTriangle(63 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 1), 59 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 3), 67 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 3), blink);
 	displayRender();
 #endif
 }
@@ -208,12 +210,12 @@ static void displayCredits(bool playVP, uint32_t pageNumber)
 		displayPrintCentered(y * 8 + 16, (char *)creditTexts[i], FONT_SIZE_1);
 	}
 
-	if (pageNumber <= maxCreditsPages)
+	if ((maxCreditsPages > 1) && (pageNumber <= maxCreditsPages))
 	{
-		displayFillTriangle(63, (DISPLAY_SIZE_Y - 1), 59, (DISPLAY_SIZE_Y - 3), 67, (DISPLAY_SIZE_Y - 3), blink);
+		displayFillTriangle(63 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 1), 59 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 3), 67 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 3), blink);
 	}
 
-	displayFillTriangle(63, (DISPLAY_SIZE_Y - 5), 59, (DISPLAY_SIZE_Y - 3), 67, (DISPLAY_SIZE_Y - 3), blink);
+	displayFillTriangle(63 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 5), 59 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 3), 67 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 3), blink);
 
 	displayRender();
 }

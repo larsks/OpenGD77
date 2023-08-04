@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2021 Roger Clark, VK3KYY / G4KYF
+ * Copyright (C) 2019-2023 Roger Clark, VK3KYY / G4KYF
  *                         Daniel Caujolle-Bert, F1RMB
  *
  *
@@ -192,7 +192,7 @@ menuStatus_t menuLanguage(uiEvent_t *ev, bool isFirstRun)
 {
 	if (isFirstRun)
 	{
-		menuDataGlobal.endIndex = NUM_LANGUAGES;
+		menuDataGlobal.numItems = NUM_LANGUAGES;
 
 		voicePromptsInit();
 		voicePromptsAppendPrompt(PROMPT_SILENCE);
@@ -222,9 +222,17 @@ static void updateScreen(bool isFirstRun)
 	displayClearBuf();
 	menuDisplayTitle(currentLanguage->language);
 
-	for(int i = -1; i <= 1; i++)
+	for(int i = 1 - ((MENU_MAX_DISPLAYED_ENTRIES - 1) / 2) - 1; i <= (MENU_MAX_DISPLAYED_ENTRIES - ((MENU_MAX_DISPLAYED_ENTRIES - 1) / 2) - 1); i++)
 	{
 		mNum = menuGetMenuOffset(NUM_LANGUAGES, i);
+		if (mNum == MENU_OFFSET_BEFORE_FIRST_ENTRY)
+		{
+			continue;
+		}
+		else if (mNum == MENU_OFFSET_AFTER_LAST_ENTRY)
+		{
+			break;
+		}
 
 		if (mNum < NUM_LANGUAGES)
 		{
@@ -278,7 +286,7 @@ static void handleEvent(uiEvent_t *ev)
 		return;
 	}
 
-	if (KEYCHECK_PRESS(ev->keys, KEY_DOWN) && (menuDataGlobal.endIndex != 0))
+	if (KEYCHECK_PRESS(ev->keys, KEY_DOWN) && (menuDataGlobal.numItems != 0))
 	{
 		menuSystemMenuIncrement(&menuDataGlobal.currentItemIndex, NUM_LANGUAGES);
 		updateScreen(false);

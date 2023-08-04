@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2021 Roger Clark, VK3KYY / G4KYF
+ * Copyright (C) 2019-2023 Roger Clark, VK3KYY / G4KYF
  *                         Daniel Caujolle-Bert, F1RMB
  *
  *
@@ -33,6 +33,7 @@
 #include <time.h>
 #include "functions/settings.h"
 #include "functions/codeplug.h"
+#include "functions/ticks.h"
 
 typedef unsigned int time_t_custom;     /* date/time in unix secs past 1-Jan-70 */
 
@@ -40,6 +41,10 @@ typedef unsigned int time_t_custom;     /* date/time in unix secs past 1-Jan-70 
 #define NUM_LASTHEARD_STORED                  32
 
 #if defined(PLATFORM_RD5R)
+#define DISPLAY_H_EXTRA_PIXELS                 0
+#define DISPLAY_H_OFFSET                       0
+#define DISPLAY_V_EXTRA_PIXELS                 0
+#define DISPLAY_V_OFFSET                       0
 #define MENU_ENTRY_HEIGHT                     10
 #define SQUELCH_BAR_H                          5
 #define V_OFFSET                               2
@@ -47,7 +52,7 @@ typedef unsigned int time_t_custom;     /* date/time in unix secs past 1-Jan-70 
 #define VFO_LETTER_Y_OFFSET                    0
 #define LH_ENTRY_V_OFFSET                      1
 #define DISPLAY_Y_POS_HEADER                   0
-#define DISPLAY_Y_POS_MENU_START             (16 + MENU_ENTRY_HEIGHT)
+#define DISPLAY_Y_POS_MENU_START             (16 + MENU_ENTRY_HEIGHT + 3)
 #define DISPLAY_Y_POS_MENU_ENTRY_HIGHLIGHT   (DISPLAY_Y_POS_MENU_START - 1)
 #define DISPLAY_Y_POS_BAR                      8
 #define DISPLAY_Y_POS_CONTACT                 12
@@ -64,7 +69,42 @@ typedef unsigned int time_t_custom;     /* date/time in unix secs past 1-Jan-70 
 #define DISPLAY_Y_POS_ZONE                    40
 #define DISPLAY_Y_POS_RSSI_VALUE              16
 #define DISPLAY_Y_POS_RSSI_BAR                27
+#define TITLE_BOX_HEIGHT                      15
+#elif defined(PLATFORM_MD380) || defined(PLATFORM_MDUV380)
+#define DISPLAY_H_EXTRA_PIXELS                32
+#define DISPLAY_H_OFFSET                     (DISPLAY_H_EXTRA_PIXELS / 2)
+#define DISPLAY_V_EXTRA_PIXELS                64
+#define DISPLAY_V_OFFSET                     (DISPLAY_V_EXTRA_PIXELS / 2)
+#define MENU_ENTRY_HEIGHT                     16
+#define SQUELCH_BAR_H                          9
+#define V_OFFSET                               0
+#define OVERRIDE_FRAME_HEIGHT                 16
+#define VFO_LETTER_Y_OFFSET                    8
+#define LH_ENTRY_V_OFFSET                      0
+#define DISPLAY_Y_POS_HEADER                   2
+#define DISPLAY_Y_POS_MENU_START             (16 + MENU_ENTRY_HEIGHT)
+#define DISPLAY_Y_POS_MENU_ENTRY_HIGHLIGHT    64
+#define DISPLAY_Y_POS_BAR                     10
+#define DISPLAY_Y_POS_CONTACT                 (16 + 8)
+#define DISPLAY_Y_POS_CONTACT_TX              (34 + 32)
+#define DISPLAY_Y_POS_CONTACT_TX_FRAME        (34 + 16)
+#define DISPLAY_Y_POS_CHANNEL_FIRST_LINE      (32 + 32)
+#define DISPLAY_Y_POS_CHANNEL_SECOND_LINE     (48 + 48)
+#define DISPLAY_Y_POS_SQUELCH_BAR             16
+#define DISPLAY_Y_POS_CSS_INFO                (16 + 8)
+#define DISPLAY_Y_POS_SQL_INFO                (25 + 8)
+#define DISPLAY_Y_POS_TX_TIMER                (8 + 16)
+#define DISPLAY_Y_POS_RX_FREQ                 (32 + 32)
+#define DISPLAY_Y_POS_TX_FREQ                 (48 + 48)
+#define DISPLAY_Y_POS_ZONE                    (50 + 64)
+#define DISPLAY_Y_POS_RSSI_VALUE              (18 + 16)
+#define DISPLAY_Y_POS_RSSI_BAR                (40 + 32)
+#define TITLE_BOX_HEIGHT                      21
 #else
+#define DISPLAY_H_EXTRA_PIXELS                 0
+#define DISPLAY_H_OFFSET                       0
+#define DISPLAY_V_EXTRA_PIXELS                 0
+#define DISPLAY_V_OFFSET                       0
 #define MENU_ENTRY_HEIGHT                     16
 #define SQUELCH_BAR_H                          9
 #define V_OFFSET                               0
@@ -89,6 +129,7 @@ typedef unsigned int time_t_custom;     /* date/time in unix secs past 1-Jan-70 
 #define DISPLAY_Y_POS_ZONE                    50
 #define DISPLAY_Y_POS_RSSI_VALUE              18
 #define DISPLAY_Y_POS_RSSI_BAR                40
+#define TITLE_BOX_HEIGHT                      21
 #endif
 
 #define FREQUENCY_X_POS  /* '>Ta'*/ ((3 * 8) + 4)
@@ -96,6 +137,12 @@ typedef unsigned int time_t_custom;     /* date/time in unix secs past 1-Jan-70 
 #define NUM_PC_OR_TG_DIGITS                    8
 #define MIN_TG_OR_PC_VALUE                     1
 #define MAX_TG_OR_PC_VALUE              16777215
+
+// not partitioned address scheme
+#define ALL_CALL_VALUE                  16777215 // 0xFFFFFF
+// partitioned address scheme
+#define MIN_ALL_CALL_VALUE              16777200 // 0xFFFFF0 // min..max: 16 values
+#define MAX_ALL_CALL_VALUE              16777215 // 0xFFFFFF
 
 #define RSSI_UPDATE_COUNTER_RELOAD           200
 
@@ -106,17 +153,24 @@ typedef unsigned int time_t_custom;     /* date/time in unix secs past 1-Jan-70 
 
 #define TIMESLOT_DURATION                     30
 
-#define SCAN_SHORT_PAUSE_TIME                500 //time to wait after carrier detected to allow time for full signal detection. (CTCSS or DMR)
+#define SCAN_SHORT_PAUSE_TIME                500 //time to wait after carrier detected to allow time for full signal detection. (CTCSS or DMR fast)
 
-#define SCAN_DMR_DUPLEX_MIN_DWELL_TIME       (TIMESLOT_DURATION * 6) //minimum time between steps when scanning DMR Duplex. (needs extra time to capture TDMA Pulsing)
-#define SCAN_DMR_SIMPLEX_MIN_DWELL_TIME      (TIMESLOT_DURATION * 10) //minimum time between steps when scanning DMR Simplex. (needs extra time to capture TDMA Pulsing)
+#define SCAN_DMR_DUPLEX_SLOW_MIN_DWELL_TIME       (TIMESLOT_DURATION * 6)  //minimum time between steps when scanning DMR Duplex in slow mode.
+#define SCAN_DMR_SIMPLEX_SLOW_MIN_DWELL_TIME      (TIMESLOT_DURATION * 10) //minimum time between steps when scanning DMR Simplex in slow mode. (needs extra time to capture TDMA Pulsing)
+#define SCAN_DMR_DUPLEX_FAST_MIN_DWELL_TIME       TIMESLOT_DURATION        //minimum time between steps when scanning DMR Duplex in fast mode.
+#define SCAN_DMR_SIMPLEX_FAST_MIN_DWELL_TIME      (TIMESLOT_DURATION * 2)  //minimum time between steps when scanning DMR Simplex in fast mode. (needs extra time to capture TDMA Pulsing)
+
 
 #define SCAN_FREQ_CHANGE_SETTLING_INTERVAL     1 //Time after frequency is changed before RSSI sampling starts
 #define SCAN_SKIP_CHANNEL_INTERVAL             1 //This is actually just an implicit flag value to indicate the channel should be skipped
 
 #define CH_DETAILS_VFO_CHANNEL                -1
 
+#if defined(PLATFORM_MD380) || defined(PLATFORM_MDUV380)
+#define VFO_SWEEP_NUM_SAMPLES                160
+#else
 #define VFO_SWEEP_NUM_SAMPLES                128
+#endif
 #define VFO_SWEEP_PIXELS_PER_STEP              4
 #define VFO_SWEEP_GAIN_STEP                    5
 #define VFO_SWEEP_GAIN_MIN                     0
@@ -127,6 +181,8 @@ typedef unsigned int time_t_custom;     /* date/time in unix secs past 1-Jan-70 
 #define VFO_SWEEP_RSSI_NOISE_FLOOR_DEFAULT    14
 
 #define SCREEN_LINE_BUFFER_SIZE               17 // 16 characters (for a 8 pixels font width) + NULL
+
+#define OUT_OF_BAND_FALLBACK_FREQUENCY       43000000
 
 
 #define SMETER_S0                             -129
@@ -169,6 +225,16 @@ typedef unsigned int time_t_custom;     /* date/time in unix secs past 1-Jan-70 
 extern const int DBM_LEVELS[16];
 
 #define MAX_DMR_ID_CONTACT_TEXT_LENGTH 51
+
+#define RX_BEEP_UNSET                      0x00
+#define RX_BEEP_CARRIER_HAS_STARTED        0x01
+#define RX_BEEP_CARRIER_HAS_STARTED_EXEC   0x02
+#define RX_BEEP_TALKER_IDENTIFIED          0x04
+#define RX_BEEP_TALKER_HAS_STARTED         0x08
+#define RX_BEEP_TALKER_HAS_STARTED_EXEC    0x10
+#define RX_BEEP_TALKER_HAS_ENDED           0x20
+#define RX_BEEP_TALKER_HAS_ENDED_EXEC      0x40
+#define RX_BEEP_CARRIER_HAS_ENDED          0x80
 
 typedef enum
 {
@@ -223,10 +289,12 @@ typedef struct LinkItem
     char        		contact[MAX_DMR_ID_CONTACT_TEXT_LENGTH];
     char        		talkgroup[17];
     char 				talkerAlias[32];// 4 blocks of data. 6 bytes + 7 bytes + 7 bytes + 7 bytes . plus 1 for termination some more for safety.
-    char 				locator[7];
+    double				locationLat;
+    double				locationLon;
     uint32_t			time;// current system time when this station was heard
     uint8_t				receivedTS;
     uint8_t				dmrMode;
+    uint16_t			rxAGCGain;
     struct LinkItem 	*next;
 } LinkItem_t;
 
@@ -250,6 +318,9 @@ typedef enum
 {
 	MESSAGEBOX_BUTTONS_NONE,
 	MESSAGEBOX_BUTTONS_OK,
+#if defined(PLATFORM_MD9600)
+	MESSAGEBOX_BUTTONS_ENT,
+#endif
 	MESSAGEBOX_BUTTONS_YESNO,
 	MESSAGEBOX_BUTTONS_DISMISS
 } messageBoxButtons_t;
@@ -281,7 +352,8 @@ typedef struct
 	qsoDisplayState_t 	displayQSOStatePrev;
 	bool 				isDisplayingQSOData;
 	bool				displayChannelSettings;
-	bool				reverseRepeater;
+	bool				reverseRepeaterChannel;
+	bool				reverseRepeaterVFO;
 	int					currentSelectedChannelNumber;
 	int					currentSelectedContactIndex;
 	int					lastHeardCount;
@@ -289,10 +361,11 @@ typedef struct
 	bool				dmrDisabled;
 	uint32_t			manualOverrideDMRId;// This is a global so it will default to 0
 	time_t_custom		dateTimeSecs;// Epoch (00:00:00 UTC, January 1, 1970)
+	volatile uint8_t	rxBeepState;
 
 	struct
 	{
-		int 				timer;
+		ticksTimer_t		timer;
 		int 				dwellTime;
 		int 				direction;
 		int					availableChannelsCount;
@@ -352,7 +425,7 @@ typedef struct
 
 	struct
 	{
-		uint32_t                                    nextPeriod;
+		ticksTimer_t                                nextPeriodTimer;
 		bool                                        isKeying;
 		uint8_t                                     buffer[17U]; // 16 tones + final time-length
 		uint8_t                                     poLen;

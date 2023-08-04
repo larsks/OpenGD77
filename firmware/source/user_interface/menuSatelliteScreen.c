@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2021 Roger Clark, VK3KYY / G4KYF
+ * Copyright (C) 2019-2023 Roger Clark, VK3KYY / G4KYF
  *
  *
  * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions
@@ -40,10 +40,12 @@
 #include "SeggerRTT/RTT/SEGGER_RTT.h"
 #endif
 
-#if !defined(PLATFORM_RD5R)
-	#define NUM_PASSES_TO_DISPLAY_ON_LIST_SCREEN 3
-#else
+#if defined(PLATFORM_RD5R)
 	#define NUM_PASSES_TO_DISPLAY_ON_LIST_SCREEN 2
+#elif defined(PLATFORM_MDUV380) || defined(PLATFORM_MD380)
+	#define NUM_PASSES_TO_DISPLAY_ON_LIST_SCREEN 6
+#else
+	#define NUM_PASSES_TO_DISPLAY_ON_LIST_SCREEN 3
 #endif
 
 
@@ -54,7 +56,7 @@ enum { SATELLITE_SCREEN_ALL_PREDICTIONS_LIST, SATELLITE_SCREEN_SELECTED_SATELLIT
 static void handleEvent(uiEvent_t *ev);
 static void updateScreen(uiEvent_t *ev, bool firstRun, bool announceVP);
 static bool calculatePredictionsForSatelliteIndex(int satelliteIndex);
-static float latLongFixedToDouble(uint32_t fixedVal);
+
 static void loadKeps(void);
 static int menuSatelliteFindNextSatellite(void);
 static void selectSatellite(uint32_t selectedSatellite);
@@ -147,7 +149,7 @@ menuStatus_t menuSatelliteScreen(uiEvent_t *ev, bool isFirstRun)
 			satelliteChannelData.txFreq = 0;
 			satelliteChannelData.rxTone = CODEPLUG_CSS_TONE_NONE;
 			satelliteChannelData.chMode = RADIO_MODE_NONE;
-			satelliteChannelData.flag4 |= 0x02;// Set bandwidth to 25kHz.
+			codeplugChannelSetFlag(&satelliteChannelData, CHANNEL_FLAG_BW_25K, true);
 		}
 
 		currentChannelData = &satelliteChannelData;// Now make it available to the rest of the firmware e.g the Tx screen
@@ -284,7 +286,15 @@ static void updateScreen(uiEvent_t *ev, bool firstRun, bool announceVP)
 		if (firstRun)
 		{
 			displayClearBuf();
-			menuDisplayTitle(currentLanguage->satellite);
+
+			// Do not display the menu title if a list of passes is available, as that list uses the
+			// whole screen (and the screen flickers on the MD*-3x0)
+			if ((displayMode == SATELLITE_SCREEN_ALL_PREDICTIONS_LIST) &&
+					((numTotalSatellitesPredicted != numSatellitesLoaded) || (predictionsListNumSatellitePassesDisplayed == 0)))
+			{
+				menuDisplayTitle(currentLanguage->satellite);
+			}
+
 			displayRender();
 		}
 
@@ -293,8 +303,20 @@ static void updateScreen(uiEvent_t *ev, bool firstRun, bool announceVP)
 			displayClearRows(2, 6, false);
 
 			displayPrintCentered(16, currentLanguage->predicting, FONT_SIZE_3);
-			displayDrawRect(2, (DISPLAY_SIZE_Y / 2), DISPLAY_SIZE_X - 2, 12, true);
-			displayFillRect(3, (DISPLAY_SIZE_Y / 2), ((DISPLAY_SIZE_X - 2) * numTotalSatellitesPredicted) / numSatellitesLoaded, 12, false);
+			displayDrawRect(2,
+#if defined(PLATFORM_MDUV380) || defined(PLATFORM_MD380)
+					(DISPLAY_SIZE_Y / 4)
+#else
+					(DISPLAY_SIZE_Y / 2)
+#endif
+					, DISPLAY_SIZE_X - 2, 12, true);
+			displayFillRect(3,
+#if defined(PLATFORM_MDUV380) || defined(PLATFORM_MD380)
+					(DISPLAY_SIZE_Y / 4)
+#else
+					(DISPLAY_SIZE_Y / 2)
+#endif
+					, ((DISPLAY_SIZE_X - 2) * numTotalSatellitesPredicted) / numSatellitesLoaded, 12, false);
 			menuSatelliteScreenNextUpdateTime = 0;// Don't do time based update
 
 			displayRenderRows(2, 6);
@@ -390,7 +412,11 @@ static void updateScreen(uiEvent_t *ev, bool firstRun, bool announceVP)
 			{
 				satellitePass_t *displayedPredictionPass  = &currentActiveSatellite->predictions.passes[currentActiveSatellite->predictions.selectedPassNumber];
 				const int DOT_RADIUS = 2;
-				const int MAX_RADIUS = (DISPLAY_SIZE_Y / 2) - 4;
+#if defined(PLATFORM_MDUV380) || defined(PLATFORM_MD380)
+				const int MAX_RADIUS = 44;
+#else
+				const int MAX_RADIUS = ((DISPLAY_SIZE_Y / 2) - 4);
+#endif
 				float az, elFactor, s,c, lastX = 0, lastY = 0,x,y;
 				satelliteResults_t results;
 
@@ -399,7 +425,7 @@ static void updateScreen(uiEvent_t *ev, bool firstRun, bool announceVP)
 				if (displayedPredictionPass->valid == PREDICTION_RESULT_OK)
 				{
 					volatile uint32_t startTime;
-					#define POLAR_GRAPHICS_X_OFFSET  24
+#define POLAR_GRAPHICS_X_OFFSET  24
 
 					if(hasRecalculated || announceVP)
 					{
@@ -417,8 +443,10 @@ static void updateScreen(uiEvent_t *ev, bool firstRun, bool announceVP)
 						displayDrawCircle(POLAR_GRAPHICS_X_OFFSET + (DISPLAY_SIZE_X / 2), DISPLAY_SIZE_Y / 2, (MAX_RADIUS / 3 ) * 2, true);
 						displayDrawCircle(POLAR_GRAPHICS_X_OFFSET + (DISPLAY_SIZE_X / 2), DISPLAY_SIZE_Y / 2, (MAX_RADIUS / 3 ), true);
 
-						displayDrawFastVLine(POLAR_GRAPHICS_X_OFFSET + (DISPLAY_SIZE_X / 2), 0, DISPLAY_SIZE_Y, true);
-						displayDrawFastHLine(POLAR_GRAPHICS_X_OFFSET + ((DISPLAY_SIZE_X - DISPLAY_SIZE_Y) / 2), DISPLAY_SIZE_Y/2 , DISPLAY_SIZE_Y, true);
+						displayDrawFastVLine(POLAR_GRAPHICS_X_OFFSET + (DISPLAY_SIZE_X / 2),
+								(DISPLAY_SIZE_Y / 2) - (MAX_RADIUS + 4), (MAX_RADIUS + 4) * 2, true);
+						displayDrawFastHLine((POLAR_GRAPHICS_X_OFFSET + (DISPLAY_SIZE_X / 2)) - (MAX_RADIUS + 4),
+								(DISPLAY_SIZE_Y / 2), (MAX_RADIUS + 4) * 2, true);
 
 						if ((uiDataGlobal.dateTimeSecs < displayedPredictionPass->satelliteAOS) || (uiDataGlobal.dateTimeSecs > displayedPredictionPass->satelliteLOS))
 						{
@@ -538,7 +566,7 @@ static void updateScreen(uiEvent_t *ev, bool firstRun, bool announceVP)
 
 					const uint32_t S_METER_BAR_WIDTH = 8;
 					// draw S meter with range S0 to S9.
-					int rssi = MIN(MAX(0,getRSSIdBm() - SMETER_S0),(SMETER_S9 - SMETER_S0));
+					int rssi = MIN(MAX(0, trxGetRSSIdBm() - SMETER_S0), (SMETER_S9 - SMETER_S0));
 					rssi = (rssi * DISPLAY_SIZE_Y ) / (SMETER_S9 - SMETER_S0);
 					displayFillRect(DISPLAY_SIZE_X - S_METER_BAR_WIDTH, 0						, S_METER_BAR_WIDTH, DISPLAY_SIZE_Y - rssi	, true);
 					displayFillRect(DISPLAY_SIZE_X - S_METER_BAR_WIDTH, DISPLAY_SIZE_Y - rssi	, S_METER_BAR_WIDTH, rssi					, false);
@@ -573,6 +601,7 @@ static void updateScreen(uiEvent_t *ev, bool firstRun, bool announceVP)
 				displayRender();
 			}
 			break;
+
 			case SATELLITE_SCREEN_SELECTED_SATELLITE_PREDICTION:
 			{
 				satellitePass_t *displayedPredictionPass  = &currentActiveSatellite->predictions.passes[currentActiveSatellite->predictions.selectedPassNumber];
@@ -653,6 +682,7 @@ static void updateScreen(uiEvent_t *ev, bool firstRun, bool announceVP)
 				displayRender();
 			}
 			break;
+
 			case SATELLITE_SCREEN_ALL_PREDICTIONS_LIST:
 				{
 					displayClearBuf();
@@ -754,6 +784,7 @@ static void updateScreen(uiEvent_t *ev, bool firstRun, bool announceVP)
 					displayRender();
 				}
 				break;
+
 			default:
 				break;
 		}
@@ -843,7 +874,7 @@ static void handleEvent(uiEvent_t *ev)
 					{
 						headerRowIsDirty = true;
 					}
-					uiNotificationShow(NOTIFICATION_TYPE_POWER, 1000, NULL, true);
+					uiNotificationShow(NOTIFICATION_TYPE_POWER, NOTIFICATION_ID_POWER, 1000, NULL, true);
 				}
 				else
 				{
@@ -871,7 +902,7 @@ static void handleEvent(uiEvent_t *ev)
 
 							announceItem(PROMPT_SQUENCE_SQUELCH,PROMPT_THRESHOLD_3);
 
-							uiNotificationShow(NOTIFICATION_TYPE_SQUELCH, 1000, NULL, true);
+							uiNotificationShow(NOTIFICATION_TYPE_SQUELCH, NOTIFICATION_ID_SQUELCH, 1000, NULL, true);
 						break;
 					}
 				}
@@ -884,7 +915,7 @@ static void handleEvent(uiEvent_t *ev)
 					{
 						headerRowIsDirty = true;
 					}
-					uiNotificationShow(NOTIFICATION_TYPE_POWER, 1000, NULL, true);
+					uiNotificationShow(NOTIFICATION_TYPE_POWER, NOTIFICATION_ID_POWER, 1000, NULL, true);
 				}
 				else
 				{
@@ -911,7 +942,7 @@ static void handleEvent(uiEvent_t *ev)
 
 						announceItem(PROMPT_SQUENCE_SQUELCH,PROMPT_THRESHOLD_3);
 
-						uiNotificationShow(NOTIFICATION_TYPE_SQUELCH, 1000, NULL, true);
+						uiNotificationShow(NOTIFICATION_TYPE_SQUELCH, NOTIFICATION_ID_SQUELCH, 1000, NULL, true);
 						break;
 					}
 				}
@@ -1062,21 +1093,6 @@ static void handleEvent(uiEvent_t *ev)
 		saveQuickkeyMenuIndex(ev->keys.key, menuSystemGetCurrentMenuNumber(), displayMode, 0);
 		return;
 	}
-}
-
-static float latLongFixedToDouble(uint32_t fixedVal)
-{
-	// MS bit is the sign
-	// Lower 10 bits are the fixed point to the right of the point.
-	// Bits 15,14,13,12,11 are the integer part
-	double inPart = (fixedVal & 0x7FFFFFFF) >> 23;
-	double decimalPart = (fixedVal & 0x7FFFFF);
-	if (fixedVal & 0x80000000)
-	{
-		inPart *= -1;// MS bit is set, so tha number is negative
-		decimalPart *= -1;
-	}
-	return inPart + (decimalPart / 1000.0f);
 }
 
 bool findSelectedPass = false;

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2021 Roger Clark, VK3KYY / G4KYF
+ * Copyright (C) 2019-2023 Roger Clark, VK3KYY / G4KYF
  *                         Daniel Caujolle-Bert, F1RMB
  *
  *
@@ -68,7 +68,7 @@ menuStatus_t menuDisplayOptions(uiEvent_t *ev, bool isFirstRun)
 		menuDataGlobal.menuOptionsSetQuickkey = 0;
 		menuDataGlobal.menuOptionsTimeout = 0;
 		menuDataGlobal.newOptionSelected = true;
-		menuDataGlobal.endIndex = NUM_DISPLAY_MENU_ITEMS;
+		menuDataGlobal.numItems = NUM_DISPLAY_MENU_ITEMS;
 
 		if (originalNonVolatileSettings.magicNumber == 0xDEADBEEF)
 		{
@@ -111,12 +111,20 @@ static void updateScreen(bool isFirstRun)
 	displayClearBuf();
 	bool settingOption = uiShowQuickKeysChoices(buf, SCREEN_LINE_BUFFER_SIZE, currentLanguage->display_options);
 
-	// Can only display 3 of the options at a time menu at -1, 0 and +1
-	for(int i = -1; i <= 1; i++)
+	for(int i = 1 - ((MENU_MAX_DISPLAYED_ENTRIES - 1) / 2) - 1; i <= (MENU_MAX_DISPLAYED_ENTRIES - ((MENU_MAX_DISPLAYED_ENTRIES - 1) / 2) - 1); i++)
 	{
 		if ((settingOption == false) || (i == 0))
 		{
 			mNum = menuGetMenuOffset(NUM_DISPLAY_MENU_ITEMS, i);
+			if (mNum == MENU_OFFSET_BEFORE_FIRST_ENTRY)
+			{
+				continue;
+			}
+			else if (mNum == MENU_OFFSET_AFTER_LAST_ENTRY)
+			{
+				break;
+			}
+
 			buf[0] = 0;
 			leftSide = NULL;
 			rightSideConst = NULL;
@@ -321,7 +329,7 @@ static void handleEvent(uiEvent_t *ev)
 
 	if ((ev->events & KEY_EVENT) && (menuDataGlobal.menuOptionsSetQuickkey == 0) && (menuDataGlobal.menuOptionsTimeout == 0))
 	{
-		if (KEYCHECK_PRESS(ev->keys, KEY_DOWN) && (menuDataGlobal.endIndex != 0))
+		if (KEYCHECK_PRESS(ev->keys, KEY_DOWN) && (menuDataGlobal.numItems != 0))
 		{
 			isDirty = true;
 			menuSystemMenuIncrement(&menuDataGlobal.currentItemIndex, NUM_DISPLAY_MENU_ITEMS);
@@ -543,7 +551,7 @@ static void handleEvent(uiEvent_t *ev)
 		}
 		else if (KEYCHECK_PRESS(ev->keys, KEY_LEFT) || (QUICKKEY_FUNCTIONID(ev->function) == FUNC_LEFT))
 		{
-			if (menuDataGlobal.menuOptionsTimeout>0)
+			if (menuDataGlobal.menuOptionsTimeout > 0)
 			{
 				menuDataGlobal.menuOptionsTimeout = 1000;
 			}

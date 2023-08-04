@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2021 Roger Clark, VK3KYY / G4KYF
+ * Copyright (C) 2019-2023 Roger Clark, VK3KYY / G4KYF
  *                         Colin Durbridge, G4EML
  *                         Daniel Caujolle-Bert, F1RMB
  *
@@ -101,7 +101,7 @@ menuStatus_t menuContactDetails(uiEvent_t *ev, bool isFirstRun)
 
 		menuContactDetailsState = (contactDetailsIndex == 0) ? MENU_CONTACT_DETAILS_FULL : MENU_CONTACT_DETAILS_DISPLAY;
 		menuDataGlobal.currentItemIndex = CONTACT_DETAILS_NAME;
-		menuDataGlobal.endIndex = NUM_CONTACT_DETAILS_ITEMS;
+		menuDataGlobal.numItems = NUM_CONTACT_DETAILS_ITEMS;
 
 		updateScreen(isFirstRun, true);
 		updateCursor(true);
@@ -174,10 +174,18 @@ static void updateScreen(bool isFirstRun, bool allowedToSpeakUpdate)
 	switch (menuContactDetailsState)
 	{
 		case MENU_CONTACT_DETAILS_DISPLAY:
-			// Can only display 3 of the options at a time menu at -1, 0 and +1
-			for(int i = -1; i <= 1; i++)
+			for(int i = 1 - ((MENU_MAX_DISPLAYED_ENTRIES - 1) / 2) - 1; i <= (MENU_MAX_DISPLAYED_ENTRIES - ((MENU_MAX_DISPLAYED_ENTRIES - 1) / 2) - 1); i++)
 			{
 				mNum = menuGetMenuOffset(NUM_CONTACT_DETAILS_ITEMS, i);
+				if (mNum == MENU_OFFSET_BEFORE_FIRST_ENTRY)
+				{
+					continue;
+				}
+				else if (mNum == MENU_OFFSET_AFTER_LAST_ENTRY)
+				{
+					break;
+				}
+
 				buf[0] = 0;
 				leftSide = NULL;
 				leftSideConst = NULL;

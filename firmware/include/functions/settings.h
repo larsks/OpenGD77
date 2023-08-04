@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2019      Kai Ludwig, DG4KLU
- * Copyright (C) 2019-2021 Roger Clark, VK3KYY / G4KYF
+ * Copyright (C) 2019-2023 Roger Clark, VK3KYY / G4KYF
  *                         Daniel Caujolle-Bert, F1RMB
  *
  *
@@ -50,9 +50,14 @@ enum INFO_ON_SCREEN { INFO_ON_SCREEN_OFF = 0x00, INFO_ON_SCREEN_TS = 0x01, INFO_
 extern const uint32_t SETTINGS_UNITIALISED_LOCATION_LAT;
 
 // Bit patterns for DMR Beep
-#define BEEP_TX_NONE        0x00
-#define BEEP_TX_START       0x01
-#define BEEP_TX_STOP        0x02
+#define BEEP_TX_NONE             0x00
+#define BEEP_TX_START            0x01
+#define BEEP_TX_STOP             0x02
+#define BEEP_RX_CARRIER          0x04
+#define BEEP_RX_TALKER           0x08
+#define BEEP_RX_TALKER_BEGIN     0x10
+
+#define LOCATION_DECIMAL_PART_MULIPLIER 100000
 
 extern int settingsCurrentChannelNumber;
 extern int *nextKeyBeepMelody;
@@ -61,30 +66,36 @@ extern struct_codeplugGeneralSettings_t settingsCodeplugGeneralSettings;
 
 typedef enum
 {
-	BIT_INVERSE_VIDEO               = (1 << 0),
-	BIT_PTT_LATCH                   = (1 << 1),
-	BIT_TRANSMIT_TALKER_ALIAS       = (1 << 2),
-	BIT_BATTERY_VOLTAGE_IN_HEADER   = (1 << 3),
-	BIT_SETTINGS_UPDATED            = (1 << 4),
-	BIT_TX_RX_FREQ_LOCK             = (1 << 5),
-	BIT_ALL_LEDS_DISABLED           = (1 << 6),
-	BIT_SCAN_ON_BOOT_ENABLED        = (1 << 7),
-	BIT_POWEROFF_SUSPEND            = (1 << 8),
-	BIT_SATELLITE_MANUAL_AUTO       = (1 << 9),
+	BIT_INVERSE_VIDEO               	= (1 << 0),
+	BIT_PTT_LATCH                   	= (1 << 1),
+	BIT_UNUSED_1				       	= (1 << 2),
+	BIT_BATTERY_VOLTAGE_IN_HEADER   	= (1 << 3),
+	BIT_SETTINGS_UPDATED            	= (1 << 4),
+	BIT_TX_RX_FREQ_LOCK             	= (1 << 5),
+	BIT_ALL_LEDS_DISABLED           	= (1 << 6),
+	BIT_SCAN_ON_BOOT_ENABLED        	= (1 << 7),
+	BIT_POWEROFF_SUSPEND            	= (1 << 8),
+	BIT_SATELLITE_MANUAL_AUTO       	= (1 << 9),
+	BIT_DMR_CRC_IGNORED             	= (1 << 10),
+	BIT_SAFE_POWER_ON               	= (1 << 11),
+	BIT_APO_WITH_RF                 	= (1 << 12),
+	BIT_UNUSED_2						= (1 << 13)
 } bitfieldOptions_t;
 
 typedef struct
 {
-	int 			magicNumber;
+	int32_t 		magicNumber;
 	// The following settings won't be reset default from magicNumber 0x4761
 	uint32_t		locationLat;// fixed point encoded as 1 sign bit, 8 bits integer, 23 bits as decimal
 	uint32_t		locationLon;// fixed point encoded as 1 sign bit, 8 bits integer, 23 bits as decimal
 	uint8_t			timezone;// Lower 7 bits are the timezone. 64 = UTC, values < 64 are negative TZ values.  Bit 8 is a flag which indicates TZ/UTC. 0 = UTC
 	// -----------------------------------------------
+	uint8_t			beepOptions; // 2 pairs of bits + 1 (TX and RX beeps)
 	uint16_t		vfoSweepSettings; // 3bits: channel step | 5 bits: RSSI noise floor | 7bits: gain
 	uint32_t		overrideTG;
 	uint32_t		vfoScanLow[2]; // low frequency for VFO Scanning
 	uint32_t		vfoScanHigh[2]; // High frequency for VFO Scanning
+	uint32_t		bitfieldOptions; // see bitfieldOptions_t
 	int16_t			currentChannelIndexInZone;
 	int16_t			currentChannelIndexInAllZone;
 	int16_t			currentIndexInTRxGroupList[3]; // Current Channel, VFO A and VFO B
@@ -92,11 +103,9 @@ typedef struct
 	uint16_t		keypadTimerLong;
 	uint16_t		keypadTimerRepeat;
 	uint16_t		userPower;
-	uint16_t		bitfieldOptions; // see bitfieldOptions_t
 	uint8_t			txPowerLevel;
 	uint8_t			txTimeoutBeepX5Secs;
 	uint8_t			beepVolumeDivider;
-	uint8_t			beepOptions;
 	uint8_t			micGainDMR;
 	uint8_t			micGainFM;
 	uint8_t			backlightMode; // see BACKLIGHT_MODE enum
@@ -109,11 +118,11 @@ typedef struct
 	uint8_t			txFreqLimited;
 	uint8_t			scanModePause;
 	uint8_t			scanDelay;
-	uint8_t			scanStepTime;
 	uint8_t			squelchDefaults[RADIO_BANDS_TOTAL_NUM]; // VHF, 200Mhz and UHF
+	uint8_t			scanStepTime;
 	uint8_t			currentVFONumber;
-	uint8_t			languageIndex;
 	uint16_t		tsManualOverride;
+	uint8_t			languageIndex;
 	uint8_t			dmrDestinationFilter;
 	uint8_t			dmrCaptureTimeout;
 	uint8_t			dmrCcTsFilter;
@@ -128,6 +137,8 @@ typedef struct
 	int8_t			temperatureCalibration;// Units of 0.5 deg C
 	uint8_t			batteryCalibration; // Units of 0.01V (NOTE: only the 4 lower bits are used)
 	uint8_t			ecoLevel;// Power saving / economy level
+	uint8_t			DMR_RxAGC;
+	uint8_t			apo; // unit: 30 minutes (5 is skipped, as we want 0, 30, 60, 90, 120 and 180)
 } settingsStruct_t;
 
 typedef enum DMR_DESTINATION_FILTER_TYPE
@@ -190,7 +201,7 @@ typedef struct
 	uint8_t			savedSquelch;
 	int 			savedDMRCcTsFilter;
 	int 			savedDMRDestinationFilter;
-	int 			savedDMRCc;
+	uint8_t 		savedDMRCc;
 	int 			savedDMRTs;
 } monitorModeSettingsStruct_t;
 
@@ -276,7 +287,7 @@ void settingsSetVFODirty(void);
 void settingsSaveIfNeeded(bool immediately);
 bool settingsSaveSettings(bool includeVFOs);
 bool settingsLoadSettings(void);
-void settingsRestoreDefaultSettings(void);
+bool settingsRestoreDefaultSettings(void);
 void settingsEraseCustomContent(void);
 void settingsInitVFOChannel(int vfoNumber);
 void enableVoicePromptsIfLoaded(bool enableFullPrompts);

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2021 Roger Clark, VK3KYY / G4KYF
+ * Copyright (C) 2019-2023 Roger Clark, VK3KYY / G4KYF
  *                         Daniel Caujolle-Bert, F1RMB
  *
  *
@@ -311,12 +311,12 @@ void displayClearRows(int16_t startRow, int16_t endRow, bool isInverted)
     memset(screenBuf + (DISPLAY_SIZE_X * startRow), (isInverted ? 0xFF : 0x00), (DISPLAY_SIZE_X * (endRow - startRow)));
 }
 
-void displayPrintCentered(uint8_t y,const char *text, ucFont_t fontSize)
+void displayPrintCentered(uint16_t y, const char *text, ucFont_t fontSize)
 {
 	displayPrintCore(0, y, text, fontSize, TEXT_ALIGN_CENTER, false);
 }
 
-void displayPrintAt(uint8_t x, uint8_t y, const char *text, ucFont_t fontSize)
+void displayPrintAt(uint16_t x, uint16_t y, const char *text, ucFont_t fontSize)
 {
 	displayPrintCore(x, y, text, fontSize, TEXT_ALIGN_LEFT, false);
 }
@@ -1130,6 +1130,9 @@ void displayDrawChoice(ucChoice_t choice, bool clearRegion)
 #if defined(PLATFORM_RD5R)
 	const uint8_t TEXT_Y = 40;
 	const uint8_t FILLRECT_Y = 32;
+#elif defined(PLATFORM_MD380) || defined(PLATFORM_MDUV380)
+	const uint8_t TEXT_Y = 113;
+	const uint8_t FILLRECT_Y = 112;
 #else
 	const uint8_t TEXT_Y = 49;
 	const uint8_t FILLRECT_Y = 48;
@@ -1143,10 +1146,13 @@ void displayDrawChoice(ucChoice_t choice, bool clearRegion)
 		char *rText;
 	} choices[] =
 	{
-			{ "OK" 							             , NULL                                        }, // UC1701_CHOICE_OK
-			{ (char *)currentLanguage->yes___in_uppercase, (char *)currentLanguage->no___in_uppercase  }, // UC1701_CHOICE_YESNO
-			{ NULL						                 , (char *)currentLanguage->DISMISS            },  // UC1701_CHOICE_DISMISS
-			{ "OK" 							             , NULL                                        }  // UC1701_CHOICE_OKARROWS
+			{ "OK"                                       , NULL                                       }, // UC1701_CHOICE_OK
+#if defined(PLATFORM_MD9600)
+			{ "ENT"                                      , NULL                                       }, // UC1701_CHOICE_ENT
+#endif
+			{ (char *)currentLanguage->yes___in_uppercase, (char *)currentLanguage->no___in_uppercase }, // UC1701_CHOICE_YESNO
+			{ NULL                                       , (char *)currentLanguage->DISMISS           }, // UC1701_CHOICE_DISMISS
+			{ "OK"                                       , NULL                                       }  // UC1701_CHOICE_OKARROWS
 	};
 	char *lText = NULL;
 	char *rText = NULL;

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2021 Roger Clark, VK3KYY / G4KYF
+ * Copyright (C) 2019-2023 Roger Clark, VK3KYY / G4KYF
  *                         Daniel Caujolle-Bert, F1RMB
  *
  *
@@ -172,8 +172,12 @@ void voicePromptsTick(void)
 
 				int promptNumber = voicePromptsCurrentSequence.Buffer[voicePromptsCurrentSequence.Pos];
 
-				currentPromptLength = tableOfContents[promptNumber + 1] - tableOfContents[promptNumber];
+				if ((tableOfContents[promptNumber + 1] == 0) || (tableOfContents[promptNumber] == 0))
+				{
+					promptNumber = PROMPT_SILENCE;
+				}
 
+				currentPromptLength = tableOfContents[promptNumber + 1] - tableOfContents[promptNumber];
 				getAmbeData(tableOfContents[promptNumber], currentPromptLength);
 			}
 			else
@@ -342,6 +346,11 @@ void voicePromptsPlay(void)
 	if ((voicePromptIsActive == false) && (voicePromptsCurrentSequence.Length > 0))
 	{
 		rxPowerSavingSetState(ECOPHASE_POWERSAVE_INACTIVE);
+
+		if (nonVolatileSettings.DMR_RxAGC != 0)
+		{
+			HRC6000SetDmrRxGain(0);
+		}
 
 		taskENTER_CRITICAL();
 

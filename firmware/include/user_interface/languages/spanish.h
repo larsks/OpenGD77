@@ -1,6 +1,6 @@
 /* -*- coding: windows-1252-unix; -*- */
 /*
- * Copyright (C) 2019-2021 Roger Clark, VK3KYY / G4KYF
+ * Copyright (C) 2019-2023 Roger Clark, VK3KYY / G4KYF
  *
  *
  * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions
@@ -29,7 +29,7 @@
  * Translators: EA3IGM, EA3BIL, EA5SW
  *	
  *	
- * Rev: 10  18Dic2021 EA3BIL
+ * Rev: 11  11Mar2022 EA3BIL
  */
 #ifndef USER_INTERFACE_LANGUAGES_SPANISH_H_
 #define USER_INTERFACE_LANGUAGES_SPANISH_H_
@@ -115,7 +115,7 @@ const stringsTable_t spanishLanguage =
 .on						= "On", // MaxLen: 16 (with ':' + .band_limits)
 .timeout_beep			= "Sonido TOT", // MaxLen: 16 (with ':' + .off or 5..20)
 .list_full				= "Lista Llena",
-.UNUSED_1				= "",
+.dmr_cc_scan			= "CC Scan", // MaxLen: 12 (with ':' + settings: .on or .off)
 .band_limits			= "Límite Banda", // MaxLen: 16 (with ':' + .on or .off)
 .beep_volume			= "Vol. BEEP", // MaxLen: 16 (with ':' + -24..6 + 'dB')
 .dmr_mic_gain			= "Micro DMR", // MaxLen: 16 (with ':' + -33..12 + 'dB')
@@ -164,10 +164,10 @@ const stringsTable_t spanishLanguage =
 .vox_tail				= "VOX Cola", // MaxLen 16 (with ':' + .n_a or '0.0s')
 .audio_prompt			= "Prompt",// Maxlen 16 (with ':' + .silent, .beep or .voice_prompt_level_1)
 .silent                 = "Silencio", // Maxlen 16 (with : + audio_prompt)
-.UNUSED_2			= "",
+.rx_beep				= "RX beep", // MaxLen 16 (with ':' + .carrier/.talker/.both/.none)
 .beep					= "Beep", // Maxlen 16 (with : + audio_prompt)
 .voice_prompt_level_1	= "Voz L1", // Maxlen 16 (with : + audio_prompt)
-.transmitTalkerAlias	= "TA Tx", // Maxlen 16 (with : + .on or .off)
+.transmitTalkerAliasTS1	= "TA Tx TS1", // Maxlen 16 (with : + .on or .off)
 .squelch_VHF			= "VHF Squelch",// Maxlen 16 (with : + XX%)
 .squelch_220			= "220 Squelch",// Maxlen 16 (with : + XX%)
 .squelch_UHF			= "UHF Squelch", // Maxlen 16 (with : + XX%)
@@ -180,7 +180,7 @@ const stringsTable_t spanishLanguage =
 .voice_prompt_level_2	= "Voz L2", // Maxlen 16 (with : + audio_prompt)
 .voice_prompt_level_3	= "Voz L3", // Maxlen 16 (with : + audio_prompt)
 .dmr_filter				= "Filtro DMR",// MaxLen: 12 (with ':' + settings: "TG" or "Ct" or "RxG")
-.UNUSED_4				= "",
+.talker					= "Talker",
 .dmr_ts_filter			= "Filtro TS", // MaxLen: 12 (with ':' + settings: .on or .off)
 .dtmf_contact_list		= "FM DTMF contact.", // Maxlen: 16
 .channel_power			= "Pot. Canal", //Displayed as "Ch Power:" + .from_master or "Ch Power:"+ power text e.g. "Power:500mW" . Max total length 16
@@ -210,7 +210,7 @@ const stringsTable_t spanishLanguage =
 .scan_on_boot			= "Escan inicio",
 .dtmf_entry				= "Entrar DTMF",
 .name					= "Nombre",
-.UNUSED_3				= "",
+.carrier				= "Carrier",
 .openDM1801A 				= "OpenDM1801A", // Do not translate
 .time					= "Hora",
 .uptime					= "Hora Encendido",
@@ -221,7 +221,7 @@ const stringsTable_t spanishLanguage =
 .location				= "Ubicación",
 .date					= "Fecha",
 .timeZone				= "Zona Horaria",
-.suspend				= "Inactivo",
+.suspend				= "Hibernar",
 .pass					= "Pase", // For satellite screen
 .elevation				= "El",
 .azimuth				= "Az",
@@ -234,7 +234,30 @@ const stringsTable_t spanishLanguage =
 .symbols				= "NSEO", // symbols: N,S,E,W
 .not_set				= "NO DEFINIDO",
 .general_options		= "Opciones Grales.",
-.radio_options			= "Opciones Radio"
+.radio_options			= "Opciones Radio",
+.openMD9600				= "OpenMD9600",
+.dmr_rx_agc				= "DMR Rx AGC",
+.speaker_click_suppress			= "Click Suppr.",
+.gps					= "GPS",
+.end_only				= "End only",
+.dmr_crc				= "DMR crc",
+.eco					= "Eco",
+.safe_power_on				= "Safe Pwr-On", // MaxLen: 16 (with ':' + .on or .off)
+.auto_power_off				= "Auto Pwr-Off", // MaxLen: 16 (with ':' + 30/60/90/120/180 or .no)
+.apo_with_rf				= "APO with RF" , // MaxLen: 16 (with ':' + .yes or .no or .n_a)
+.openMDUV380			= "OpenMDUV380",
+.openMD380				= "OpenMD380",
+.gps_acquiring			= "Acquiring", 
+.altitude				= "Alt",
+.calibration            = "Radio Calibration",
+.freq_set                = "Freq Adjust",
+.cal_frequency          = "Cal Freq",
+.cal_pwr                = "Cal Power",
+.pwr_set                = "Power Adjust",
+.factory_reset          = "Factory Cal",
+.rx_tune				= "Rx Tuning",
+.transmitTalkerAliasTS2	= "TA Tx TS2", // Maxlen 16 (with : + .ta_text, 'APRS' , .both or .off)
+.ta_text				= "Text",
 };
 /********************************************************************
  *

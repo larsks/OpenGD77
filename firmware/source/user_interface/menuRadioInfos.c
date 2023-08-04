@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2021 Roger Clark, VK3KYY / G4KYF
+ * Copyright (C) 2019-2023 Roger Clark, VK3KYY / G4KYF
  *                         Daniel Caujolle-Bert, F1RMB
  *
  *
@@ -45,7 +45,7 @@ static const int TEMPERATURE_CRITICAL = 500; // 50°C
 static const uint8_t daysPerMonth[12] = { 31,28,31,30,31,30,31,31,30,31,30,31 };
 static float prevAverageBatteryVoltage = 0.0f;
 static int prevTemperature = 0;
-static char keypadInputDigits[13]; // HHMMSS + terminator (Displayed as HH:MM:SS, or YYYY:MM:DD or LAT.LAT,LON.LON)
+static char keypadInputDigits[17]; // HHMMSS + terminator (Displayed as HH:MM:SS, or YYYY:MM:DD or LAT.LATIT,LON.LONGI)
 static int keypadInputDigitsLength = 0;
 static menuStatus_t menuRadioInfosExitCode = MENU_STATUS_SUCCESS;
 //static int32_t timeClockPITOffset = 0; // Time difference between PITCounter and real time.
@@ -56,6 +56,7 @@ static uint32_t seconds;
 static struct tm timeAndDate;
 bool latLonIsSouthernHemisphere = false;
 bool latLonIsWesternHemisphere = false;
+const uint32_t LOCATION_TEXT_BUFFER_SIZE = 32;
 
 typedef struct
 {
@@ -138,12 +139,14 @@ static size_t circularBufferGetData(voltageCircularBuffer_t *cb, int32_t *data, 
 
 static uint32_t inputDigitsLonToFixed_10_5(void)
 {
-	uint32_t inPart =		((keypadInputDigits[5] - '0') * 100) +
-							((keypadInputDigits[6] - '0') *  10) +
-							((keypadInputDigits[7] - '0') *   1);
-	uint32_t decimalPart =	((keypadInputDigits[8] - '0') * 100) +
-							((keypadInputDigits[9] - '0') *  10) +
-							((keypadInputDigits[10] - '0') *   1);
+	uint32_t inPart =		((keypadInputDigits[6] - '0') * 100) +
+							((keypadInputDigits[7] - '0') *  10) +
+							((keypadInputDigits[8] - '0') *   1);
+
+	uint32_t decimalPart =	((keypadInputDigits[9] - '0')  * 10000) +
+							((keypadInputDigits[10] - '0') *  1000) +
+							((keypadInputDigits[11] - '0') *   100) +
+							((keypadInputDigits[12] - '0') *    10);
 
 	uint32_t fixedVal = (inPart << 23) + decimalPart;
 	if (latLonIsWesternHemisphere)
@@ -156,9 +159,10 @@ static uint32_t inputDigitsLatToFixed_10_5(void)
 {
 	uint32_t inPart =		((keypadInputDigits[0] - '0') *  10) +
 							((keypadInputDigits[1] - '0') *   1);
-	uint32_t decimalPart =	((keypadInputDigits[2] - '0') * 100) +
-							((keypadInputDigits[3] - '0') *  10) +
-							((keypadInputDigits[4] - '0') *   1);
+	uint32_t decimalPart =	((keypadInputDigits[2] - '0') * 10000) +
+							((keypadInputDigits[3] - '0') *  1000) +
+							((keypadInputDigits[4] - '0') *   100)+
+							((keypadInputDigits[5] - '0') *    10);
 
 	uint32_t fixedVal = (inPart << 23) + decimalPart;
 	if (latLonIsSouthernHemisphere)
@@ -174,10 +178,25 @@ menuStatus_t menuRadioInfos(uiEvent_t *ev, bool isFirstRun)
 	{
 		keypadInputDigits[0] = 0;
 		keypadInputDigitsLength = 0;
-		menuDataGlobal.endIndex = NUM_RADIO_INFOS_MENU_ITEMS;
+		menuDataGlobal.numItems = NUM_RADIO_INFOS_MENU_ITEMS;
 		displayClearBuf();
 		menuDisplayTitle(currentLanguage->radio_info);
 		displayRenderRows(0, 2);
+#if defined(PLATFORM_MD9600) || defined(PLATFORM_MDUV380) || defined(PLATFORM_MD380)
+		gpsOn(); //enable GPS DMA to see if we have a GPS fitted.
+#endif
+
+		if (nonVolatileSettings.locationLat != SETTINGS_UNITIALISED_LOCATION_LAT)
+		{
+			if (nonVolatileSettings.locationLat & 0x80000000)
+			{
+				latLonIsSouthernHemisphere = true;
+			}
+			if (nonVolatileSettings.locationLon & 0x80000000)
+			{
+				latLonIsWesternHemisphere = true;
+			}
+		}
 		updateScreen(ev, true);
 
 		updateVoicePrompts(true, true);
@@ -200,10 +219,11 @@ menuStatus_t menuRadioInfos(uiEvent_t *ev, bool isFirstRun)
 	return menuRadioInfosExitCode;
 }
 
-void buildMaidenHead(char *maidenheadBuffer,int intPartLat,int decPartLat,bool isSouthern,int intPartLon,int decPartLon, bool isWestern)
+
+void buildMaidenHead(char *maidenheadBuffer,uint32_t intPartLat,uint32_t decPartLat,bool isSouthern,uint32_t intPartLon,uint32_t decPartLon, bool isWestern)
 {
-	double latitude = intPartLat + ((double)decPartLat)/1000;
-	double longitude = intPartLon + ((double)decPartLon)/1000;
+	double latitude = intPartLat + (((double)decPartLat) /  LOCATION_DECIMAL_PART_MULIPLIER);
+	double longitude = intPartLon + (((double)decPartLon) / LOCATION_DECIMAL_PART_MULIPLIER);
 
 	if (isSouthern)
 	{
@@ -215,7 +235,7 @@ void buildMaidenHead(char *maidenheadBuffer,int intPartLat,int decPartLat,bool i
 		longitude *= -1;
 	}
 
-	coordsToMaidenhead((uint8_t *)maidenheadBuffer, longitude, latitude);
+	coordsToMaidenhead((uint8_t *)maidenheadBuffer, latitude, longitude);
 }
 
 void buildLocationTextBuffer(char *buffer, char * maidenheadBuf, bool locIsValid)
@@ -223,7 +243,7 @@ void buildLocationTextBuffer(char *buffer, char * maidenheadBuf, bool locIsValid
 	if (locIsValid)
 	{
 		uint32_t intPartLat = (nonVolatileSettings.locationLat & 0x7FFFFFFF) >> 23;
-		uint32_t decPartLat = nonVolatileSettings.locationLat & 0x7FFFFF;
+		uint32_t decPartLat = (nonVolatileSettings.locationLat & 0x7FFFFF);
 		bool southernHemisphere = false;
 		bool westernHemisphere = false;
 
@@ -232,7 +252,7 @@ void buildLocationTextBuffer(char *buffer, char * maidenheadBuf, bool locIsValid
 			southernHemisphere = true;
 		}
 		uint32_t intPartLon = (nonVolatileSettings.locationLon & 0x7FFFFFFF) >> 23;
-		uint32_t decPartLon = nonVolatileSettings.locationLon & 0x7FFFFF;
+		uint32_t decPartLon = (nonVolatileSettings.locationLon & 0x7FFFFF);
 		if (nonVolatileSettings.locationLon & 0x80000000)
 		{
 			westernHemisphere = true;
@@ -240,17 +260,59 @@ void buildLocationTextBuffer(char *buffer, char * maidenheadBuf, bool locIsValid
 
 		buildMaidenHead(maidenheadBuf, intPartLat, decPartLat, southernHemisphere, intPartLon, decPartLon, westernHemisphere );
 
-		snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "%02u.%03u%c %03u.%03u%c",
-				intPartLat, decPartLat, LanguageGetSymbol(southernHemisphere ? SYMBOLS_SOUTH : SYMBOLS_NORTH),
-				intPartLon, decPartLon, LanguageGetSymbol(westernHemisphere ? SYMBOLS_WEST : SYMBOLS_EAST));
+		snprintf(buffer, LOCATION_TEXT_BUFFER_SIZE, "%02u.%04u%c %03u.%04u%c",
+				intPartLat, decPartLat/10, LanguageGetSymbol(southernHemisphere ? SYMBOLS_SOUTH : SYMBOLS_NORTH),
+				intPartLon, decPartLon/10, LanguageGetSymbol(westernHemisphere ? SYMBOLS_WEST : SYMBOLS_EAST));
 
 	}
 	else
 	{
-		strcpy(buffer, "??.??? ???.???");
+		strcpy(buffer, "??.???? ???.????");
 		maidenheadBuf[0] = 0;
 	}
 }
+
+#if defined(PLATFORM_MD9600) || defined(PLATFORM_MDUV380) || defined(PLATFORM_MD380)
+void buildGPSTextBuffer(char *buffer, char * gpsTimeBuf, char * gpsDateBuf, char * gpsSatsBuf)
+{
+	if (gpsData.IsFitted)
+	{
+		uint32_t intPartLat = (gpsData.Latitude & 0x7FFFFFFF) >> 23;
+		uint32_t decPartLat = gpsData.Latitude & 0x7FFFFF;
+		bool southernHemisphere = false;
+		bool westernHemisphere = false;
+
+		if (gpsData.Latitude & 0x80000000)
+		{
+			southernHemisphere = true;
+		}
+
+		uint32_t intPartLon = (gpsData.Longitude & 0x7FFFFFFF) >> 23;
+		uint32_t decPartLon = gpsData.Longitude & 0x7FFFFF;
+
+		if (gpsData.Longitude & 0x80000000)
+		{
+			westernHemisphere = true;
+		}
+
+		snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "%02u.%03u%c %03u.%03u%c",
+				intPartLat, decPartLat, LanguageGetSymbol(southernHemisphere ? SYMBOLS_SOUTH : SYMBOLS_NORTH),
+				intPartLon, decPartLon, LanguageGetSymbol(westernHemisphere ? SYMBOLS_WEST : SYMBOLS_EAST));
+
+		gmtime_r_Custom(&gpsData.Time, &timeAndDate);
+		snprintf(gpsTimeBuf, SCREEN_LINE_BUFFER_SIZE, "%02u:%02u:%02u", timeAndDate.tm_hour, timeAndDate.tm_min, timeAndDate.tm_sec);
+		snprintf(gpsDateBuf, SCREEN_LINE_BUFFER_SIZE, "%04u/%02u/%02u", (timeAndDate.tm_year + 1900), (timeAndDate.tm_mon + 1), timeAndDate.tm_mday);
+		snprintf(gpsSatsBuf, SCREEN_LINE_BUFFER_SIZE, "Sats: %d", gpsData.SatsInView);
+	}
+	else
+	{
+		strcpy(buffer, "No GPS Fitted");
+		gpsDateBuf[0] = 0;
+		gpsTimeBuf[0] = 0;
+		gpsSatsBuf[0] = 0;
+	}
+}
+#endif
 
 static void updateScreen(uiEvent_t *ev, bool forceRedraw)
 {
@@ -264,6 +326,71 @@ static void updateScreen(uiEvent_t *ev, bool forceRedraw)
 		{
 			if ((prevAverageBatteryVoltage != averageBatteryVoltage) || (averageBatteryVoltage < BATTERY_CRITICAL_VOLTAGE) || pureBatteryLevel || forceRedraw)
 			{
+#if defined(PLATFORM_MD9600)
+				int volts, mvolts;
+				const int x = 72;
+				const int battLevelHeight = 28;
+
+				prevAverageBatteryVoltage = averageBatteryVoltage;
+				renderArrowOnly = false;
+
+				if (forceRedraw)
+				{
+					displayClearBuf();
+					menuDisplayTitle(currentLanguage->battery);
+
+					// Draw...
+					// Inner body frame
+					displayDrawRoundRect(x + 1, 23, 49, 34, 3, true);
+					// Outer body frame
+					displayDrawRoundRect(x, 22, 51, 36, 3, true);
+					// Positive poles frame
+					displayFillRoundRect(x + 5, 18, 9, 6, 2, true);
+					displayFillRoundRect(x + 37, 18, 9, 6, 2, true);
+				}
+				else
+				{
+					// Clear voltage area
+					displayFillRect(0, (((DISPLAY_SIZE_Y - (14 + FONT_SIZE_3_HEIGHT)) >> 1) + 14), x - 1, 16, true);
+					// Clear level area
+					displayFillRoundRect(x + 4, 26, 43, battLevelHeight, 2, false);
+				}
+
+				// Want to display instant battery voltage, not the averaged value.
+				if (pureBatteryLevel)
+				{
+					volts = (int)(batteryVoltage / 10);
+					mvolts = (int)(batteryVoltage - (volts * 10));
+				}
+				else
+				{
+					getBatteryVoltage(&volts, &mvolts);
+				}
+
+				snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "%2d.%1dV", volts, mvolts);
+				displayPrintAt(((x - (5 * 8)) >> 1), (((DISPLAY_SIZE_Y - (14 + FONT_SIZE_3_HEIGHT)) >> 1) + 14), buffer, FONT_SIZE_3);
+
+				if (pureBatteryLevel == false)
+				{
+					uint32_t h = (uint32_t)(((averageBatteryVoltage - CUTOFF_VOLTAGE_UPPER_HYST) * battLevelHeight) / (BATTERY_MAX_VOLTAGE - CUTOFF_VOLTAGE_UPPER_HYST));
+					if (h > battLevelHeight)
+					{
+						h = battLevelHeight;
+					}
+
+					// Draw Level
+					displayFillRoundRect(x + 4, 26 + battLevelHeight - h , 43, h, 2, (averageBatteryVoltage < BATTERY_CRITICAL_VOLTAGE) ? blink : true);
+				}
+				else
+				{
+					displayPrintCore(x + (20 / 2), 26 + ((battLevelHeight - FONT_SIZE_3_HEIGHT) >> 1), "?", FONT_SIZE_3, TEXT_ALIGN_LEFT, blink);
+				}
+
+				if (voicePromptsIsPlaying() == false)
+				{
+					updateVoicePrompts(false, false);
+				}
+#else
 				int volts, mvolts;
 				const int x = 88;
 				const int battLevelHeight = (DISPLAY_SIZE_Y - 28);
@@ -278,18 +405,18 @@ static void updateScreen(uiEvent_t *ev, bool forceRedraw)
 
 					// Draw...
 					// Inner body frame
-					displayDrawRoundRect(x + 1, 20, 26, DISPLAY_SIZE_Y - 22, 3, true);
+					displayDrawRoundRect(x + 1, 20, 26 + DISPLAY_H_EXTRA_PIXELS, DISPLAY_SIZE_Y - 22, 3, true);
 					// Outer body frame
-					displayDrawRoundRect(x, 19, 28, DISPLAY_SIZE_Y - 20, 3, true);
+					displayDrawRoundRect(x, 19, 28 + DISPLAY_H_EXTRA_PIXELS, DISPLAY_SIZE_Y - 20, 3, true);
 					// Positive pole frame
-					displayFillRoundRect(x + 9, 15, 10, 6, 2, true);
+					displayFillRoundRect(x + 9 + DISPLAY_H_OFFSET, 15, 10, 6, 2, true);
 				}
 				else
 				{
 					// Clear voltage area
-					displayFillRect(((x - (4 * 8)) >> 1) , 19 + 1, (4 * 8), (DISPLAY_SIZE_Y - 20) - 4, true);
+					displayFillRect(((x - (4 * 8)) >> 1), 19 + 1, (4 * 8), (DISPLAY_SIZE_Y - 20) - 4, true);
 					// Clear level area
-					displayFillRoundRect(x + 4, 23, 20, battLevelHeight, 2, false);
+					displayFillRoundRect(x + 4, 23, 20 + DISPLAY_H_EXTRA_PIXELS, battLevelHeight, 2, false);
 				}
 
 				// Want to display instant battery voltage, not the averaged value.
@@ -322,7 +449,7 @@ static void updateScreen(uiEvent_t *ev, bool forceRedraw)
 					}
 
 					// Draw Level
-					displayFillRoundRect(x + 4, 23 + battLevelHeight - h , 20, h, 2, (averageBatteryVoltage < BATTERY_CRITICAL_VOLTAGE) ? blink : true);
+					displayFillRoundRect(x + 4, 23 + battLevelHeight - h , 20 + DISPLAY_H_EXTRA_PIXELS, h, 2, (averageBatteryVoltage < BATTERY_CRITICAL_VOLTAGE) ? blink : true);
 				}
 				else
 				{
@@ -333,10 +460,11 @@ static void updateScreen(uiEvent_t *ev, bool forceRedraw)
 				{
 					updateVoicePrompts(false, false);
 				}
+#endif
 			}
 
 			// Low blinking arrow
-			displayFillTriangle(63, (DISPLAY_SIZE_Y - 1), 59, (DISPLAY_SIZE_Y - 5), 67, (DISPLAY_SIZE_Y - 5), blink);
+			displayFillTriangle(63 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 1), 59 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 5), 67 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 5), blink);
 		}
 		break;
 
@@ -350,7 +478,7 @@ static void updateScreen(uiEvent_t *ev, bool forceRedraw)
 				{
 					time_t_custom t = uiDataGlobal.dateTimeSecs + ((nonVolatileSettings.timezone & 0x80) ? ((nonVolatileSettings.timezone & 0x7F) - 64) * (15 * 60) : 0);
 
-					 gmtime_r_Custom(&t,&timeAndDate);
+					gmtime_r_Custom(&t, &timeAndDate);
 
 					snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "%02u:%02u:%02u", timeAndDate.tm_hour, timeAndDate.tm_min, timeAndDate.tm_sec);
 
@@ -373,12 +501,12 @@ static void updateScreen(uiEvent_t *ev, bool forceRedraw)
 					}
 				}
 
-				displayPrintCentered((DISPLAY_SIZE_Y / 2)   -8, buffer, FONT_SIZE_4);
+				displayPrintCentered((DISPLAY_SIZE_Y / 2) - 8, buffer, FONT_SIZE_4);
 				renderArrowOnly = false;
 
 				// Up/Down blinking arrow
-				displayFillTriangle(63, (DISPLAY_SIZE_Y - 1), 59, (DISPLAY_SIZE_Y - 3), 67, (DISPLAY_SIZE_Y - 3), blink);
-				displayFillTriangle(63, (DISPLAY_SIZE_Y - 5), 59, (DISPLAY_SIZE_Y - 3), 67, (DISPLAY_SIZE_Y - 3), blink);
+				displayFillTriangle(63 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 1), 59 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 3), 67 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 3), blink);
+				displayFillTriangle(63 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 5), 59 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 3), 67 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 3), blink);
 			}
 			break;
 
@@ -401,7 +529,7 @@ static void updateScreen(uiEvent_t *ev, bool forceRedraw)
 			}
 			else
 			{
-				strcpy(buffer, "____:__:__");
+				strcpy(buffer, "____-__-__");
 
 				int bufPos = 0;
 				for(int i = 0; i < keypadInputDigitsLength; i++)
@@ -414,12 +542,12 @@ static void updateScreen(uiEvent_t *ev, bool forceRedraw)
 				}
 			}
 
-			displayPrintCentered((DISPLAY_SIZE_Y / 2)   -8, buffer, FONT_SIZE_3);
+			displayPrintCentered((DISPLAY_SIZE_Y / 2) - 8, buffer, FONT_SIZE_3);
 
 			renderArrowOnly = false;
 			// Up/Down blinking arrow
-			displayFillTriangle(63, (DISPLAY_SIZE_Y - 1), 59, (DISPLAY_SIZE_Y - 3), 67, (DISPLAY_SIZE_Y - 3), blink);
-			displayFillTriangle(63, (DISPLAY_SIZE_Y - 5), 59, (DISPLAY_SIZE_Y - 3), 67, (DISPLAY_SIZE_Y - 3), blink);
+			displayFillTriangle(63 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 1), 59 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 3), 67 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 3), blink);
+			displayFillTriangle(63 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 5), 59 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 3), 67 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 3), blink);
 			break;
 
 		case RADIO_INFOS_LOCATION:
@@ -445,18 +573,18 @@ static void updateScreen(uiEvent_t *ev, bool forceRedraw)
 				}
 				else
 				{
-					sprintf(buffer, "__.___%c ___.___%c",
+					sprintf(buffer, "__.____%c ___.____%c",
 							LanguageGetSymbol(latLonIsSouthernHemisphere ? SYMBOLS_SOUTH : SYMBOLS_NORTH),
 							LanguageGetSymbol(latLonIsWesternHemisphere ? SYMBOLS_WEST : SYMBOLS_EAST));
 					int bufPos = 0;
 					for(int i = 0; i < keypadInputDigitsLength; i++)
 					{
 						buffer[bufPos++] = keypadInputDigits[i];
-						if ((bufPos == 2) || (bufPos == 11))
+						if ((bufPos == 2) || (bufPos == 12))
 						{
 							bufPos++;
 						}
-						if (bufPos == 6)
+						if (bufPos == 7)
 						{
 							bufPos +=2;
 						}
@@ -464,14 +592,46 @@ static void updateScreen(uiEvent_t *ev, bool forceRedraw)
 					maidenheadBuf[0] = 0;
 				}
 
-				displayPrintCentered((DISPLAY_SIZE_Y / 2) - 8, buffer, FONT_SIZE_3);
+				displayPrintCentered((DISPLAY_SIZE_Y / 2) - 8, buffer, FONT_SIZE_1);
 				displayPrintCentered(((DISPLAY_SIZE_Y / 4) * 3) - 8 , maidenheadBuf, FONT_SIZE_3);
 			}
 			renderArrowOnly = false;
 			// Up/Down blinking arrow
-			displayFillTriangle(63, (DISPLAY_SIZE_Y - 1), 59, (DISPLAY_SIZE_Y - 3), 67, (DISPLAY_SIZE_Y - 3), blink);
-			displayFillTriangle(63, (DISPLAY_SIZE_Y - 5), 59, (DISPLAY_SIZE_Y - 3), 67, (DISPLAY_SIZE_Y - 3), blink);
+			displayFillTriangle(63 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 1), 59 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 3), 67 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 3), blink);
+			displayFillTriangle(63 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 5), 59 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 3), 67 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 3), blink);
 			break;
+
+#if defined(PLATFORM_MD9600) || defined(PLATFORM_MDUV380) || defined(PLATFORM_MD380)
+		case RADIO_INFOS_GPS:
+			displayClearBuf();
+			menuDisplayTitle(currentLanguage->gps);
+			if (gpsData.DataAvailable)
+			{
+				char gpsTimeBuf[SCREEN_LINE_BUFFER_SIZE];
+				char gpsDateBuf[SCREEN_LINE_BUFFER_SIZE];
+				char gpsSatsBuf[SCREEN_LINE_BUFFER_SIZE];
+
+				buildGPSTextBuffer(buffer, gpsTimeBuf, gpsDateBuf, gpsSatsBuf);
+				displayPrintCentered((DISPLAY_SIZE_Y / 2) - 16, buffer, FONT_SIZE_2);
+				displayPrintCentered((DISPLAY_SIZE_Y / 2) - 5, gpsDateBuf, FONT_SIZE_2);
+				displayPrintCentered((DISPLAY_SIZE_Y / 2) + 5, gpsTimeBuf, FONT_SIZE_2);
+				displayPrintCentered((DISPLAY_SIZE_Y / 2) + 16 , gpsSatsBuf, FONT_SIZE_2);
+			}
+			else
+			{
+				displayPrintCentered((DISPLAY_SIZE_Y / 2) - 5, "No GPS Data", FONT_SIZE_2);
+			}
+			renderArrowOnly = false;
+			// Up/Down blinking arrow
+			displayFillTriangle(63 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 1), 59 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 3), 67 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 3), blink);
+			displayFillTriangle(63 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 5), 59 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 3), 67 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 3), blink);
+
+			if (voicePromptsIsPlaying() == false)
+			{
+				updateVoicePrompts(false, false);
+			}
+			break;
+#endif
 
 		case RADIO_INFOS_TEMPERATURE_LEVEL:
 		{
@@ -479,7 +639,7 @@ static void updateScreen(uiEvent_t *ev, bool forceRedraw)
 
 			if ((prevTemperature != temperature) || (temperature > TEMPERATURE_CRITICAL) || forceRedraw)
 			{
-				const int x = 102;
+				const int x = 102 + DISPLAY_H_OFFSET;
 #if defined(PLATFORM_RD5R)
 				const int temperatureHeight = (DISPLAY_SIZE_Y - 34);
 				const int tankVCenter = (DISPLAY_SIZE_Y - 10);
@@ -543,8 +703,8 @@ static void updateScreen(uiEvent_t *ev, bool forceRedraw)
 			}
 
 			// Up/Down blinking arrow
-			displayFillTriangle(63, (DISPLAY_SIZE_Y - 1), 59, (DISPLAY_SIZE_Y - 3), 67, (DISPLAY_SIZE_Y - 3), blink);
-			displayFillTriangle(63, (DISPLAY_SIZE_Y - 5), 59, (DISPLAY_SIZE_Y - 3), 67, (DISPLAY_SIZE_Y - 3), blink);
+			displayFillTriangle(63 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 1), 59 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 3), 67 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 3), blink);
+			displayFillTriangle(63 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 5), 59 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 3), 67 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 3), blink);
 		}
 		break;
 
@@ -570,7 +730,7 @@ static void updateScreen(uiEvent_t *ev, bool forceRedraw)
 
 			if (newHistAvailable || forceRedraw)
 			{
-				static const uint8_t chartX = 2 + (2 * 6) + 3 + 2;
+				static const uint8_t chartX = 2 + (2 * 6) + 3 + 2 + DISPLAY_H_OFFSET;
 				static const uint8_t chartY = 14 + 1 + 2;
 				const int chartHeight = (DISPLAY_SIZE_Y - 26);
 
@@ -634,7 +794,7 @@ static void updateScreen(uiEvent_t *ev, bool forceRedraw)
 			}
 
 			// Up blinking arrow
-			displayFillTriangle(63, (DISPLAY_SIZE_Y - 5), 59, (DISPLAY_SIZE_Y - 3), 67, (DISPLAY_SIZE_Y - 3), blink);
+			displayFillTriangle(63 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 5), 59 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 3), 67 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 3), blink);
 
 			if (voicePromptsIsPlaying() == false)
 			{
@@ -666,8 +826,8 @@ static void updateScreen(uiEvent_t *ev, bool forceRedraw)
 			renderArrowOnly = false;
 
 			// Up/Down blinking arrow
-			displayFillTriangle(63, (DISPLAY_SIZE_Y - 1), 59, (DISPLAY_SIZE_Y - 3), 67, (DISPLAY_SIZE_Y - 3), blink);
-			displayFillTriangle(63, (DISPLAY_SIZE_Y - 5), 59, (DISPLAY_SIZE_Y - 3), 67, (DISPLAY_SIZE_Y - 3), blink);
+			displayFillTriangle(63 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 1), 59 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 3), 67 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 3), blink);
+			displayFillTriangle(63 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 5), 59 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 3), 67 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 3), blink);
 		}
 		break;
 
@@ -692,7 +852,7 @@ static void updateScreen(uiEvent_t *ev, bool forceRedraw)
 				{
 					strcpy(buffer,"__:__:__");
 					int bufPos = 0;
-					for(int i=0; i < keypadInputDigitsLength; i++)
+					for(int i = 0; i < keypadInputDigitsLength; i++)
 					{
 						buffer[bufPos++] = keypadInputDigits[i];
 						if ((bufPos == 2) || (bufPos == 5))
@@ -702,12 +862,12 @@ static void updateScreen(uiEvent_t *ev, bool forceRedraw)
 					}
 				}
 
-				displayPrintCentered((DISPLAY_SIZE_Y / 2)   -8, buffer, FONT_SIZE_4);
+				displayPrintCentered((DISPLAY_SIZE_Y / 2) - 8, buffer, FONT_SIZE_4);
 				renderArrowOnly = false;
 
 				// Up/Down blinking arrow
-				displayFillTriangle(63, (DISPLAY_SIZE_Y - 1), 59, (DISPLAY_SIZE_Y - 3), 67, (DISPLAY_SIZE_Y - 3), blink);
-				displayFillTriangle(63, (DISPLAY_SIZE_Y - 5), 59, (DISPLAY_SIZE_Y - 3), 67, (DISPLAY_SIZE_Y - 3), blink);
+				displayFillTriangle(63 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 1), 59 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 3), 67 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 3), blink);
+				displayFillTriangle(63 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 5), 59 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 3), 67 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 3), blink);
 			}
 			break;
 	}
@@ -758,6 +918,9 @@ static void handleEvent(uiEvent_t *ev)
 			case KEY_GREEN:
 				if (keypadInputDigitsLength == 0)
 				{
+#if defined(PLATFORM_MD9600) || defined(PLATFORM_MDUV380) || defined(PLATFORM_MD380)
+					gpsOff(); //turn off the GPS DMA when we are not in the Radio Info menu
+#endif
 					menuSystemPopPreviousMenu();
 				}
 				else
@@ -780,7 +943,9 @@ static void handleEvent(uiEvent_t *ev)
 									((keypadInputDigits[3] - '0'))) - 1900;
 
 							uiDataGlobal.dateTimeSecs = mktime_custom(&timeAndDate) - ((nonVolatileSettings.timezone & 0x80)?((nonVolatileSettings.timezone & 0x7F) - 64) * (15 * 60):0);
-
+#if defined(PLATFORM_MD9600) || defined(PLATFORM_MDUV380) || defined(PLATFORM_MD380)
+							setRtc_custom(uiDataGlobal.dateTimeSecs);
+#endif
 							keypadInputDigits[0] = 0;// clear digits
 							keypadInputDigitsLength = 0;
 
@@ -793,14 +958,23 @@ static void handleEvent(uiEvent_t *ev)
 							break;
 
 						case RADIO_INFOS_LOCATION:
-							settingsSet(nonVolatileSettings.locationLat, inputDigitsLatToFixed_10_5());
-							settingsSet(nonVolatileSettings.locationLon, inputDigitsLonToFixed_10_5());
+							if (keypadInputDigitsLength == 13)
+							{
+								settingsSet(nonVolatileSettings.locationLat, inputDigitsLatToFixed_10_5());
+								settingsSet(nonVolatileSettings.locationLon, inputDigitsLonToFixed_10_5());
 
-							keypadInputDigits[0] = 0;// clear digits
-							keypadInputDigitsLength = 0;
-							menuSatelliteScreenClearPredictions(false);
-							updateScreen(ev, true);
-							nextKeyBeepMelody = (int *)MELODY_ACK_BEEP;
+								HRC6000SetTalkerAliasLocation();
+
+								keypadInputDigits[0] = 0;// clear digits
+								keypadInputDigitsLength = 0;
+								menuSatelliteScreenClearPredictions(false);
+								updateScreen(ev, true);
+								nextKeyBeepMelody = (int *)MELODY_ACK_BEEP;
+							}
+							else
+							{
+								nextKeyBeepMelody = (int *)MELODY_NACK_BEEP;
+							}
 							break;
 
 						default:
@@ -818,7 +992,7 @@ static void handleEvent(uiEvent_t *ev)
 								if (displayMode == RADIO_INFOS_CURRENT_TIME)
 								{
 									PIT2SecondsCounter = 0;// Stop PIT2SecondsCounter rolling over during the next operations
-									uint32_t t = uiDataGlobal.dateTimeSecs + ((nonVolatileSettings.timezone & 0x80)?((nonVolatileSettings.timezone & 0x7F) - 64) * (15 * 60):0);
+									time_t_custom t = uiDataGlobal.dateTimeSecs + ((nonVolatileSettings.timezone & 0x80)?((nonVolatileSettings.timezone & 0x7F) - 64) * (15 * 60):0);
 									gmtime_r_Custom(&t, &timeAndDate);// get the current date time as the date may have changed since starting to enter the time.
 									timeAndDate.tm_hour 	= ((keypadInputDigits[0] - '0') * 10) + (keypadInputDigits[1] - '0');
 									timeAndDate.tm_min		= ((keypadInputDigits[2] - '0') * 10) + (keypadInputDigits[3] - '0');
@@ -826,7 +1000,9 @@ static void handleEvent(uiEvent_t *ev)
 
 									PIT2SecondsCounter = 0;//Synchronise PIT2SecondsCounter
 									uiDataGlobal.dateTimeSecs = mktime_custom(&timeAndDate) - ((nonVolatileSettings.timezone & 0x80)?((nonVolatileSettings.timezone & 0x7F) - 64) * (15 * 60):0);
-
+#if defined(PLATFORM_MD9600) || defined(PLATFORM_MDUV380) || defined(PLATFORM_MD380)
+									setRtc_custom(uiDataGlobal.dateTimeSecs);
+#endif
 									menuSatelliteScreenClearPredictions(false);
 								}
 								else
@@ -837,7 +1013,7 @@ static void handleEvent(uiEvent_t *ev)
 									if (BUTTONCHECK_DOWN(ev, BUTTON_SK2))
 									{
 										uiDataGlobal.SatelliteAndAlarmData.alarmType = ALARM_TYPE_CLOCK;
-										powerOffFinalStage(true);
+										powerOffFinalStage(true, false);
 									}
 								}
 								keypadInputDigits[0] = 0;// clear digits
@@ -861,6 +1037,9 @@ static void handleEvent(uiEvent_t *ev)
 				}
 				else
 				{
+#if defined(PLATFORM_MD9600) || defined(PLATFORM_MDUV380) || defined(PLATFORM_MD380)
+					gpsOff(); //Turn off the GPS DMA when we are not in the Radio Info Menu
+#endif
 					menuSystemPopPreviousMenu();
 				}
 
@@ -901,6 +1080,12 @@ static void handleEvent(uiEvent_t *ev)
 				if (displayMode < (NUM_RADIO_INFOS_MENU_ITEMS - 1))
 				{
 					displayMode++;
+#if defined(PLATFORM_MD9600) || defined(PLATFORM_MDUV380) || defined(PLATFORM_MD380)
+					if ((gpsData.IsFitted == false) && (displayMode == RADIO_INFOS_GPS))
+					{
+					  displayMode++;
+					}
+#endif
 					updateScreen(ev, true);
 					updateVoicePrompts(true, false);
 				}
@@ -934,6 +1119,12 @@ static void handleEvent(uiEvent_t *ev)
 				if (displayMode > RADIO_INFOS_BATTERY_LEVEL)
 				{
 					displayMode--;
+#if defined(PLATFORM_MD9600) || defined(PLATFORM_MDUV380) || defined(PLATFORM_MD380)
+					if ((gpsData.IsFitted == false) && (displayMode == RADIO_INFOS_GPS))
+					{
+					  displayMode--;
+					}
+#endif
 					updateScreen(ev, true);
 					updateVoicePrompts(true, false);
 				}
@@ -976,6 +1167,25 @@ static void handleEvent(uiEvent_t *ev)
 							updateScreen(ev, true);
 						}
 						break;
+#if defined(PLATFORM_MD9600) || defined(PLATFORM_MDUV380) || defined(PLATFORM_MD380)
+					case RADIO_INFOS_GPS:
+						if (BUTTONCHECK_DOWN(ev, BUTTON_SK2))
+						{
+							if ((gpsData.Latitude != 0U) || (gpsData.Longitude != 0U)) // if we have a valid Lat and Long
+							{
+								nonVolatileSettings.locationLat = gpsData.Latitude;
+								nonVolatileSettings.locationLon = gpsData.Longitude;
+
+								// Update date and time if it differs
+								if (uiDataGlobal.dateTimeSecs != gpsData.Time)
+								{
+									uiDataGlobal.dateTimeSecs = gpsData.Time;
+									setRtc_custom(uiDataGlobal.dateTimeSecs);
+								}
+							}
+						}
+						break;
+#endif
 				}
 				break;
 
@@ -991,7 +1201,7 @@ static void handleEvent(uiEvent_t *ev)
 								maxDigitsOnThisScreen = 8;
 							break;
 							case RADIO_INFOS_LOCATION:
-								maxDigitsOnThisScreen = 11;
+								maxDigitsOnThisScreen = 13;
 								break;
 							case RADIO_INFOS_CURRENT_TIME:
 								maxDigitsOnThisScreen = 6;
@@ -1097,25 +1307,27 @@ static void handleEvent(uiEvent_t *ev)
 										case 2:
 										case 3:
 										case 4:
+										case 5:
 											if (keypadInputDigits[0] == '9')
 											{
 												maxDigValue = 0;
 											}
 											break;
-										case 5:
+										case 6:
 											maxDigValue = 1;
 											break;
-										case 6:
-											if (keypadInputDigits[5] == '1')
+										case 7:
+											if (keypadInputDigits[6] == '1')
 											{
 												maxDigValue = 8;
 											}
 											break;
-										case 7:
 										case 8:
 										case 9:
 										case 10:
-											if ((keypadInputDigits[5] == '1') && (keypadInputDigits[6] == '8'))
+										case 11:
+										case 12:
+											if ((keypadInputDigits[6] == '1') && (keypadInputDigits[7] == '8'))
 											{
 												maxDigValue = 0;
 											}
@@ -1168,17 +1380,17 @@ static void handleEvent(uiEvent_t *ev)
 									switch(displayMode)
 									{
 										case RADIO_INFOS_LOCATION:
-											if ((keypadInputDigitsLength == 1) || (keypadInputDigitsLength == 7))
+											if ((keypadInputDigitsLength == 1) || (keypadInputDigitsLength == 8))
 											{
 												voicePromptsAppendPrompt(PROMPT_POINT);
 											}
-											else if (keypadInputDigitsLength == 4)
+											else if (keypadInputDigitsLength == 5)
 											{
 												char buf[2] = { 0, 0 };
 												buf[0] = LanguageGetSymbol(latLonIsSouthernHemisphere ? SYMBOLS_SOUTH : SYMBOLS_NORTH);
 												voicePromptsAppendString(buf);
 											}
-											else if (keypadInputDigitsLength == 10)
+											else if (keypadInputDigitsLength == 12)
 											{
 												char buf[2] = { 0, 0 };
 												buf[0] = LanguageGetSymbol(latLonIsWesternHemisphere ? SYMBOLS_WEST : SYMBOLS_EAST);
@@ -1196,7 +1408,7 @@ static void handleEvent(uiEvent_t *ev)
 							}
 							else
 							{
-								if (keypadInputDigitsLength!=0)
+								if (keypadInputDigitsLength != 0)
 								{
 									nextKeyBeepMelody = (int *)MELODY_NACK_BEEP;
 								}
@@ -1254,7 +1466,7 @@ static void updateVoicePrompts(bool spellIt, bool firstRun)
 {
 	if (nonVolatileSettings.audioPromptMode >= AUDIO_PROMPT_MODE_VOICE_LEVEL_1)
 	{
-		char buffer[17];
+		char buffer[SCREEN_LINE_BUFFER_SIZE];
 
 		voicePromptsInit();
 
@@ -1275,9 +1487,11 @@ static void updateVoicePrompts(bool spellIt, bool firstRun)
 
 				voicePromptsAppendLanguageString(&currentLanguage->battery);
 				getBatteryVoltage(&volts,  &mvolts);
-				snprintf(buffer, 17, " %1d.%1d", volts, mvolts);
+				snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, " %1d.%1d", volts, mvolts);
 				voicePromptsAppendString(buffer);
 				voicePromptsAppendPrompt(PROMPT_VOLTS);
+				voicePromptsAppendInteger(getBatteryPercentage());
+				voicePromptsAppendPrompt(PROMPT_PERCENT);
 			}
 			break;
 			case RADIO_INFOS_TEMPERATURE_LEVEL:
@@ -1285,7 +1499,7 @@ static void updateVoicePrompts(bool spellIt, bool firstRun)
 				int temperature = getTemperature();
 
 				voicePromptsAppendLanguageString(&currentLanguage->temperature);
-				snprintf(buffer, 17, "%d.%1d", (temperature / 10), (temperature % 10));
+				snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "%d.%1d", (temperature / 10), (temperature % 10));
 				voicePromptsAppendString(buffer);
 				voicePromptsAppendLanguageString(&currentLanguage->celcius);
 			}
@@ -1303,7 +1517,7 @@ static void updateVoicePrompts(bool spellIt, bool firstRun)
 				voicePromptsAppendLanguageString(&currentLanguage->location);
 				if (nonVolatileSettings.locationLat != SETTINGS_UNITIALISED_LOCATION_LAT)
 				{
-					char maidenheadBuf[7];
+					char maidenheadBuf[LOCATION_TEXT_BUFFER_SIZE];
 					buildLocationTextBuffer(buffer, maidenheadBuf, true);
 					voicePromptsAppendString(buffer);
 					voicePromptsAppendString(maidenheadBuf);
@@ -1313,6 +1527,26 @@ static void updateVoicePrompts(bool spellIt, bool firstRun)
 					voicePromptsAppendLanguageString(&currentLanguage->not_set);
 				}
 			break;
+#if defined(PLATFORM_MD9600) || defined(PLATFORM_MDUV380) || defined(PLATFORM_MD380)
+			case RADIO_INFOS_GPS:
+			{
+				char gpsTimeBuf[SCREEN_LINE_BUFFER_SIZE];
+				char gpsDateBuf[SCREEN_LINE_BUFFER_SIZE];
+				char gpsSatsBuf[SCREEN_LINE_BUFFER_SIZE];
+
+				voicePromptsAppendString("GPS");
+				buildGPSTextBuffer(buffer, gpsTimeBuf, gpsDateBuf, gpsSatsBuf);
+				voicePromptsAppendString(buffer);
+				voicePromptsAppendLanguageString(&currentLanguage->date);
+				voicePromptsAppendPrompt(PROMPT_SILENCE);
+				voicePromptsAppendString(gpsDateBuf);
+				voicePromptsAppendLanguageString(&currentLanguage->time);
+				voicePromptsAppendPrompt(PROMPT_SILENCE);
+				voicePromptsAppendString(gpsTimeBuf);
+				voicePromptsAppendString(gpsSatsBuf);
+			}
+			break;
+#endif
 			case RADIO_INFOS_DATE:
 				voicePromptsAppendLanguageString(&currentLanguage->date);
 				snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "%04u %02u %02u", (timeAndDate.tm_year + 1900),(timeAndDate.tm_mon + 1),timeAndDate.tm_mday);
@@ -1321,10 +1555,10 @@ static void updateVoicePrompts(bool spellIt, bool firstRun)
 
 			case RADIO_INFOS_UP_TIME:
 				voicePromptsAppendLanguageString(&currentLanguage->uptime);
-				snprintf(buffer, 17, "%u", hours);
+				snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "%u", hours);
 				voicePromptsAppendString(buffer);
 				voicePromptsAppendLanguageString(&currentLanguage->hours);
-				snprintf(buffer, 17, "%u", minutes);
+				snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "%u", minutes);
 				voicePromptsAppendString(buffer);
 				voicePromptsAppendLanguageString(&currentLanguage->minutes);
 			break;

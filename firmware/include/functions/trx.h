@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2019      Kai Ludwig, DG4KLU
- * Copyright (C) 2019-2021 Roger Clark, VK3KYY / G4KYF
+ * Copyright (C) 2019-2023 Roger Clark, VK3KYY / G4KYF
  *                         Colin, G4EML
  *                         Daniel Caujolle-Bert, F1RMB
  *
@@ -72,7 +72,7 @@ extern const uint16_t TRX_DCS_TONE;
 extern const uint8_t TRX_NUM_DCS;
 extern const uint16_t TRX_DCSCodes[];
 
-extern int trxDMRModeRx;
+extern volatile int trxDMRModeRx;
 extern int trxDMRModeTx;
 
 extern volatile bool trxTransmissionEnabled;
@@ -110,8 +110,8 @@ void trxUpdate_PA_DAC_Drive(void);
 uint16_t trxGetPA_DAC_Drive(void);
 int trxGetPowerLevel(void);
 void trxCalcBandAndFrequencyOffset(CalibrationBand_t *calibrationBand, uint32_t *freq_offset);
-void trxSetDMRColourCode(int colourCode);
-int trxGetDMRColourCode(void);
+void trxSetDMRColourCode(uint8_t colourCode);
+uint8_t trxGetDMRColourCode(void);
 int trxGetDMRTimeSlot(void);
 void trxSetDMRTimeSlot(int timeslot, bool resync);
 void trxSetTxCSS(uint16_t tone);
@@ -137,5 +137,10 @@ bool trxPowerUpDownRxAndC6000(bool powerUp, bool includeC6000);
 uint8_t trxGetAnalogFilterLevel();
 void trxSetAnalogFilterLevel(uint8_t newFilterLevel);
 void trxTerminateCheckAnalogSquelch(void);
+
+int trxGetRSSIdBm(void);
+int trxGetNoisedBm(void);
+int trxGetSNRMargindBm(void);
+
 
 #endif /* _OPENGD77_TRX_H_ */

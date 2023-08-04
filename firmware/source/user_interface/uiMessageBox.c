@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2021 Roger Clark, VK3KYY / G4KYF
+ * Copyright (C) 2019-2023 Roger Clark, VK3KYY / G4KYF
  *                         Daniel Caujolle-Bert, F1RMB
  *
  *
@@ -133,7 +133,11 @@ static void handleEvent(uiEvent_t *ev)
 	}
 	else if (KEYCHECK_SHORTUP(ev->keys, KEY_RED))
 	{
-		bool redHandled = (uiDataGlobal.MessageBox.buttons != MESSAGEBOX_BUTTONS_OK);
+		bool redHandled = (uiDataGlobal.MessageBox.buttons != MESSAGEBOX_BUTTONS_OK)
+#if defined(PLATFORM_MD9600)
+				&& (uiDataGlobal.MessageBox.buttons != MESSAGEBOX_BUTTONS_ENT)
+#endif
+				;
 		bool res = false;
 
 		uiDataGlobal.MessageBox.keyPressed = KEY_RED;
@@ -204,7 +208,7 @@ static void updateScreen(bool forceRedraw)
 		{
 			if (uiDataGlobal.MessageBox.decoration != MESSAGEBOX_DECORATION_NONE)
 			{
-				displayDrawRoundRectWithDropShadow(4, 4, 120, DISPLAY_SIZE_Y - (uiDataGlobal.MessageBox.buttons != MESSAGEBOX_BUTTONS_NONE ? FONT_SIZE_3_HEIGHT : 0) - 6, 5, true);
+				displayDrawRoundRectWithDropShadow(4, 4 + DISPLAY_V_OFFSET, DISPLAY_SIZE_X - (2 * 4), DISPLAY_SIZE_Y - (uiDataGlobal.MessageBox.buttons != MESSAGEBOX_BUTTONS_NONE ? FONT_SIZE_3_HEIGHT : 0) - 6 - DISPLAY_V_EXTRA_PIXELS, 5, true);
 			}
 
 			if (strlen(uiDataGlobal.MessageBox.message))
@@ -219,8 +223,8 @@ static void updateScreen(bool forceRedraw)
 		case MESSAGEBOX_TYPE_PIN_CODE:
 		{
 			char pinStr[17] = { 0 };
-			int8_t xCursor = -1;
-			int8_t yCursor = -1;
+			int16_t xCursor = -1;
+			int16_t yCursor = -1;
 
 			if (forceRedraw)
 			{
@@ -232,15 +236,12 @@ static void updateScreen(bool forceRedraw)
 			else
 			{
 				// Clear input
-				displayFillRect(0, (((DISPLAY_SIZE_Y / 8) - 1) * 3) + 2, DISPLAY_SIZE_X,
-						(DISPLAY_SIZE_Y - (((DISPLAY_SIZE_Y / 8) - 1) * 3)) - FONT_SIZE_3_HEIGHT - 2, true);
+				displayFillRect(0, TITLE_BOX_HEIGHT + 2, DISPLAY_SIZE_X,
+						DISPLAY_SIZE_Y - TITLE_BOX_HEIGHT - FONT_SIZE_3_HEIGHT - 2, true);
 			}
 
-			for (uint8_t i = 0; i < SAFE_MIN(uiDataGlobal.MessageBox.pinLength, FREQ_ENTER_DIGITS_MAX); i++)
-			{
-				char *p = pinStr; // Just to make gcc silent
-				sprintf(pinStr, "%s%c", p, uiDataGlobal.FreqEnter.digits[i]);
-			}
+			memset(pinStr, 0, sizeof(pinStr));
+			memcpy(pinStr, uiDataGlobal.FreqEnter.digits, SAFE_MIN(uiDataGlobal.MessageBox.pinLength, FREQ_ENTER_DIGITS_MAX));
 
 			displayPrintCentered(DISPLAY_Y_POS_RX_FREQ, pinStr, FONT_SIZE_3);
 
@@ -348,7 +349,7 @@ static void displayMessage(void)
 			decoration = true; // Override decoration
 
 			// Display title
-			displayDrawRoundRectWithDropShadow(2, 2, (DISPLAY_SIZE_X - 6), ((DISPLAY_SIZE_Y / 8) - 1) * 3, 3, true);
+			displayDrawRoundRectWithDropShadow(2, 2, (DISPLAY_SIZE_X - 6), TITLE_BOX_HEIGHT, 3, true);
 
 			y = 3;
 		}
@@ -366,6 +367,11 @@ static void displayButtons(void)
 		case MESSAGEBOX_BUTTONS_OK:
 			displayDrawChoice(CHOICE_OK, false);
 			break;
+#if defined(PLATFORM_MD9600)
+		case MESSAGEBOX_BUTTONS_ENT:
+			displayDrawChoice(CHOICE_ENT, false);
+			break;
+#endif
 		case MESSAGEBOX_BUTTONS_YESNO:
 			displayDrawChoice(CHOICE_YESNO, false);
 			break;

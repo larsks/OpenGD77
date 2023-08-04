@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2019      Kai Ludwig, DG4KLU
- * Copyright (C) 2019-2021 Roger Clark, VK3KYY / G4KYF
+ * Copyright (C) 2019-2023 Roger Clark, VK3KYY / G4KYF
  *                         Daniel Caujolle-Bert, F1RMB
  *
  *
@@ -64,6 +64,7 @@
 #include "functions/trx.h"
 #include "hardware/SPI_Flash.h"
 #include "hardware/EEPROM.h"
+#include "functions/ticks.h"
 
 extern int batteryVoltage;
 extern float averageBatteryVoltage;
@@ -73,8 +74,12 @@ extern bool isSuspended;
 
 extern Task_t mainTask;
 
+#if !defined(PLATFORM_GD77S)
+extern ticksTimer_t apoTimer;
+#endif
+
 void mainTaskInit(void);
-void powerOffFinalStage(bool maintainRTC);
+void powerOffFinalStage(bool maintainRTC, bool forceSuspend);
 bool batteryIsLowWarning(void);
 
 #endif /* _OPENGD77_MAIN_H_ */

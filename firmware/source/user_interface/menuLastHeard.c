@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2021 Roger Clark, VK3KYY / G4KYF
+ * Copyright (C) 2019-2023 Roger Clark, VK3KYY / G4KYF
  *                         Daniel Caujolle-Bert, F1RMB
  *
  *
@@ -289,6 +289,17 @@ void menuLastHeardHandleEvent(uiEvent_t *ev)
 			menuSystemPopAllAndDisplayRootMenu();
 			return;
 		}
+		else if (KEYCHECK_LONGDOWN(ev->keys, KEY_HASH) && (BUTTONCHECK_DOWN(ev, (BUTTON_SK1 | BUTTON_SK2)) == 0)) // Clear LH list
+		{
+			if (currentMenu == MENU_LAST_HEARD) // Only allowed within LH menu
+			{
+				lastheardInitList();
+				lastHeardClearLastID();
+				menuLastHeardInit();
+				promptsInit(true); // Stack "Empty List" VP.
+				isDirty = true;
+			}
+		}
 	}
 
 	if (currentMenu == MENU_LAST_HEARD)
@@ -339,7 +350,7 @@ void menuLastHeardInit(void)
 {
 	menuDataGlobal.startIndex = LinkHead->id;// reuse this global to store the ID of the first item in the list
 	menuDataGlobal.currentItemIndex = 0;
-	menuDataGlobal.endIndex = uiDataGlobal.lastHeardCount;
+	menuDataGlobal.numItems = uiDataGlobal.lastHeardCount;
 	selectedItem = NULL;
 	firstDisplayed = 0;
 	displayLHDetails = false;
@@ -366,8 +377,6 @@ static void promptsInit(bool isFirstRun)
 
 static void displayTalkerAlias(uint8_t y, char *text, uint32_t time, uint32_t now, uint32_t TGorPC, size_t maxLen, bool displayDetails, bool itemIsSelected, bool isFirstRun, LinkItem_t * item)
 {
-	char buffer[37]; // Max: TA 27 (in 7bit format) + ' [' + 6 (Maidenhead)  + ']' + NULL
-	char tg_Buffer[SCREEN_LINE_BUFFER_SIZE];
 	char timeBuffer[SCREEN_LINE_BUFFER_SIZE];
 	uint32_t tg = (TGorPC & 0xFFFFFF);
 	bool isPC = ((TGorPC >> 24) == PC_CALL_FLAG);
@@ -379,19 +388,14 @@ static void displayTalkerAlias(uint8_t y, char *text, uint32_t time, uint32_t no
 	{
 		heardSince /= 60U;
 		inHours = true;
+
+		if (heardSince > 999)
+		{
+			heardSince = 999;
+		}
 	}
 
-	// Do TG and Time stuff first as its always needed for the Voice prompts
-
-	if (item->dmrMode == DMR_MODE_RMO)
-	{
-		snprintf(tg_Buffer, SCREEN_LINE_BUFFER_SIZE, "%s %u:%d", (isPC ? currentLanguage->pc : currentLanguage->tg), tg, (item->receivedTS + 1));// PC or TG
-	}
-	else
-	{
-		snprintf(tg_Buffer, SCREEN_LINE_BUFFER_SIZE, "%s %u", (isPC ? currentLanguage->pc : currentLanguage->tg), tg);// PC or TG
-	}
-	snprintf(timeBuffer, 6, "%u", heardSince);// Time
+	snprintf(timeBuffer, 6, "%u", heardSince); // Time, without unit
 
 	if (itemIsSelected && (nonVolatileSettings.audioPromptMode >= AUDIO_PROMPT_MODE_VOICE_LEVEL_1))
 	{
@@ -400,6 +404,8 @@ static void displayTalkerAlias(uint8_t y, char *text, uint32_t time, uint32_t no
 
 	if (!displayDetails) // search for callsign + first name
 	{
+		char buffer[37]; // Max: TA 27 (in 7bit format) + ' [' + 6 (Maidenhead)  + ']' + NULL
+
 		if (strlen(text) >= 5)
 		{
 			int32_t  cpos;
@@ -418,7 +424,7 @@ static void displayTalkerAlias(uint8_t y, char *text, uint32_t time, uint32_t no
 					memcpy(buffer, text, cpos);
 					buffer[cpos] = 0;
 
-					displayPrintCore(0,y , chomp(buffer), FONT_SIZE_3,TEXT_ALIGN_CENTER, itemIsSelected);
+					displayPrintCore(0, y, chomp(buffer), FONT_SIZE_3, TEXT_ALIGN_CENTER, itemIsSelected);
 				}
 				else // Nope, look for first name
 				{
@@ -441,7 +447,7 @@ static void displayTalkerAlias(uint8_t y, char *text, uint32_t time, uint32_t no
 
 						snprintf(outputBuf, SCREEN_LINE_BUFFER_SIZE, "%s %s", chomp(buffer), chomp(nameBuf));
 
-						displayPrintCore(0,y, chomp(outputBuf), FONT_SIZE_3,TEXT_ALIGN_CENTER, itemIsSelected);
+						displayPrintCore(0, y, chomp(outputBuf), FONT_SIZE_3, TEXT_ALIGN_CENTER, itemIsSelected);
 					}
 					else
 					{
@@ -454,7 +460,7 @@ static void displayTalkerAlias(uint8_t y, char *text, uint32_t time, uint32_t no
 
 						snprintf(outputBuf, 17, "%s %s", chomp(buffer), chomp(nameBuf));
 
-						displayPrintCore(0,y, chomp(outputBuf), FONT_SIZE_3,TEXT_ALIGN_CENTER, itemIsSelected);
+						displayPrintCore(0, y, chomp(outputBuf), FONT_SIZE_3, TEXT_ALIGN_CENTER, itemIsSelected);
 					}
 				}
 			}
@@ -464,7 +470,7 @@ static void displayTalkerAlias(uint8_t y, char *text, uint32_t time, uint32_t no
 				memcpy(buffer, text, (SCREEN_LINE_BUFFER_SIZE - 1));
 				buffer[(SCREEN_LINE_BUFFER_SIZE - 1)] = 0;
 
-				displayPrintCore(0, y, chomp(buffer), FONT_SIZE_3,TEXT_ALIGN_CENTER, itemIsSelected);
+				displayPrintCore(0, y, chomp(buffer), FONT_SIZE_3, TEXT_ALIGN_CENTER, itemIsSelected);
 			}
 		}
 		else // short callsign
@@ -472,7 +478,7 @@ static void displayTalkerAlias(uint8_t y, char *text, uint32_t time, uint32_t no
 			memcpy(buffer, text, strlen(text));
 			buffer[strlen(text)] = 0;
 
-			displayPrintCore(0, y, chomp(buffer), FONT_SIZE_3,TEXT_ALIGN_CENTER, itemIsSelected);
+			displayPrintCore(0, y, chomp(buffer), FONT_SIZE_3, TEXT_ALIGN_CENTER, itemIsSelected);
 		}
 
 		if (itemIsSelected && (nonVolatileSettings.audioPromptMode >= AUDIO_PROMPT_MODE_VOICE_LEVEL_1))
@@ -509,15 +515,41 @@ static void displayTalkerAlias(uint8_t y, char *text, uint32_t time, uint32_t no
 	}
 	else
 	{
-		displayPrintCore(0, y, tg_Buffer, FONT_SIZE_3, TEXT_ALIGN_LEFT, itemIsSelected);
-
+		char buffer[SCREEN_LINE_BUFFER_SIZE];
+		bool displayTS = (item->dmrMode == DMR_MODE_RMO);
+		int16_t yTimeUnit =
 #if defined(PLATFORM_RD5R)
-		displayPrintCore((DISPLAY_SIZE_X - (3 * 6)), y, (inHours ? "h" : "min"), FONT_SIZE_1, TEXT_ALIGN_LEFT, itemIsSelected);
+				y;
 #else
-		displayPrintCore((DISPLAY_SIZE_X - (3 * 6)), (y + 6), (inHours ? "h" : "min"), FONT_SIZE_1, TEXT_ALIGN_LEFT, itemIsSelected);
+				(y + 6);
 #endif
 
-		displayPrintCore((DISPLAY_SIZE_X - (strlen(timeBuffer) * 8) - (3 * 6) - 1), y, timeBuffer, FONT_SIZE_3, TEXT_ALIGN_LEFT, itemIsSelected);
+		snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "%u", tg);
+
+		displayPrintCore(0, y, (isPC ? currentLanguage->pc : currentLanguage->tg), FONT_SIZE_3, TEXT_ALIGN_LEFT, itemIsSelected);
+		displayPrintCore((2 * 8) + 4, y, buffer, FONT_SIZE_3, TEXT_ALIGN_LEFT, itemIsSelected);
+
+		// Display TS (if in RMO), in a reverse video box.
+		if (displayTS)
+		{
+			int16_t yTS =
+#if defined(PLATFORM_RD5R)
+					y;
+#else
+					(y + 5);
+#endif
+
+			snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "%d", (item->receivedTS + 1));
+
+			displayFillRect((DISPLAY_SIZE_X - (1 * 6) - (4 * 8) - 3), yTS - 1, (6 + 1), 9, itemIsSelected);
+			displayPrintCore((DISPLAY_SIZE_X - (1 * 6) - (4 * 8) - 2), yTS, buffer, FONT_SIZE_1, TEXT_ALIGN_LEFT, !itemIsSelected);
+		}
+
+		displayPrintCore((DISPLAY_SIZE_X - (strlen(timeBuffer) * 8) - (1 * 6) - 1), y, timeBuffer, FONT_SIZE_3, TEXT_ALIGN_LEFT, itemIsSelected);
+
+		// Time unit is displayed using the smallest font
+		// 'm' for minutes is not SI, but using 3 characters "min" won't fit the screen
+		displayPrintCore((DISPLAY_SIZE_X - (1 * 6)), yTimeUnit, (inHours ? "h" : "m"), FONT_SIZE_1, TEXT_ALIGN_LEFT, itemIsSelected);
 	}
 
 	if (isFirstRun)

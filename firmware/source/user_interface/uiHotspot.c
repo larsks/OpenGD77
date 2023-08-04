@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2021 Roger Clark, VK3KYY / G4KYF
+ * Copyright (C) 2019-2023 Roger Clark, VK3KYY / G4KYF
  *                         Daniel Caujolle-Bert, F1RMB
  *
  * Using information from the MMDVM_HS source code by Andy CA6JAU
@@ -408,7 +408,7 @@ void uiHotspotUpdateScreen(uint8_t rxCommandState)
 				}
 			}
 
-			snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "CC:%d", trxGetDMRColourCode());//, trxGetDMRTimeSlot()+1) ;
+			snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "CC:%u", trxGetDMRColourCode());//, trxGetDMRTimeSlot()+1) ;
 
 			displayPrintCore(0, 32, buffer, FONT_SIZE_3, TEXT_ALIGN_LEFT, false);
 

@@ -1,6 +1,6 @@
 /* -*- coding: binary; -*- */
 /* 
- * Copyright (C) 2019-2021 Roger Clark, VK3KYY / G4KYF
+ * Copyright (C) 2019-2023 Roger Clark, VK3KYY / G4KYF
  *
  *
  * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions
@@ -115,7 +115,7 @@ const stringsTable_t japaneseLanguage =
 .on					= "µÝ", // MaxLen: 16 (with ':' + .band_limits)
 .timeout_beep				= "À²Ñ±³ÄËÞ-Ìß", // MaxLen: 16 (with ':' + .off or 5..20)
 .list_full				= "List full",
-.UNUSED_1			= "",
+.dmr_cc_scan				= "CC½·¬Ý", // MaxLen: 12 (with ':' + settings: .on or .off)
 .band_limits				= "ÊÞÝÄÞ¾²¹ÞÝ", // MaxLen: 16 (with ':' + .on or .off)
 .beep_volume				= "ËÞ-ÌßµÝØ®³", // MaxLen: 16 (with ':' + -24..6 + 'dB')
 .dmr_mic_gain				= "DMR Ï²¸¹Þ²Ý", // MaxLen: 16 (with ':' + -33..12 + 'dB')
@@ -164,10 +164,10 @@ const stringsTable_t japaneseLanguage =
 .vox_tail                               = "VOX Ã-Ù", // MaxLen 16 (with ':' + .n_a or '0.0s')
 .audio_prompt				= "µÝ¾²±ÝÅ²",// Maxlen 16 (with ':' + .silent, .beep or .voice_prompt_level_1)
 .silent                                 = "Å¼", // Maxlen 16 (with : + audio_prompt)
-.UNUSED_2			= "",
+.rx_beep				= "RX beep", // MaxLen 16 (with ':' + .carrier/.talker/.both/.none)
 .beep					= "ËÞ-Ìß", // Maxlen 16 (with : + audio_prompt)
 .voice_prompt_level_1			= "µÝ¾² L1", // Maxlen 16 (with : + audio_prompt)
-.transmitTalkerAlias			= "TA¿³¼Ý", // Maxlen 16 (with : + .on or .off)
+.transmitTalkerAliasTS1			= "TA¿³¼Ý TS1", // Maxlen 16 (with : + .on or .off)
 .squelch_VHF				= "VHF ½¹ÙÁ",// Maxlen 16 (with : + XX%)
 .squelch_220				= "220 ½¹ÙÁ",// Maxlen 16 (with : + XX%)
 .squelch_UHF				= "UHF ½¹ÙÁ", // Maxlen 16 (with : + XX%)
@@ -180,7 +180,7 @@ const stringsTable_t japaneseLanguage =
 .voice_prompt_level_2			= "µÝ¾² L2", // Maxlen 16 (with : + audio_prompt)
 .voice_prompt_level_3			= "µÝ¾² L3", // Maxlen 16 (with : + audio_prompt)
 .dmr_filter				= "DMR Ì¨ÙÀ-",// MaxLen: 12 (with ':' + settings: "TG" or "Ct" or "RxG")
-.UNUSED_4				= "",
+.talker					= "Talker",
 .dmr_ts_filter				= "TS Ì¨ÙÀ-", // MaxLen: 12 (with ':' + settings: .on or .off)
 .dtmf_contact_list			= "DTMF ºÝÀ¸ÄØ½Ä", // Maxlen: 16
 .channel_power				= "Ch Pwr", //Displayed as "Ch Power:" + .from_master or "Ch Power:"+ power text e.g. "Power:500mW" . Max total length 16
@@ -210,7 +210,7 @@ const stringsTable_t japaneseLanguage =
 .scan_on_boot				= "·ÄÞ³¼Þ½·¬Ý",
 .dtmf_entry				= "DTMF ´ÝÄØ°",
 .name					= "ÅÏ´",
-.UNUSED_3				= "",
+.carrier				= "Carrier",
 .openDM1801A 				= "OpenDM1801A", // Do not translate
 .time					= "¼Þ¶Ý",
 .uptime					= "Uptime",
@@ -234,7 +234,30 @@ const stringsTable_t japaneseLanguage =
 .symbols				= "NSEW", // symbols: N,S,E,W
 .not_set				= "¾¯Ä¼Å²",
 .general_options		= "¾ÞÝÀ²µÌß¼®Ý",
-.radio_options			= "Ñ¾ÝµÌß¼®Ý"
+.radio_options			= "Ñ¾ÝµÌß¼®Ý",
+.openMD9600				= "OpenMD9600",
+.dmr_rx_agc				= "DMR Rx AGC",
+.speaker_click_suppress			= "Click Suppr.",
+.gps					= "GPS",
+.end_only				= "End only",
+.dmr_crc				= "DMR crc",
+.eco					= "Eco",
+.safe_power_on				= "Safe Pwr-On", // MaxLen: 16 (with ':' + .on or .off)
+.auto_power_off				= "Auto Pwr-Off", // MaxLen: 16 (with ':' + 30/60/90/120/180 or .no)
+.apo_with_rf				= "APO with RF", // MaxLen: 16 (with ':' + .yes or .no or .n_a)
+.openMDUV380			= "OpenMDUV380",
+.openMD380				= "OpenMD380",
+.gps_acquiring			= "Acquiring", 
+.altitude				= "Alt",
+.calibration            = "Radio Calibration",
+.freq_set                = "Freq Adjust",
+.cal_frequency          = "Cal Freq",
+.cal_pwr                = "Cal Power",
+.pwr_set                = "Power Adjust",
+.factory_reset          = "Factory Cal",
+.rx_tune				= "Rx Tuning",
+.transmitTalkerAliasTS2	= "TA Tx TS2", // Maxlen 16 (with : + .ta_text, 'APRS' , .both or .off)
+.ta_text				= "Text",
 };
 /********************************************************************
  *

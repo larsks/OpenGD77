@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2019      Kai Ludwig, DG4KLU
- * Copyright (C) 2020-2021 Roger Clark, VK3KYY / G4KYF
+ * Copyright (C) 2020-2023 Roger Clark, VK3KYY / G4KYF
  *                         Daniel Caujolle-Bert, F1RMB
  *
  *
@@ -41,6 +41,8 @@
 #include "dmr_codec/codec.h"
 #include "interfaces/wdog.h"
 
+#include "functions/ticks.h"
+
 extern Task_t hrc6000Task;
 
 #define DMR_FRAME_BUFFER_SIZE     64
@@ -56,7 +58,7 @@ extern volatile int slotState;
 extern volatile uint8_t DMR_frame_buffer[DMR_FRAME_BUFFER_SIZE];
 extern volatile bool updateLastHeard;
 extern volatile int dmrMonitorCapturedTS;
-extern volatile uint32_t readDMRRSSI;
+extern volatile ticksTimer_t readDMRRSSITimer;
 
 enum DMR_SLOT_STATE { DMR_STATE_IDLE, DMR_STATE_RX_1, DMR_STATE_RX_2, DMR_STATE_RX_END,
 					  DMR_STATE_TX_START_1, DMR_STATE_TX_START_2, DMR_STATE_TX_START_3, DMR_STATE_TX_START_4, DMR_STATE_TX_START_5,
@@ -91,9 +93,13 @@ void HRC6000ResyncTimeSlot(void);
 uint32_t HRC6000GetReceivedTgOrPcId(void);
 uint32_t HRC6000GetReceivedSrcId(void);
 void HRC6000ClearTimecodeSynchronisation(void);
+void HRC6000ClearColorCodeSynchronisation(void);
 void HRC6000SetTalkerAlias(const char *text);
+void HRC6000SetTalkerAliasLocation(void);
 bool HRC6000IRQHandlerIsRunning(void);
 bool HRC6000HasGotSync(void);
+bool HRC6000CCIsHeld(void);
+void HRC6000SetDmrRxGain(int8_t gain);
 
 
 void HRC6000ClearIsWakingState(void);

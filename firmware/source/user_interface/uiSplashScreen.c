@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2021 Roger Clark, VK3KYY / G4KYF
+ * Copyright (C) 2019-2023 Roger Clark, VK3KYY / G4KYF
  *                         Daniel Caujolle-Bert, F1RMB
  *
  *
@@ -73,7 +73,7 @@ menuStatus_t uiSplashScreen(uiEvent_t *ev, bool isFirstRun)
 				uiDataGlobal.MessageBox.validatorCallback = validatePinCodeCallback;
 				menuSystemPushNewMenu(UI_MESSAGE_BOX);
 
-				addTimerCallback(pincodeAudioAlert, 500, UI_MESSAGE_BOX, false); // Need to delay playing this for a while, because otherwise it may get played before the volume is turned up enough to hear it.
+				(void)addTimerCallback(pincodeAudioAlert, 500, UI_MESSAGE_BOX, false); // Need to delay playing this for a while, because otherwise it may get played before the volume is turned up enough to hear it.
 				return MENU_STATUS_SUCCESS;
 			}
 		}
@@ -90,7 +90,16 @@ menuStatus_t uiSplashScreen(uiEvent_t *ev, bool isFirstRun)
 			{
 				if ((melodyBuf[0] == 0) && (melodyBuf[1] == 0))
 				{
+					char line1[(SCREEN_LINE_BUFFER_SIZE * 2) + 1];
+					char line2[SCREEN_LINE_BUFFER_SIZE];
+					uint8_t bootScreenType;
+
 					exitSplashScreen();
+
+					// Load TA text even if Splash screen is not shown
+					codeplugGetBootScreenData(line1, line2, &bootScreenType);
+					HRC6000SetTalkerAlias(line1);
+
 					return MENU_STATUS_SUCCESS;
 				}
 				else
@@ -142,7 +151,14 @@ static void updateScreen(void)
 		displayPrintCentered(8, "OpenDM1801", FONT_SIZE_3);
 #elif defined(PLATFORM_DM1801A)
 		displayPrintCentered(8, "OpenDM1801A", FONT_SIZE_3);
+#elif defined(PLATFORM_MD9600)
+		displayPrintCentered(8, "OpenMD9600", FONT_SIZE_3);
+#elif defined(PLATFORM_MDUV380)
+		displayPrintCentered(8, "OpenMDUV380", FONT_SIZE_3);
+#elif defined(PLATFORM_MD380)
+		displayPrintCentered(8, "OpenMD380", FONT_SIZE_3);
 #endif
+
 		displayPrintCentered((DISPLAY_SIZE_Y / 4) * 2, line1, FONT_SIZE_3);
 		displayPrintCentered((DISPLAY_SIZE_Y / 4) * 3, line2, FONT_SIZE_3);
 	}

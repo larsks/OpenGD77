@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2021 Roger Clark, VK3KYY / G4KYF
+ * Copyright (C) 2019-2023 Roger Clark, VK3KYY / G4KYF
  *                         Daniel Caujolle-Bert, F1RMB
  *
  *
@@ -49,17 +49,19 @@ uiDataGlobal_t uiDataGlobal =
 		.displayQSOStatePrev          = QSO_DISPLAY_DEFAULT_SCREEN,
 		.isDisplayingQSOData          = false,
 		.displayChannelSettings       = false,
-		.reverseRepeater              = false,
+		.reverseRepeaterChannel       = false,
+		.reverseRepeaterVFO           = false,
 		.currentSelectedChannelNumber = 0,
 		.currentSelectedContactIndex  = 0,
 		.lastHeardCount               = 0,
 		.dmrDisabled                  = true,
 		.manualOverrideDMRId          = 0x00,
-		.dateTimeSecs			  	  = 0,
+		.dateTimeSecs                 = 0,
+		.rxBeepState                  = RX_BEEP_UNSET,
 
 		.Scan =
 		{
-				.timer                  	= 0,
+				.timer                  	= { 0U, 0U },
 				.dwellTime					= 30,
 				.direction              	= 1,
 				.availableChannelsCount 	= 0,
@@ -123,13 +125,13 @@ uiDataGlobal_t uiDataGlobal =
 
 		.DTMFContactList =
 		{
-				.nextPeriod = 0U,
-				.isKeying   = false,
-				.buffer     = { 0xff },
-				.poLen      = 0U,
-				.poPtr      = 0U,
-				.durations  = { 0, 0, 0, 0, 0 },
-				.inTone     = false
+				.nextPeriodTimer = { 0U, 0U },
+				.isKeying        = false,
+				.buffer          = { 0xff },
+				.poLen           = 0U,
+				.poPtr           = 0U,
+				.durations       = { 0, 0, 0, 0, 0 },
+				.inTone          = false
 		},
 
 		.SatelliteAndAlarmData =

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2021 Roger Clark, VK3KYY / G4KYF
+ * Copyright (C) 2019-2023 Roger Clark, VK3KYY / G4KYF
  *                         Daniel Caujolle-Bert, F1RMB
  *
  *
@@ -76,13 +76,13 @@ static void redrawScreen(bool update, bool state)
 	if (update)
 	{
 		// Clear inner rect only
-		displayFillRoundRect(5, 3, 118, DISPLAY_SIZE_Y - 8, 5, false);
+		displayFillRoundRect(5, 3, 118 + DISPLAY_H_EXTRA_PIXELS, DISPLAY_SIZE_Y - 8, 5, false);
 	}
 	else
 	{
 		// Clear whole screen
 		displayClearBuf();
-		displayDrawRoundRectWithDropShadow(4, 4, 120, DISPLAY_SIZE_Y - 6, 5, true);
+		displayDrawRoundRectWithDropShadow(4, 4, 120 + DISPLAY_H_EXTRA_PIXELS, DISPLAY_SIZE_Y - 6, 5, true);
 	}
 
 	if (state)
@@ -108,18 +108,24 @@ static void redrawScreen(bool update, bool state)
 		}
 		buf[bufferLen - 1] = 0;
 
+#if defined(PLATFORM_MD380) || defined(PLATFORM_MDUV380)
+		displayPrintCentered(16, buf, FONT_SIZE_3);
+		displayPrintCentered(32, currentLanguage->locked, FONT_SIZE_3);
+		displayPrintCentered(DISPLAY_SIZE_Y - 48, currentLanguage->press_blue_plus_star, FONT_SIZE_1);
+		displayPrintCentered(DISPLAY_SIZE_Y - 32, currentLanguage->to_unlock, FONT_SIZE_1);
+#else
 		displayPrintCentered(6, buf, FONT_SIZE_3);
 
-#if defined(PLATFORM_RD5R)
+  #if defined(PLATFORM_RD5R)
 		displayPrintCentered(14, currentLanguage->locked, FONT_SIZE_3);
 		displayPrintCentered(24, currentLanguage->press_blue_plus_star, FONT_SIZE_1);
 		displayPrintCentered(32, currentLanguage->to_unlock, FONT_SIZE_1);
-#else
+  #else
 		displayPrintCentered(22, currentLanguage->locked, FONT_SIZE_3);
 		displayPrintCentered(40, currentLanguage->press_blue_plus_star, FONT_SIZE_1);
 		displayPrintCentered(48, currentLanguage->to_unlock, FONT_SIZE_1);
+  #endif
 #endif
-
 		voicePromptsInit();
 		voicePromptsAppendPrompt(PROMPT_SILENCE);
 
@@ -149,7 +155,7 @@ static void redrawScreen(bool update, bool state)
 	}
 	else
 	{
-		displayPrintCentered((DISPLAY_SIZE_Y - 16) / 2, currentLanguage->unlocked, FONT_SIZE_3);
+		displayPrintCentered((DISPLAY_SIZE_Y - FONT_SIZE_3_HEIGHT) / 2, currentLanguage->unlocked, FONT_SIZE_3);
 
 		voicePromptsInit();
 		voicePromptsAppendPrompt(PROMPT_SILENCE);

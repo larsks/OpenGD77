@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2021 Roger Clark, VK3KYY / G4KYF
+ * Copyright (C) 2019-2023 Roger Clark, VK3KYY / G4KYF
  *                         Daniel Caujolle-Bert, F1RMB
  *
  *
@@ -42,7 +42,7 @@ menuStatus_t menuZoneList(uiEvent_t *ev, bool isFirstRun)
 {
 	if (isFirstRun)
 	{
-		menuDataGlobal.endIndex = codeplugZonesGetCount();
+		menuDataGlobal.numItems = codeplugZonesGetCount();
 		menuDataGlobal.currentItemIndex = nonVolatileSettings.currentZone;
 
 		voicePromptsInit();
@@ -75,14 +75,22 @@ static void updateScreen(bool isFirstRun)
 	displayClearBuf();
 	menuDisplayTitle(currentLanguage->zones);
 
-	for(int i = -1; i <= 1; i++)
+	for(int i = 1 - ((MENU_MAX_DISPLAYED_ENTRIES - 1) / 2) - 1; i <= (MENU_MAX_DISPLAYED_ENTRIES - ((MENU_MAX_DISPLAYED_ENTRIES - 1) / 2) - 1); i++)
 	{
-		if (menuDataGlobal.endIndex <= (i + 1))
+		if (menuDataGlobal.numItems <= (i + 1))
 		{
 			break;
 		}
 
-		mNum = menuGetMenuOffset(menuDataGlobal.endIndex, i);
+		mNum = menuGetMenuOffset(menuDataGlobal.numItems, i);
+		if (mNum == MENU_OFFSET_BEFORE_FIRST_ENTRY)
+		{
+			continue;
+		}
+		else if (mNum == MENU_OFFSET_AFTER_LAST_ENTRY)
+		{
+			break;
+		}
 
 		codeplugZoneGetDataForNumber(mNum, &zoneBuf);
 		codeplugUtilConvertBufToString(zoneBuf.name, nameBuf, 16);// need to convert to zero terminated string
@@ -124,7 +132,7 @@ static void handleEvent(uiEvent_t *ev)
 
 	if (ev->events & FUNCTION_EVENT)
 	{
-		if ((QUICKKEY_TYPE(ev->function) == QUICKKEY_MENU) && (QUICKKEY_LONGENTRYID(ev->function) > 0) && (QUICKKEY_LONGENTRYID(ev->function) <= menuDataGlobal.endIndex))
+		if ((QUICKKEY_TYPE(ev->function) == QUICKKEY_MENU) && (QUICKKEY_LONGENTRYID(ev->function) > 0) && (QUICKKEY_LONGENTRYID(ev->function) <= menuDataGlobal.numItems))
 		{
 			menuDataGlobal.currentItemIndex = QUICKKEY_LONGENTRYID(ev->function)-1;
 			setZoneToUserSelection();
@@ -135,13 +143,13 @@ static void handleEvent(uiEvent_t *ev)
 
 	if (KEYCHECK_PRESS(ev->keys, KEY_DOWN))
 	{
-		menuSystemMenuIncrement(&menuDataGlobal.currentItemIndex, menuDataGlobal.endIndex);
+		menuSystemMenuIncrement(&menuDataGlobal.currentItemIndex, menuDataGlobal.numItems);
 		updateScreen(false);
 		menuZoneExitCode |= MENU_STATUS_LIST_TYPE;
 	}
 	else if (KEYCHECK_PRESS(ev->keys, KEY_UP))
 	{
-		menuSystemMenuDecrement(&menuDataGlobal.currentItemIndex, menuDataGlobal.endIndex);
+		menuSystemMenuDecrement(&menuDataGlobal.currentItemIndex, menuDataGlobal.numItems);
 		updateScreen(false);
 		menuZoneExitCode |= MENU_STATUS_LIST_TYPE;
 	}

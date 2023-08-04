@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2021 Roger Clark, VK3KYY / G4KYF
+ * Copyright (C) 2019-2023 Roger Clark, VK3KYY / G4KYF
  *                         Colin Durbridge, G4EML
  *                         Daniel Caujolle-Bert, F1RMB
  *
@@ -56,17 +56,33 @@ static bool nameInError = false;
 
 static menuStatus_t menuChannelDetailsExitCode = MENU_STATUS_SUCCESS;
 
-enum CHANNEL_DETAILS_DISPLAY_LIST { CH_DETAILS_NAME = 0,
-									CH_DETAILS_RXFREQ, CH_DETAILS_TXFREQ,
-									CH_DETAILS_MODE, CH_DETAILS_DMRID,
-									CH_DETAILS_DMR_CC, CH_DETAILS_DMR_TS, CH_DETAILS_RXGROUP,
-									CH_DETAILS_RXCSS, CH_DETAILS_TXCSS, CH_DETAILS_BANDWIDTH,
-									CH_DETAILS_FREQ_STEP, CH_DETAILS_TOT, CH_DETAILS_RXONLY,
-									CH_DETAILS_ZONE_SKIP,CH_DETAILS_ALL_SKIP,
-									CH_DETAILS_VOX,
-									CH_DETAILS_POWER,
-									CH_DETAILS_SQUELCH,
-									NUM_CH_DETAILS_ITEMS};// The last item in the list is used so that we automatically get a total number of items in the list
+enum CHANNEL_DETAILS_DISPLAY_LIST
+{
+	CH_DETAILS_NAME = 0,
+	CH_DETAILS_RXFREQ,
+	CH_DETAILS_TXFREQ,
+	CH_DETAILS_MODE,
+	CH_DETAILS_DMRID,
+	CH_DETAILS_DMR_CC,
+	CH_DETAILS_DMR_TS,
+	CH_DETAILS_RXGROUP,
+	CH_DETAILS_RXCSS,
+	CH_DETAILS_TXCSS,
+	CH_DETAILS_BANDWIDTH,
+	CH_DETAILS_FREQ_STEP,
+	CH_DETAILS_TOT,
+	CH_DETAILS_RXONLY,
+	CH_DETAILS_ZONE_SKIP,
+	CH_DETAILS_ALL_SKIP,
+	CH_DETAILS_VOX,
+	CH_DETAILS_POWER,
+	CH_DETAILS_SQUELCH,
+	CH_DETAILS_NO_BEEP,
+	CH_DETAILS_NO_ECO,
+	CH_DETAILS_TA_TX_TS1,
+	CH_DETAILS_TA_TX_TS2,
+	NUM_CH_DETAILS_ITEMS
+};// The last item in the list is used so that we automatically get a total number of items in the list
 
 menuStatus_t menuChannelDetails(uiEvent_t *ev, bool isFirstRun)
 {
@@ -74,7 +90,7 @@ menuStatus_t menuChannelDetails(uiEvent_t *ev, bool isFirstRun)
 	{
 		menuDataGlobal.menuOptionsSetQuickkey = 0;
 		menuDataGlobal.menuOptionsTimeout = 0;
-		menuDataGlobal.endIndex = NUM_CH_DETAILS_ITEMS;
+		menuDataGlobal.numItems = NUM_CH_DETAILS_ITEMS;
 		uiDataGlobal.FreqEnter.index = 0;
 		nameInError = false;
 
@@ -132,7 +148,7 @@ static void updateCursor(bool moved)
 		switch (menuDataGlobal.currentItemIndex)
 		{
 		case CH_DETAILS_NAME:
-			menuUpdateCursor(MIN(namePos,15), moved, true);
+			menuUpdateCursor(MIN(namePos, 15), moved, true);
 			break;
 		}
 	}
@@ -167,12 +183,20 @@ static void updateScreen(bool isFirstRun, bool allowedToSpeakUpdate)
 	{
 		keypadAlphaEnable = (menuDataGlobal.currentItemIndex == CH_DETAILS_NAME);
 
-		// Can only display 3 of the options at a time menu at -1, 0 and +1
-		for(int i = -1; i <= 1; i++)
+		for(int i = 1 - ((MENU_MAX_DISPLAYED_ENTRIES - 1) / 2) - 1; i <= (MENU_MAX_DISPLAYED_ENTRIES - ((MENU_MAX_DISPLAYED_ENTRIES - 1) / 2) - 1); i++)
 		{
 			if ((settingOption == false) || (i == 0))
 			{
 				mNum = menuGetMenuOffset(NUM_CH_DETAILS_ITEMS, i);
+				if (mNum == MENU_OFFSET_BEFORE_FIRST_ENTRY)
+				{
+					continue;
+				}
+				else if (mNum == MENU_OFFSET_AFTER_LAST_ENTRY)
+				{
+					break;
+				}
+
 				buf[0] = 0;
 				leftSide = NULL;
 				rightSideConst = NULL;
@@ -229,7 +253,7 @@ static void updateScreen(bool isFirstRun, bool allowedToSpeakUpdate)
 						}
 						else
 						{
-							snprintf(rightSideVar, SCREEN_LINE_BUFFER_SIZE, "%u", ((tmpChannel.flag2 & 0x40) >> 6) + 1);
+							snprintf(rightSideVar, SCREEN_LINE_BUFFER_SIZE, "%u", (codeplugChannelIsFlagSet(&tmpChannel, CHANNEL_FLAG_TIMESLOT_TWO) ? 2 : 1));
 						}
 						break;
 					case CH_DETAILS_RXGROUP:
@@ -319,7 +343,7 @@ static void updateScreen(bool isFirstRun, bool allowedToSpeakUpdate)
 						{
 							rightSideUnitsPrompt = PROMPT_KILOHERTZ;
 							rightSideUnitsStr = "kHz";
-							snprintf(rightSideVar, SCREEN_LINE_BUFFER_SIZE, "%s", ((tmpChannel.flag4 & 0x02) == 0x02) ? "25" : "12.5");
+							snprintf(rightSideVar, SCREEN_LINE_BUFFER_SIZE, "%s", (codeplugChannelIsFlagSet(&tmpChannel, CHANNEL_FLAG_BW_25K)) ? "25" : "12.5");
 						}
 						break;
 					case CH_DETAILS_FREQ_STEP:
@@ -345,18 +369,18 @@ static void updateScreen(bool isFirstRun, bool allowedToSpeakUpdate)
 						break;
 					case CH_DETAILS_RXONLY:
 						leftSide = (char * const *)&currentLanguage->rx_only;
-						rightSideConst = (char * const *)(((tmpChannel.flag4 & 0x04) == 0x04) ? &currentLanguage->yes : &currentLanguage->no);
+						rightSideConst = (char * const *)(codeplugChannelIsFlagSet(&tmpChannel, CHANNEL_FLAG_RX_ONLY) ? &currentLanguage->yes : &currentLanguage->no);
 						break;
 					case CH_DETAILS_ZONE_SKIP:						// Zone Scan Skip Channel (Using CPS Auto Scan flag)
 						leftSide = (char * const *)&currentLanguage->zone_skip;
-						rightSideConst = (char * const *)(((tmpChannel.flag4 & CODEPLUG_CHANNEL_FLAG_ZONE_SKIP) == CODEPLUG_CHANNEL_FLAG_ZONE_SKIP) ? &currentLanguage->yes : &currentLanguage->no);
+						rightSideConst = (char * const *)(codeplugChannelIsFlagSet(&tmpChannel, CHANNEL_FLAG_ZONE_SKIP) ? &currentLanguage->yes : &currentLanguage->no);
 						break;
 					case CH_DETAILS_ALL_SKIP:					// All Scan Skip Channel (Using CPS Lone Worker flag)
 						leftSide = (char * const *)&currentLanguage->all_skip;
-						rightSideConst = (char * const *)(((tmpChannel.flag4 & CODEPLUG_CHANNEL_FLAG_ALL_SKIP) == CODEPLUG_CHANNEL_FLAG_ALL_SKIP) ? &currentLanguage->yes : &currentLanguage->no);
+						rightSideConst = (char * const *)(codeplugChannelIsFlagSet(&tmpChannel, CHANNEL_FLAG_ALL_SKIP) ? &currentLanguage->yes : &currentLanguage->no);
 						break;
 					case CH_DETAILS_VOX:
-						rightSideConst = (char * const *)(((tmpChannel.flag4 & 0x40) == 0x40) ? &currentLanguage->on : &currentLanguage->off);
+						rightSideConst = (char * const *)(codeplugChannelIsFlagSet(&tmpChannel, CHANNEL_FLAG_VOX) ? &currentLanguage->on : &currentLanguage->off);
 						snprintf(rightSideVar, SCREEN_LINE_BUFFER_SIZE, "VOX:%s", *rightSideConst);
 						break;
 					case CH_DETAILS_POWER:
@@ -393,6 +417,68 @@ static void updateScreen(bool isFirstRun, bool allowedToSpeakUpdate)
 							else
 							{
 								snprintf(rightSideVar, SCREEN_LINE_BUFFER_SIZE, "%u%%", (5 * (tmpChannel.sql - 1)));
+							}
+						}
+						break;
+					case CH_DETAILS_NO_BEEP:
+						leftSide = (char * const *)&currentLanguage->beep;
+						rightSideConst = (char * const *)(codeplugChannelIsFlagSet(&tmpChannel, CHANNEL_FLAG_NO_BEEP) ? &currentLanguage->no : &currentLanguage->yes);
+						break;
+					case CH_DETAILS_NO_ECO:
+						leftSide = (char * const *)&currentLanguage->eco;
+						rightSideConst = (char * const *)(codeplugChannelIsFlagSet(&tmpChannel, CHANNEL_FLAG_NO_ECO) ? &currentLanguage->no : &currentLanguage->yes);
+						break;
+					case CH_DETAILS_TA_TX_TS1:
+						leftSide = (char * const *)&currentLanguage->transmitTalkerAliasTS1;
+						{
+							if (tmpChannel.chMode == RADIO_MODE_DIGITAL)
+							{
+								switch(tmpChannel.flag1 & 0b00000011)
+								{
+									case TA_TX_OFF:
+										rightSideConst = (char * const *)&currentLanguage->off;
+										break;
+									case TA_TX_APRS:
+										strcpy(rightSideVar,"APRS");
+										break;
+									case TA_TX_TEXT:
+										rightSideConst = (char * const *)&currentLanguage->ta_text;
+										break;
+									case TA_TX_BOTH:
+										rightSideConst = (char * const *)&currentLanguage->both;
+										break;
+								}
+							}
+							else
+							{
+								rightSideConst = (char * const *)&currentLanguage->n_a;
+							}
+						}
+						break;
+					case CH_DETAILS_TA_TX_TS2:
+						leftSide = (char * const *)&currentLanguage->transmitTalkerAliasTS2;
+						{
+							if (tmpChannel.chMode == RADIO_MODE_DIGITAL)
+							{
+								switch((tmpChannel.flag1 >> 2) & 0b00000011)
+								{
+									case TA_TX_OFF:
+										rightSideConst = (char * const *)&currentLanguage->off;
+										break;
+									case TA_TX_APRS:
+										strcpy(rightSideVar,"APRS");
+										break;
+									case TA_TX_TEXT:
+										rightSideConst = (char * const *)&currentLanguage->ta_text;
+										break;
+									case TA_TX_BOTH:
+										rightSideConst = (char * const *)&currentLanguage->both;
+										break;
+								}
+							}
+							else
+							{
+								rightSideConst = (char * const *)&currentLanguage->n_a;
 							}
 						}
 						break;
@@ -617,7 +703,7 @@ static void handleEvent(uiEvent_t *ev)
 				else if ((menuDataGlobal.currentItemIndex == CH_DETAILS_DMRID)
 						&& (((number >= MIN_TG_OR_PC_VALUE) && (number <= MAX_TG_OR_PC_VALUE)) || (number == 0)))
 				{
-					codeplugChannelSetOptionalDMRID(number, &tmpChannel);
+					codeplugChannelSetOptionalDMRID(&tmpChannel, number);
 					freqEnterReset();
 				}
 				else
@@ -685,7 +771,7 @@ static void handleEvent(uiEvent_t *ev)
 						else if ((menuDataGlobal.currentItemIndex == CH_DETAILS_DMRID)
 								&& (((number >= MIN_TG_OR_PC_VALUE) && (number <= MAX_TG_OR_PC_VALUE)) || (number == 0)))
 						{
-							codeplugChannelSetOptionalDMRID(number, &tmpChannel);
+							codeplugChannelSetOptionalDMRID(&tmpChannel, number);
 							freqEnterReset();
 						}
 						else
@@ -809,7 +895,7 @@ static void handleEvent(uiEvent_t *ev)
 				case CH_DETAILS_DMR_TS:
 					if (tmpChannel.chMode == RADIO_MODE_DIGITAL)
 					{
-						tmpChannel.flag2 |= 0x40;// set TS 2 bit
+						codeplugChannelSetFlag(&tmpChannel, CHANNEL_FLAG_TIMESLOT_TWO, true);
 					}
 					break;
 				case CH_DETAILS_RXCSS:
@@ -840,7 +926,7 @@ static void handleEvent(uiEvent_t *ev)
 				case CH_DETAILS_BANDWIDTH:
 					if (tmpChannel.chMode == RADIO_MODE_ANALOG)
 					{
-						tmpChannel.flag4 |= 0x02;// set 25kHz bit
+						codeplugChannelSetFlag(&tmpChannel, CHANNEL_FLAG_BW_25K, true);// set 25kHz bit
 					}
 					break;
 				case CH_DETAILS_FREQ_STEP:
@@ -859,13 +945,13 @@ static void handleEvent(uiEvent_t *ev)
 					}
 					break;
 				case CH_DETAILS_RXONLY:
-					tmpChannel.flag4 |= 0x04;// set Channel RX-Only Bit
+					codeplugChannelSetFlag(&tmpChannel, CHANNEL_FLAG_RX_ONLY, true);// set Channel RX-Only Bit
 					break;
 				case CH_DETAILS_ZONE_SKIP:
-					tmpChannel.flag4 |= CODEPLUG_CHANNEL_FLAG_ZONE_SKIP;// set Channel Zone Skip bit (was Auto Scan)
+					codeplugChannelSetFlag(&tmpChannel, CHANNEL_FLAG_ZONE_SKIP, true);// set Channel Zone Skip bit (was Auto Scan)
 					break;
 				case CH_DETAILS_ALL_SKIP:
-					tmpChannel.flag4 |= CODEPLUG_CHANNEL_FLAG_ALL_SKIP;// set Channel All Skip bit (was Lone Worker)
+					codeplugChannelSetFlag(&tmpChannel, CHANNEL_FLAG_ALL_SKIP, true);// set Channel All Skip bit (was Lone Worker)
 					break;
 				case CH_DETAILS_RXGROUP:
 					if (tmpChannel.chMode == RADIO_MODE_DIGITAL)
@@ -884,7 +970,7 @@ static void handleEvent(uiEvent_t *ev)
 					}
 					break;
 				case CH_DETAILS_VOX:
-					tmpChannel.flag4 |= 0x40;
+					codeplugChannelSetFlag(&tmpChannel, CHANNEL_FLAG_VOX, true);
 					break;
 				case CH_DETAILS_POWER:
 					if ((uiDataGlobal.currentSelectedChannelNumber != CH_DETAILS_VFO_CHANNEL) &&
@@ -903,7 +989,36 @@ static void handleEvent(uiEvent_t *ev)
 						}
 					}
 					break;
-
+				case CH_DETAILS_NO_BEEP:
+					codeplugChannelSetFlag(&tmpChannel, CHANNEL_FLAG_NO_BEEP, false);
+					break;
+				case CH_DETAILS_NO_ECO:
+					codeplugChannelSetFlag(&tmpChannel, CHANNEL_FLAG_NO_ECO, false);
+					break;
+				case CH_DETAILS_TA_TX_TS1:
+					if (tmpChannel.chMode == RADIO_MODE_DIGITAL)
+					{
+						int v = tmpChannel.flag1 & 0b00000011;
+						if (v < (NUM_TA_TX_OPTIONS - 1))
+						{
+							v++;
+							tmpChannel.flag1 &= 0b11111100;
+							tmpChannel.flag1 |= v;
+						}
+					}
+					break;
+				case CH_DETAILS_TA_TX_TS2:
+					if (tmpChannel.chMode == RADIO_MODE_DIGITAL)
+					{
+						int v = (tmpChannel.flag1>>2) & 0b00000011;
+						if (v < (NUM_TA_TX_OPTIONS - 1))
+						{
+							v++;
+							tmpChannel.flag1 &= 0b11110011;
+							tmpChannel.flag1 |= (v << 2);
+						}
+					}
+					break;
 			}
 
 			if (ev->events & FUNCTION_EVENT)
@@ -947,7 +1062,7 @@ static void handleEvent(uiEvent_t *ev)
 					if (tmpChannel.chMode == RADIO_MODE_ANALOG)
 					{
 						tmpChannel.chMode = RADIO_MODE_DIGITAL;
-						tmpChannel.flag4 &= ~0x02;// clear 25kHz bit
+						codeplugChannelSetFlag(&tmpChannel, CHANNEL_FLAG_BW_25K, false);// clear 25kHz bit
 					}
 					break;
 				case CH_DETAILS_DMR_CC:
@@ -963,7 +1078,7 @@ static void handleEvent(uiEvent_t *ev)
 				case CH_DETAILS_DMR_TS:
 					if (tmpChannel.chMode == RADIO_MODE_DIGITAL)
 					{
-						tmpChannel.flag2 &= 0xBF;// Clear TS 2 bit
+						codeplugChannelSetFlag(&tmpChannel, CHANNEL_FLAG_TIMESLOT_TWO, false);
 					}
 					break;
 				case CH_DETAILS_RXCSS:
@@ -994,7 +1109,7 @@ static void handleEvent(uiEvent_t *ev)
 				case CH_DETAILS_BANDWIDTH:
 					if (tmpChannel.chMode == RADIO_MODE_ANALOG)
 					{
-						tmpChannel.flag4 &= ~0x02;// clear 25kHz bit
+						codeplugChannelSetFlag(&tmpChannel, CHANNEL_FLAG_BW_25K, false);// clear 25kHz bit
 					}
 					break;
 				case CH_DETAILS_FREQ_STEP:
@@ -1013,13 +1128,13 @@ static void handleEvent(uiEvent_t *ev)
 					}
 					break;
 				case CH_DETAILS_RXONLY:
-					tmpChannel.flag4 &= ~0x04;// clear Channel RX-Only Bit
+					codeplugChannelSetFlag(&tmpChannel, CHANNEL_FLAG_RX_ONLY, false);// clear Channel RX-Only Bit
 					break;
 				case CH_DETAILS_ZONE_SKIP:
-					tmpChannel.flag4 &= ~CODEPLUG_CHANNEL_FLAG_ZONE_SKIP;// clear Channel Zone Skip Bit (was Auto Scan bit)
+					codeplugChannelSetFlag(&tmpChannel, CHANNEL_FLAG_ZONE_SKIP, false);// clear Channel Zone Skip Bit (was Auto Scan bit)
 					break;
 				case CH_DETAILS_ALL_SKIP:
-					tmpChannel.flag4 &= ~CODEPLUG_CHANNEL_FLAG_ALL_SKIP;// clear Channel All Skip Bit (was Lone Worker bit)
+					codeplugChannelSetFlag(&tmpChannel, CHANNEL_FLAG_ALL_SKIP, false);// clear Channel All Skip Bit (was Lone Worker bit)
 					break;
 				case CH_DETAILS_RXGROUP:
 					if (tmpChannel.chMode == RADIO_MODE_DIGITAL)
@@ -1047,7 +1162,7 @@ static void handleEvent(uiEvent_t *ev)
 					}
 					break;
 				case CH_DETAILS_VOX:
-					tmpChannel.flag4 &= ~0x40;
+					codeplugChannelSetFlag(&tmpChannel, CHANNEL_FLAG_VOX, false);
 					break;
 				case CH_DETAILS_POWER:
 					if ((uiDataGlobal.currentSelectedChannelNumber != CH_DETAILS_VFO_CHANNEL) &&
@@ -1065,6 +1180,37 @@ static void handleEvent(uiEvent_t *ev)
 						}
 					}
 					break;
+				case CH_DETAILS_NO_BEEP:
+					codeplugChannelSetFlag(&tmpChannel, CHANNEL_FLAG_NO_BEEP, true);
+					break;
+				case CH_DETAILS_NO_ECO:
+					codeplugChannelSetFlag(&tmpChannel, CHANNEL_FLAG_NO_ECO, true);
+					break;
+				case CH_DETAILS_TA_TX_TS1:
+					if (tmpChannel.chMode == RADIO_MODE_DIGITAL)
+					{
+						int v = tmpChannel.flag1 & 0b00000011;
+						if (v > 0)
+						{
+							v--;
+							tmpChannel.flag1 &= 0b11111100;
+							tmpChannel.flag1 |= v;
+						}
+					}
+					break;
+				case CH_DETAILS_TA_TX_TS2:
+					if (tmpChannel.chMode == RADIO_MODE_DIGITAL)
+					{
+						int v = (tmpChannel.flag1>>2) & 0b00000011;
+						if (v > 0)
+						{
+							v--;
+							tmpChannel.flag1 &= 0b11110011;
+							tmpChannel.flag1 |= (v << 2);
+						}
+					}
+					break;
+
 			}
 
 			if (ev->events & FUNCTION_EVENT)

@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2021 Roger Clark, VK3KYY / G4KYF
- *                    Daniel Caujolle-Bert, F1RMB
+ * Copyright (C) 2019-2023 Roger Clark, VK3KYY / G4KYF
+ *                         Daniel Caujolle-Bert, F1RMB
  *
  * Low level DMR stream implementation informed by code written by
  *                         DSD Author (anonymous)
@@ -222,7 +222,7 @@ static bool	embeddedDataIsValid;
 __attribute__((section(".data.$RAM2"))) static bool BPTCRaw[196];
 __attribute__((section(".data.$RAM2"))) static bool BPTCDeInterleaved[196];
 static const uint32_t cwDOTDuration = 60; // 60ms per DOT
-static uint32_t cwNextPeriod = 0;
+static ticksTimer_t cwNextPeriodTimer = { 0, 0 };
 static uint8_t cwBuffer[64];
 static uint16_t cwpoPtr;
 
@@ -959,9 +959,9 @@ void cwProcess(void)
 		return;
 	}
 
-	if (ticksGetMillis() > cwNextPeriod)
+	if (ticksTimerHasExpired(&cwNextPeriodTimer))
 	{
-		cwNextPeriod = ticksGetMillis() + cwDOTDuration;
+		ticksTimerStart(&cwNextPeriodTimer, cwDOTDuration);
 
 		bool b = READ_BIT1(cwBuffer, cwpoPtr);
 		static bool lastValue = true;
@@ -1524,7 +1524,7 @@ void handleHotspotRequest(void)
 				if (err == 0)
 				{
 					hotspotCwKeying = true;
-					cwNextPeriod = ticksGetMillis() + hotspotTxDelay;
+					ticksTimerStart(&cwNextPeriodTimer, hotspotTxDelay);
 					sendACK(currentFrame[2]);
 				}
 				else

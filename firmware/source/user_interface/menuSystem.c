@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2021 Roger Clark, VK3KYY / G4KYF
+ * Copyright (C) 2019-2023 Roger Clark, VK3KYY / G4KYF
  *                         Daniel Caujolle-Bert, F1RMB
  *
  *
@@ -36,7 +36,7 @@ menuDataGlobal_t menuDataGlobal =
 {
 		.currentItemIndex 		= 0, // each menu can re-use this var to hold the position in their display list. To save wasted memory if they each had their own variable
 		.startIndex 			= 0, // as above
-		.endIndex 				= 0, // as above
+		.numItems 				= 0, // as above
 		.lightTimer 			= -1,
 		.currentMenuList		= NULL,
 
@@ -78,6 +78,8 @@ menuDataGlobal_t menuDataGlobal =
 				NULL,// Contact List Quick Menu
 				NULL,// Contact Details
 				NULL,// Language
+				NULL,// Quick menu - Channel
+				NULL,// Quick menu - VFO
 				// *** Add new menus to be accessed using quickkey (ID: 0..31) above this line ***
 				NULL,// MessageBox
 				NULL,// hotspot mode
@@ -90,8 +92,6 @@ menuDataGlobal_t menuDataGlobal =
 				NULL,// channel mode
 				NULL,// Firmwareinfo
 				NULL,// Channel Details
-				NULL,// Quick menu - Channel
-				NULL,// Quick menu - VFO
 				NULL,// Lock screen
 				NULL,// Private Call
 				NULL,// New Contact
@@ -111,13 +111,19 @@ static menuFunctionData_t menuFunctions[] =
 		{ menuRadioOptions,			0 },
 		{ menuDisplayOptions,       0 },
 		{ menuSoundOptions,         0 },
+#if defined(USING_EXTERNAL_DEBUGGER)
+		{ menuSoundOptions,      0 },// hack to remove satellite screen from the build when external debugger is selected, otherwise there is not enough space in the ROM to build the firmware
+#else
 		{ menuSatelliteScreen,      0 },
+#endif
 		{ menuContactList,          0 },
 		{ menuContactList,          0 },
 		{ menuContactList,          0 },
 		{ menuContactListSubMenu,   0 },
 		{ menuContactDetails,       0 },
 		{ menuLanguage,             0 },
+		{ uiChannelModeQuickMenu,   0 },
+		{ uiVFOModeQuickMenu,       0 },
 		// *** Add new menus to be accessed using quickkey (ID: 0..31) above this line ***
 		{ uiMessageBox,             0 },
 		{ menuHotspotMode,          0 },
@@ -130,8 +136,6 @@ static menuFunctionData_t menuFunctions[] =
 		{ uiChannelMode,            0 },
 		{ menuFirmwareInfoScreen,   0 },
 		{ menuChannelDetails,       0 },
-		{ uiChannelModeQuickMenu,   0 },
-		{ uiVFOModeQuickMenu,       0 },
 		{ menuLockScreen,           0 },
 		{ menuPrivateCall,          0 },
 		{ menuContactDetails,       0 }, // Contact New
@@ -177,15 +181,15 @@ static void menuSystemPushMenuFirstRun(void)
 	// Due to QuickKeys, menu list won't go through menuDisplayMenuList() first, so those
 	// two members won't get always initialized. Hence, we need to tag them as uninitialized,
 	// and check if they got initialized after entering a menu.
-	menuDataGlobal.endIndex = INT32_MIN;
+	menuDataGlobal.numItems = INT32_MIN;
 	menuDataGlobal.currentMenuList = NULL;
 	menuDataGlobal.currentItemIndex = menuFunctions[menuDataGlobal.controlData.stack[menuDataGlobal.controlData.stackPosition]].lastItemIndex;
 	displayLightTrigger(false);
 	status = menuFunctions[menuDataGlobal.controlData.stack[menuDataGlobal.controlData.stackPosition]].function(&ev, true);
 
-	if (menuDataGlobal.endIndex == INT32_MIN)
+	if (menuDataGlobal.numItems == INT32_MIN)
 	{
-		menuDataGlobal.endIndex = ((menuDataGlobal.data[menuDataGlobal.controlData.stack[menuDataGlobal.controlData.stackPosition]] != NULL) ? menuDataGlobal.data[menuDataGlobal.controlData.stack[menuDataGlobal.controlData.stackPosition]]->numItems : 0);
+		menuDataGlobal.numItems = ((menuDataGlobal.data[menuDataGlobal.controlData.stack[menuDataGlobal.controlData.stackPosition]] != NULL) ? menuDataGlobal.data[menuDataGlobal.controlData.stack[menuDataGlobal.controlData.stackPosition]]->numItems : 0);
 	}
 
 	if (menuDataGlobal.currentMenuList == NULL)
@@ -193,7 +197,7 @@ static void menuSystemPushMenuFirstRun(void)
 		menuDataGlobal.currentMenuList = ((menuDataGlobal.data[menuDataGlobal.controlData.stackPosition] != NULL) ? (menuItemNewData_t *)menuDataGlobal.data[menuDataGlobal.controlData.stackPosition]->items : NULL);
 	}
 
-	if (menuDataGlobal.currentItemIndex > menuDataGlobal.endIndex)
+	if (menuDataGlobal.currentItemIndex > menuDataGlobal.numItems)
 	{
 		menuDataGlobal.currentItemIndex = 0;
 	}
@@ -402,7 +406,6 @@ const menuItemNewData_t mainMenuItems[] =
 	{  12, MENU_CHANNEL_DETAILS },
 	{   4, MENU_RSSI_SCREEN     },
 	{   8, MENU_FIRMWARE_INFO   },
-	{  13, MENU_LANGUAGE        },
 	{   9, MENU_OPTIONS         },
 	{   7, MENU_LAST_HEARD      },
 	{ 150, MENU_RADIO_INFOS     },
@@ -434,6 +437,7 @@ static const menuItemNewData_t optionsMenuItems[] =
 	{ 191, MENU_RADIO },
 	{  10, MENU_DISPLAY },
 	{  11, MENU_SOUND   },
+	{  13, MENU_LANGUAGE        },
 };
 
 const menuItemsList_t menuDataOptions =
@@ -454,41 +458,56 @@ void menuDisplayEntry(int loopOffset, int focusedItem, const char *entryText)
 
 	if (focused)
 	{
-		displayFillRoundRect(0, DISPLAY_Y_POS_MENU_ENTRY_HIGHLIGHT + (loopOffset * MENU_ENTRY_HEIGHT), DISPLAY_SIZE_X, MENU_ENTRY_HEIGHT, 2, true);
+		displayFillRoundRect(0, DISPLAY_Y_POS_MENU_ENTRY_HIGHLIGHT
+#if defined(PLATFORM_RD5R)
+				- 1 // Small V offset due to small font usage
+#endif
+				+ (loopOffset * MENU_ENTRY_HEIGHT), DISPLAY_SIZE_X, MENU_ENTRY_HEIGHT, 2, true);
 	}
 
+#if 0
 	displayPrintCore(0, DISPLAY_Y_POS_MENU_START + (loopOffset * MENU_ENTRY_HEIGHT), entryText, FONT_SIZE_3, TEXT_ALIGN_LEFT, focused);
+#else
+	displayPrintCore(0, DISPLAY_Y_POS_MENU_ENTRY_HIGHLIGHT + (loopOffset * MENU_ENTRY_HEIGHT), entryText, FONT_SIZE_3, TEXT_ALIGN_LEFT, focused);
+#endif
 }
 
-int menuGetMenuOffset(int maxMenuEntries, int loopOffset)
+// Returns menu offset, -1 if the line is before the first menu item, -2 if the line is after the last menu item
+int menuGetMenuOffset(int maxMenuItems, int loopOffset)
 {
 	int offset = menuDataGlobal.currentItemIndex + loopOffset;
+	int startOffset = 0;
+	int iter = (loopOffset + (MENU_MAX_DISPLAYED_ENTRIES / 2) + 1);
+
+	if (maxMenuItems < MENU_MAX_DISPLAYED_ENTRIES)
+	{
+		startOffset = (MENU_MAX_DISPLAYED_ENTRIES - maxMenuItems) / 2;
+
+		if (iter <= startOffset)
+		{
+			return MENU_OFFSET_BEFORE_FIRST_ENTRY;
+		}
+		else if (iter > (startOffset + maxMenuItems))
+		{
+			return MENU_OFFSET_AFTER_LAST_ENTRY;
+		}
+	}
 
 	if (offset < 0)
 	{
-		if ((maxMenuEntries == 1) && (maxMenuEntries < MENU_MAX_DISPLAYED_ENTRIES))
+		if ((maxMenuItems == 1) && (maxMenuItems < MENU_MAX_DISPLAYED_ENTRIES))
 		{
 			offset = MENU_MAX_DISPLAYED_ENTRIES - 1;
 		}
 		else
 		{
-			offset = maxMenuEntries + offset;
+			offset = maxMenuItems + offset;
 		}
 	}
 
-	if (maxMenuEntries < MENU_MAX_DISPLAYED_ENTRIES)
+	if (offset >= maxMenuItems)
 	{
-		if (loopOffset == 1)
-		{
-			offset = MENU_MAX_DISPLAYED_ENTRIES - 1;
-		}
-	}
-	else
-	{
-		if (offset >= maxMenuEntries)
-		{
-			offset = offset - maxMenuEntries;
-		}
+		offset = offset - maxMenuItems;
 	}
 
 	return offset;
@@ -628,10 +647,8 @@ void menuDisplaySettingOption(const char *entryText, const char *valueText)
 	displayDrawRoundRect(2, DISPLAY_Y_POS_MENU_ENTRY_HIGHLIGHT - MENU_ENTRY_HEIGHT - 2, DISPLAY_SIZE_X - 4, (MENU_ENTRY_HEIGHT * 2) + 4, 2, true);
 	displayFillRoundRect(2, DISPLAY_Y_POS_MENU_ENTRY_HIGHLIGHT - MENU_ENTRY_HEIGHT - 2, DISPLAY_SIZE_X - 4, MENU_ENTRY_HEIGHT, 2, true);
 
-	displayPrintCore(0, DISPLAY_Y_POS_MENU_START - MENU_ENTRY_HEIGHT + 2, entryText, FONT_SIZE_2, TEXT_ALIGN_CENTER, true);
+	displayPrintCore(0, DISPLAY_Y_POS_MENU_START - MENU_ENTRY_HEIGHT + DISPLAY_V_OFFSET + 2, entryText, FONT_SIZE_2, TEXT_ALIGN_CENTER, true);
 #endif
 
-	displayPrintCore(0, DISPLAY_Y_POS_MENU_START, valueText, FONT_SIZE_3, TEXT_ALIGN_CENTER, false);
+	displayPrintCore(0, DISPLAY_Y_POS_MENU_START + DISPLAY_V_OFFSET, valueText, FONT_SIZE_3, TEXT_ALIGN_CENTER, false);
 }
-
-

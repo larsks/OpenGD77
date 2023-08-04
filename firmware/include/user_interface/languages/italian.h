@@ -1,6 +1,6 @@
 /* -*- coding: windows-1252-unix; -*- */
 /*
- * Copyright (C) 2019-2021 Roger Clark, VK3KYY / G4KYF
+ * Copyright (C) 2019-2023 Roger Clark, VK3KYY / G4KYF
  *
  *
  * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions
@@ -29,7 +29,7 @@
  * Translators: IU4LEG, IZ2EIB
  *
  *
- * Rev: 2021.09.11 IZ2EIB & IU4LEG
+ * Rev: 2022.05.05 IZ2EIB & IU4LEG
  */
 #ifndef USER_INTERFACE_LANGUAGES_ITALIAN_H_
 #define USER_INTERFACE_LANGUAGES_ITALIAN_H_
@@ -115,7 +115,7 @@ const stringsTable_t italianLanguage =
 .on						   = "On", // MaxLen: 16 (with ':' + .band_limits)
 .timeout_beep			   = "Bip Timeout", // MaxLen: 16 (with ':' + .off or 5..20)
 .list_full				= "List full",
-.UNUSED_1			= "",
+.dmr_cc_scan			   = "Scan CC", // MaxLen: 12 (with ':' + settings: .on or .off)
 .band_limits			   = "Limiti Banda", // MaxLen: 16 (with ':' + .on or .off)
 .beep_volume			   = "Volume Bip", // MaxLen: 16 (with ':' + -24..6 + 'dB')
 .dmr_mic_gain			   = "DMR mic", // MaxLen: 16 (with ':' + -33..12 + 'dB')
@@ -155,7 +155,7 @@ const stringsTable_t italianLanguage =
 .stop					   = "Fine", // Maxlen 16 (with ':' + .scan_mode)
 .one_line				   = "1 linea", // MaxLen 16 (with ':' + .contact)
 .two_lines				   = "2 linee", // MaxLen 16 (with ':' + .contact)
-.new_channel			   = "Nuovo can.", // MaxLen: 16, leave room for a space and four channel digits after
+.new_channel			   = "Nuovo Ch", // MaxLen: 16, leave room for a space and four channel digits after
 .priority_order			   = "Prio.", // MaxLen 16 (with ':' + 'Cc/DB/TA')
 .dmr_beep				   = "DMR bip", // MaxLen 16 (with ':' + .star/.stop/.both/.none)
 .start					   = "Inizio", // MaxLen 16 (with ':' + .dmr_beep)
@@ -164,10 +164,10 @@ const stringsTable_t italianLanguage =
 .vox_tail                  = "Coda VOX", // MaxLen 16 (with ':' + .n_a or '0.0s')
 .audio_prompt			   = "Guida",// Maxlen 16 (with ':' + .silent, .beep or .voice_prompt_level_1)
 .silent                    = "Silenziosa", // Maxlen 16 (with : + audio_prompt)
-.UNUSED_2			= "",
+.rx_beep				= "RX beep", // MaxLen 16 (with ':' + .carrier/.talker/.both/.none)
 .beep					   = "Bip", // Maxlen 16 (with : + audio_prompt)
 .voice_prompt_level_1	   = "Voce L1", // Maxlen 16 (with : + audio_prompt)
-.transmitTalkerAlias	   = "TA Tx", // Maxlen 16 (with : + .on or .off)
+.transmitTalkerAliasTS1	   = "TA Tx TS1", // Maxlen 16 (with : + .on or .off)
 .squelch_VHF			   = "VHF Squelch",// Maxlen 16 (with : + XX%)
 .squelch_220			   = "220 Squelch",// Maxlen 16 (with : + XX%)
 .squelch_UHF			   = "UHF Squelch", // Maxlen 16 (with : + XX%)
@@ -180,7 +180,7 @@ const stringsTable_t italianLanguage =
 .voice_prompt_level_2	   = "Voce L2", // Maxlen 16 (with : + audio_prompt)
 .voice_prompt_level_3	   = "Voce L3", // Maxlen 16 (with : + audio_prompt)
 .dmr_filter				   = "Filtro DMR",// MaxLen: 12 (with ':' + settings: "TG" or "Ct" or "RxG")
-.UNUSED_4				= "",
+.talker					= "Talker",
 .dmr_ts_filter			   = "Filtro TS", // MaxLen: 12 (with ':' + settings: .on or .off)
 .dtmf_contact_list			= "FM DTMF contacts", // Maxlen: 16
 .channel_power				= "W Ch", //Displayed as "Ch Power:" + .from_master or "Ch Power:"+ power text e.g. "Power:500mW" . Max total length 16
@@ -210,7 +210,7 @@ const stringsTable_t italianLanguage =
 .scan_on_boot				= "Scan su ON",
 .dtmf_entry				= "Ins. DTMF",
 .name					= "Nome",
-.UNUSED_3				= "",
+.carrier				= "Carrier",
 .openDM1801A 				= "OpenDM1801A", // Do not translate
 .time					= "Orario",
 .uptime					= "Tempo Attività",
@@ -234,7 +234,30 @@ const stringsTable_t italianLanguage =
 .symbols				= "NSEO", // symbols: N,S,E,W
 .not_set				= "NON IMPOSTATO",
 .general_options		= "Opzioni generali",
-.radio_options			= "Opzioni radio"
+.radio_options			= "Opzioni radio",
+.openMD9600				= "OpenMD9600",
+.dmr_rx_agc				= "AGC Rx DMR",
+.speaker_click_suppress			= "Limita click",
+.gps					= "GPS",
+.end_only				= "Solo in fine",
+.dmr_crc				= "CRC DMR",
+.eco					= "ECO Ch",
+.safe_power_on				= "Sicura su ON", // MaxLen: 16 (with ':' + .on or .off)
+.auto_power_off				= "Auto Pwr-Off", // MaxLen: 16 (with ':' + 30/60/90/120/180 or .no)
+.apo_with_rf				= "APO RF reset", // MaxLen: 16 (with ':' + .yes or .no or .n_a)
+.openMDUV380			= "OpenMDUV380",
+.openMD380				= "OpenMD380",
+.gps_acquiring			= "Acquisizione", 
+.altitude				= "Alt.",
+.calibration            = "Radio Calibration",
+.freq_set                = "Freq Adjust",
+.cal_frequency          = "Cal Freq",
+.cal_pwr                = "Cal Power",
+.pwr_set                = "Power Adjust",
+.factory_reset          = "Factory Cal",
+.rx_tune				= "Rx Tuning",
+.transmitTalkerAliasTS2	= "TA Tx TS2", // Maxlen 16 (with : + .ta_text, 'APRS' , .both or .off)
+.ta_text				= "Text",
 };
 /********************************************************************
  *
