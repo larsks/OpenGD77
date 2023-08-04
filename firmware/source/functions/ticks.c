@@ -28,6 +28,7 @@
 
 #include <string.h>
 #include "functions/ticks.h"
+#include "user_interface/menuSystem.h"
 
 #define PIT_COUNTS_PER_MS  10U
 
@@ -35,11 +36,12 @@ extern volatile uint32_t PITCounter;
 typedef struct
 {
 	timerCallback_t  funPtr;
+	int              menuDestination;
 	uint32_t         PIT_TriggerTime;
 } timerCallbackbackStruct_t;
 
 #define MAX_NUM_TIMER_CALLBACKS 8
-timerCallbackbackStruct_t callbacksArray[MAX_NUM_TIMER_CALLBACKS];// As a global this will get cleared by the compiler
+static timerCallbackbackStruct_t callbacksArray[MAX_NUM_TIMER_CALLBACKS];// As a global this will get cleared by the compiler
 
 uint32_t fw_millis(void)
 {
@@ -54,7 +56,11 @@ void handleTimerCallbacks(void)
 	{
 		if (PITCounter > callbacksArray[i].PIT_TriggerTime)
 		{
-			callbacksArray[i].funPtr();// call the function
+			// Does the current menu matches the desired destination menu
+			if ((callbacksArray[i].menuDestination == MENU_ANY) || (callbacksArray[i].menuDestination == menuSystemGetCurrentMenuNumber()))
+			{
+				callbacksArray[i].funPtr(); // call the function
+			}
 			memmove(&callbacksArray[i], &callbacksArray[i + 1], ((MAX_NUM_TIMER_CALLBACKS - 1) - i) * sizeof(timerCallbackbackStruct_t));
 			callbacksArray[MAX_NUM_TIMER_CALLBACKS - 1].funPtr = NULL;
 		}
@@ -65,7 +71,7 @@ void handleTimerCallbacks(void)
 	}
 }
 
-bool addTimerCallback(timerCallback_t funPtr, uint32_t delayIn_mS, bool updateExistingCallbackTime)
+bool addTimerCallback(timerCallback_t funPtr, uint32_t delayIn_mS, int menuDest, bool updateExistingCallbackTime)
 {
 	uint32_t callBackTime = PITCounter + (delayIn_mS * PIT_COUNTS_PER_MS);
 
@@ -74,12 +80,14 @@ bool addTimerCallback(timerCallback_t funPtr, uint32_t delayIn_mS, bool updateEx
 		if (callbacksArray[i].funPtr == NULL)
 		{
 			callbacksArray[i].funPtr = funPtr;
+			callbacksArray[i].menuDestination = menuDest;
 			callbacksArray[i].PIT_TriggerTime = callBackTime;
 			return true;
 		}
 
 		if ((callbacksArray[i].funPtr == funPtr) && updateExistingCallbackTime)
 		{
+			callbacksArray[i].menuDestination = menuDest;
 			callbacksArray[i].PIT_TriggerTime = callBackTime;
 			return true;
 		}
@@ -93,6 +101,7 @@ bool addTimerCallback(timerCallback_t funPtr, uint32_t delayIn_mS, bool updateEx
 				memmove(&callbacksArray[i+1], &callbacksArray[i], ((MAX_NUM_TIMER_CALLBACKS - 1) - i) * sizeof(timerCallbackbackStruct_t));
 			}
 			callbacksArray[i].funPtr = funPtr;
+			callbacksArray[i].menuDestination = menuDest;
 			callbacksArray[i].PIT_TriggerTime = callBackTime;
 			return true;
 		}

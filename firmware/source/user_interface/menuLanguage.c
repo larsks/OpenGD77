@@ -37,7 +37,7 @@
 #include "hardware/UC1701_charset.h"
 #endif
 
-static void updateScreen(void);
+static void updateScreen(bool isFirstRun);
 static void handleEvent(uiEvent_t *ev);
 static menuStatus_t menuLanguageExitCode = MENU_STATUS_SUCCESS;
 
@@ -193,7 +193,14 @@ menuStatus_t menuLanguage(uiEvent_t *ev, bool isFirstRun)
 	if (isFirstRun)
 	{
 		menuDataGlobal.endIndex = NUM_LANGUAGES;
-		updateScreen();
+
+		voicePromptsInit();
+		voicePromptsAppendPrompt(PROMPT_SILENCE);
+		voicePromptsAppendLanguageString(&currentLanguage->language);
+		voicePromptsAppendLanguageString(&currentLanguage->menu);
+		voicePromptsAppendPrompt(PROMPT_SILENCE);
+
+		updateScreen(true);
 		return (MENU_STATUS_LIST_TYPE | MENU_STATUS_SUCCESS);
 	}
 	else
@@ -208,7 +215,7 @@ menuStatus_t menuLanguage(uiEvent_t *ev, bool isFirstRun)
 	return menuLanguageExitCode;
 }
 
-static void updateScreen(void)
+static void updateScreen(bool isFirstRun)
 {
 	int mNum = 0;
 
@@ -233,7 +240,11 @@ static void updateScreen(void)
 
 					clearNonLatinChar((uint8_t *)&buffer[0]);
 
-					voicePromptsInit();
+					if (isFirstRun == false)
+					{
+						voicePromptsInit();
+					}
+
 					voicePromptsAppendString(buffer);
 					promptsPlayNotAfterTx();
 				}
@@ -270,13 +281,13 @@ static void handleEvent(uiEvent_t *ev)
 	if (KEYCHECK_PRESS(ev->keys, KEY_DOWN) && (menuDataGlobal.endIndex != 0))
 	{
 		menuSystemMenuIncrement(&menuDataGlobal.currentItemIndex, NUM_LANGUAGES);
-		updateScreen();
+		updateScreen(false);
 		menuLanguageExitCode |= MENU_STATUS_LIST_TYPE;
 	}
 	else if (KEYCHECK_PRESS(ev->keys, KEY_UP))
 	{
 		menuSystemMenuDecrement(&menuDataGlobal.currentItemIndex, NUM_LANGUAGES);
-		updateScreen();
+		updateScreen(false);
 		menuLanguageExitCode |= MENU_STATUS_LIST_TYPE;
 	}
 	else if (KEYCHECK_SHORTUP(ev->keys, KEY_GREEN))

@@ -77,6 +77,10 @@ menuStatus_t menuTxScreen(uiEvent_t *ev, bool isFirstRun)
 			clockManagerSetRunMode(kAPP_PowerModeHsrun);
 		}
 
+#if defined(PLATFORM_GD77S)
+		uiChannelModeHeartBeatActivityForGD77S(ev); // Dim all lit LEDs
+#endif
+
 		// If the user was currently entering a new frequency and the PTT get pressed, "leave" that input screen.
 		if (uiDataGlobal.FreqEnter.index > 0)
 		{
@@ -119,10 +123,6 @@ menuStatus_t menuTxScreen(uiEvent_t *ev, bool isFirstRun)
 	}
 	else
 	{
-
-#if defined(PLATFORM_GD77S)
-		uiChannelModeHeartBeatActivityForGD77S(ev);
-#endif
 
 		// Keep displaying the "RX Only" or "Out Of Band" error message
 		if (xmitErrorTimer > 0)
@@ -204,6 +204,7 @@ menuStatus_t menuTxScreen(uiEvent_t *ev, bool isFirstRun)
 				}
 
 				// Do not update Mic level on Timeout.
+#if !defined(PLATFORM_GD77S)
 				if ((((currentChannelData->tot != 0) && (timeInSeconds == 0)) == false) && (ev->time - micm) > 100)
 				{
 					if (mode == RADIO_MODE_DIGITAL)
@@ -218,7 +219,7 @@ menuStatus_t menuTxScreen(uiEvent_t *ev, bool isFirstRun)
 					ucRenderRows(1, 2);
 					micm = ev->time;
 				}
-
+#endif
 			}
 		}
 
@@ -291,6 +292,7 @@ bool menuTxScreenDisplaysLastHeard(void)
 
 static void updateScreen(void)
 {
+#if !defined(PLATFORM_GD77S)
 	uiDataGlobal.displayQSOState = QSO_DISPLAY_DEFAULT_SCREEN;
 	if (menuDataGlobal.controlData.stack[0] == UI_VFO_MODE)
 	{
@@ -305,6 +307,7 @@ static void updateScreen(void)
 	{
 		displayLightOverrideTimeout(-1);
 	}
+#endif
 }
 
 static void handleEvent(uiEvent_t *ev)
@@ -411,6 +414,7 @@ static void handleEvent(uiEvent_t *ev)
 		disableAudioAmp(AUDIO_AMP_MODE_RF);
 	}
 
+#if !defined(PLATFORM_GD77S)
 	if ((trxGetMode() == RADIO_MODE_DIGITAL) && BUTTONCHECK_SHORTUP(ev, BUTTON_SK1) && (trxTransmissionEnabled == true))
 	{
 		isShowingLastHeard = !isShowingLastHeard;
@@ -430,6 +434,7 @@ static void handleEvent(uiEvent_t *ev)
 	{
 		menuLastHeardHandleEvent(ev);
 	}
+#endif
 
 }
 
@@ -438,44 +443,55 @@ static void handleTxTermination(uiEvent_t *ev, txTerminationReason_t reason)
 	PTTToggledDown = false;
 	voxReset();
 
-	ucClearBuf();
-
 	voicePromptsTerminate();
 	voicePromptsInit();
 
+#if !defined(PLATFORM_GD77S)
+	ucClearBuf();
 	ucDrawRoundRectWithDropShadow(4, 4, 120, (DISPLAY_SIZE_Y - 6), 5, true);
+#endif
 
 	switch (reason)
 	{
 		case TXSTOP_RX_ONLY:
 		case TXSTOP_OUT_OF_BAND:
+#if !defined(PLATFORM_GD77S)
 			ucPrintCentered(4, currentLanguage->error, FONT_SIZE_4);
+#endif
 
 			voicePromptsAppendLanguageString(&currentLanguage->error);
 			voicePromptsAppendPrompt(PROMPT_SILENCE);
 
 			if ((currentChannelData->flag4 & 0x04) != 0x00)
 			{
+#if !defined(PLATFORM_GD77S)
 				ucPrintCentered((DISPLAY_SIZE_Y - 24), currentLanguage->rx_only, FONT_SIZE_3);
+#endif
 				voicePromptsAppendLanguageString(&currentLanguage->rx_only);
 			}
 			else
 			{
+#if !defined(PLATFORM_GD77S)
 				ucPrintCentered((DISPLAY_SIZE_Y - 24), currentLanguage->out_of_band, FONT_SIZE_3);
+#endif
 				voicePromptsAppendLanguageString(&currentLanguage->out_of_band);
 			}
 			xmitErrorTimer = (100 * 10U);
 			break;
 
 		case TXSTOP_TIMEOUT:
+#if !defined(PLATFORM_GD77S)
 			ucPrintCentered(16, currentLanguage->timeout, FONT_SIZE_4);
+#endif
 			voicePromptsAppendLanguageString(&currentLanguage->timeout);
 			mto = ev->time;
 			break;
 	}
 
+#if !defined(PLATFORM_GD77S)
 	ucRender();
 	displayLightOverrideTimeout(-1);
+#endif
 
 	if (nonVolatileSettings.audioPromptMode < AUDIO_PROMPT_MODE_VOICE_LEVEL_1)
 	{

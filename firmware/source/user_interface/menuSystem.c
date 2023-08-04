@@ -181,6 +181,16 @@ static void menuSystemPushMenuFirstRun(void)
 	menuSystemCheckForFirstEntryAudible(status);
 }
 
+int menuSystemGetLastItemIndex(int stackPos)
+{
+	if ((stackPos >= 0) && (stackPos <= menuDataGlobal.controlData.stackPosition))
+	{
+		return menuFunctions[menuDataGlobal.controlData.stack[stackPos]].lastItemIndex;
+	}
+
+	return -1;
+}
+
 void menuSystemPushNewMenu(int menuNumber)
 {
 	if (menuDataGlobal.controlData.stackPosition < 15)
@@ -305,17 +315,12 @@ void menuSystemCallCurrentMenuTick(uiEvent_t *ev)
 
 void displayLightTrigger(bool fromKeyEvent)
 {
+	// BACKLIGHT_MODE_MANUAL is handled in main.c
 	if ((menuSystemGetCurrentMenuNumber() != UI_TX_SCREEN) &&
 			(((nonVolatileSettings.backlightMode == BACKLIGHT_MODE_AUTO) || (nonVolatileSettings.backlightMode == BACKLIGHT_MODE_SQUELCH))
-					|| ((nonVolatileSettings.backlightMode == BACKLIGHT_MODE_MANUAL) && displayIsBacklightLit())
 					|| ((nonVolatileSettings.backlightMode == BACKLIGHT_MODE_BUTTONS) && fromKeyEvent)))
 	{
-		if ((nonVolatileSettings.backlightMode == BACKLIGHT_MODE_AUTO) ||
-				(nonVolatileSettings.backlightMode == BACKLIGHT_MODE_SQUELCH) ||
-				(nonVolatileSettings.backlightMode == BACKLIGHT_MODE_BUTTONS))
-		{
-			menuDataGlobal.lightTimer = nonVolatileSettings.backLightTimeout * 1000;
-		}
+		menuDataGlobal.lightTimer = nonVolatileSettings.backLightTimeout * 1000;
 
 		displayEnableBacklight(true);
 	}
@@ -451,6 +456,7 @@ int menuGetMenuOffset(int maxMenuEntries, int loopOffset)
  */
 int menuGetKeypadKeyValue(uiEvent_t *ev, bool digitsOnly)
 {
+#if !defined(PLATFORM_GD77S)
 	uint32_t keypadKeys[] =
 	{
 			KEY_0, KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9,
@@ -464,6 +470,7 @@ int menuGetKeypadKeyValue(uiEvent_t *ev, bool digitsOnly)
 				return i;
 		}
 	}
+#endif
 
 	return 99;
 }

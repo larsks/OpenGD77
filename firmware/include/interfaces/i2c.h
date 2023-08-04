@@ -61,7 +61,7 @@ extern volatile int isI2cInUse;
 #define GPIO_I2C0b_SDA     GPIOB
 #define Pin_I2C0b_SDA	   3
 
-#elif defined(PLATFORM_DM1801)
+#elif defined(PLATFORM_DM1801) || defined(PLATFORM_DM1801A)
 
 // I2C0a to AT24C512 EEPROM & AT1846S
 // OUT/ON E24 - I2C SCL to AT24C512 EEPROM & AT1846S

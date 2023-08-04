@@ -183,7 +183,7 @@ static void checkMButtons(uint32_t *buttons, MBUTTON_t mbutton, uint32_t buttonI
 
 			// Reset the timer for extra long down usage
 			taskENTER_CRITICAL();
-			timer_mbuttons[mbutton] = (nonVolatileSettings.keypadTimerLong * 1000);
+			timer_mbuttons[mbutton] = (((nonVolatileSettings.keypadTimerLong * 3) >> 1) * 1000);
 			taskEXIT_CRITICAL();
 		}
 	}

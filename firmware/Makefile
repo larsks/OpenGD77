@@ -25,6 +25,10 @@ else ifeq ("$(RADIO)","DM1801")
 	DEFINES  := -DPLATFORM_DM1801
 	BIN2SGL_OPT  := -m DM-1801
 	BIN_FILE  := OpenDM1801.bin
+else ifeq ("$(RADIO)","DM1801A")
+	DEFINES  := -DPLATFORM_DM1801A
+	BIN2SGL_OPT  := -m DM-1801
+	BIN_FILE  := OpenDM1801A.bin
 else ifeq ("$(RADIO)","RD5R")
 	DEFINES  := -DPLATFORM_RD5R
 	BIN2SGL_OPT  := -m RD-5R
@@ -105,7 +109,7 @@ INCLUDE_DIRS := -I../source     \
 ##
 ## List here additional defines
 ##
-DEFINES += -DGITVERSION=\"`git rev-parse --short HEAD`\"  \
+DEFINES += -DGITVERSION=\"`git rev-parse --short HEAD > /dev/null 2<&1 || echo UNKNOWN`\"  \
 	-DSDK_DEBUGCONSOLE=0                              \
 	-DUSE_SEGGER_RTT                                  \
 	-DCR_INTEGER_PRINTF                               \

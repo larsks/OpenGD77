@@ -124,12 +124,17 @@ void uiChannelModeUpdateScreen(int txTimeSecs);
 void uiChannelModeColdStart(void);
 void uiVFOModeUpdateScreen(int txTimeSecs);
 void uiVFOLoadContact(struct_codeplugContact_t *contact);
+bool uiVFOModeIsTXFocused(void);
 void uiVFOModeStopScanning(void);
 bool uiVFOModeIsScanning(void);
 bool uiVFOModeDualWatchIsScanning(void);
+bool uiVFOModeSweepScanning(bool includePaused);
+void uiVFOSweepScanModePause(bool pause, bool forceDigitalOnPause);
 bool uiVFOModeFrequencyScanningIsActiveAndEnabled(uint32_t *lowFreq, uint32_t *highFreq);
 void uiChannelModeStopScanning(void);
 bool uiChannelModeIsScanning(void);
+void uiChannelInitializeCurrentZone(void);
+
 
 void uiCPSUpdate(uiCPSCommand_t command, int x, int y, ucFont_t fontSize, ucTextAlign_t alignment, bool isInverted, char *szMsg);
 
@@ -137,6 +142,7 @@ void menuSystemInit(void);
 void menuSystemLanguageHasChanged(void);
 void displayLightTrigger(bool fromKeyEvent);
 void displayLightOverrideTimeout(int timeout);
+int menuSystemGetLastItemIndex(int stackPos);
 void menuSystemPushNewMenu(int menuNumber);
 
 void menuSystemSetCurrentMenu(int menuNumber);
@@ -199,6 +205,7 @@ void uiChannelModeHeartBeatActivityForGD77S(uiEvent_t *ev);
 enum MENU_SCREENS
 {
 	MENU_EMPTY = -1,
+	MENU_ANY = MENU_EMPTY,
 	UI_SPLASH_SCREEN = 0,
 	UI_POWER_OFF,
 	UI_VFO_MODE,

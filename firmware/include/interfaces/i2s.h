@@ -37,7 +37,7 @@
 
 #include "functions/sound.h"
 
-#define NUM_I2S_BUFFERS 4
+#define NUM_I2S_BUFFERS 6
 
 
 #if defined(PLATFORM_GD77) || defined(PLATFORM_GD77S)
@@ -60,7 +60,7 @@
 #define GPIO_I2S_TX_C6000    GPIOA
 #define Pin_I2S_TX_C6000     15
 
-#elif defined(PLATFORM_DM1801)
+#elif defined(PLATFORM_DM1801) || defined(PLATFORM_DM1801A)
 
 // I2S to C6000 (I2S)
 // OUT/ON  A16 - I2S FS to C6000
@@ -112,6 +112,6 @@ void setup_I2S(void);
 void I2SReset(void);
 void I2STerminateTransfers(void);
 void I2STransferReceive(uint8_t *buff,size_t bufferLen);
-void I2STransferTransmit(uint8_t *buff,size_t bufferLen);
+bool I2STransferTransmit(uint8_t *buff,size_t bufferLen);
 
 #endif /* _OPENGD77_I2S_H_ */

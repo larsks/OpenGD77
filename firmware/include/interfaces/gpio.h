@@ -52,7 +52,7 @@ extern gpio_pin_config_t pin_config_output;
 #define GPIO_Orange		GPIOA
 #define Pin_Orange		2
 
-#elif defined(PLATFORM_DM1801)
+#elif defined(PLATFORM_DM1801) || defined(PLATFORM_DM1801A)
 
 #define Port_PTT		PORTA
 #define GPIO_PTT		GPIOA
@@ -129,7 +129,7 @@ extern gpio_pin_config_t pin_config_output;
 #define GPIO_VHF_TX_amp_power GPIOE
 #define Pin_VHF_TX_amp_power  3
 
-#elif defined(PLATFORM_DM1801)
+#elif defined(PLATFORM_DM1801) || defined(PLATFORM_DM1801A)
 
 /* --------------  Battery power control  ---------------- */
 #define Port_Keep_Power_On  PORTE
@@ -245,7 +245,7 @@ extern gpio_pin_config_t pin_config_output;
 #define BOARD_FTM_BASEADDR FTM0
 #define BOARD_FTM_CHANNEL kFTM_Chnl_3
 
-#elif defined(PLATFORM_DM1801)
+#elif defined(PLATFORM_DM1801) || defined(PLATFORM_DM1801A)
 
 #define Port_Display_Light	PORTC
 #define GPIO_Display_Light	GPIOC
@@ -334,7 +334,7 @@ extern gpio_pin_config_t pin_config_output;
 #define GPIO_SPI_FLASH_DO_U  	GPIOE
 #define Pin_SPI_FLASH_DO_U   	4
 
-#elif defined(PLATFORM_DM1801)
+#elif defined(PLATFORM_DM1801) || defined(PLATFORM_DM1801A)
 
 #define Port_SPI_FLASH_CS_U PORTE
 #define GPIO_SPI_FLASH_CS_U GPIOE
@@ -409,7 +409,7 @@ extern gpio_pin_config_t pin_config_output;
 #define GPIO_Key_Row4 	GPIOB
 #define Pin_Key_Row4	23
 
-#elif defined(PLATFORM_DM1801)
+#elif defined(PLATFORM_DM1801) || defined(PLATFORM_DM1801A)
 
 // column lines
 #define Port_Key_Col0   PORTC
@@ -491,7 +491,7 @@ extern gpio_pin_config_t pin_config_output;
 #define GPIO_LEDred		GPIOC
 #define Pin_LEDred		14
 
-#elif defined(PLATFORM_DM1801)
+#elif defined(PLATFORM_DM1801) || defined(PLATFORM_DM1801A)
 
 #define Port_LEDgreen	PORTA
 #define GPIO_LEDgreen	GPIOA
@@ -552,7 +552,7 @@ extern gpio_pin_config_t pin_config_output;
 #define GPIO_INT_C6000_PWD   GPIOE
 #define Pin_INT_C6000_PWD    1
 
-#elif defined(PLATFORM_DM1801)
+#elif defined(PLATFORM_DM1801) || defined(PLATFORM_DM1801A)
 
 // C6000 interrupts
 

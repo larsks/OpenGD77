@@ -68,5 +68,6 @@
 
 void mainTaskInit(void);
 void powerOffFinalStage(void);
+bool batteryIsLowWarning(void);
 
 #endif /* _OPENGD77_MAIN_H_ */

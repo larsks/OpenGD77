@@ -161,7 +161,7 @@ static int txPowerLevel = -1;
 static bool analogSignalReceived = false;
 static bool analogTriggeredAudio = false;
 static bool digitalSignalReceived = false;
-static uint32_t txtNextRssiNoiseSamplePIT = 0;
+static uint32_t trxNextRssiNoiseSamplePIT = 0;
 
 static uint8_t trxCssMeasureCount = 0;
 
@@ -170,8 +170,12 @@ static bool currentBandWidthIs25kHz = BANDWIDTH_12P5KHZ;
 static int currentRxFrequency = -1;
 static int currentTxFrequency = -1;
 static int currentCC = 1;
+
+#define CTCSS_HOLD_DELAY      6
+#define SQUELCH_CLOSE_DELAY   1
+
 static bool rxCSSactive = false;
-static uint8_t rxCSSTriggerCount = 0;
+//static uint8_t rxCSSTriggerCount = 0;
 static int trxCurrentDMRTimeSlot;
 
 // AT-1846 native values for Rx
@@ -258,9 +262,9 @@ void trxSetModeAndBandwidth(int mode, bool bandwidthIs25kHz)
 {
 	digitalSignalReceived = false;
 	analogSignalReceived = false;
-	txtNextRssiNoiseSamplePIT = PITCounter + RSSI_NOISE_SAMPLE_PERIOD_PIT;
+	trxNextRssiNoiseSamplePIT = PITCounter + RSSI_NOISE_SAMPLE_PERIOD_PIT;
 	trxCssMeasureCount = 0;
-	rxCSSTriggerCount = 0;
+	//rxCSSTriggerCount = 0;
 	trxRxSignal = 0;
 	trxRxNoise = 0;
 
@@ -289,7 +293,9 @@ void trxSetModeAndBandwidth(int mode, bool bandwidthIs25kHz)
 			case RADIO_MODE_ANALOG:
 				currentBandWidthIs25kHz = bandwidthIs25kHz;
 				GPIO_PinWrite(GPIO_TX_audio_mux, Pin_TX_audio_mux, 0); // Connect mic to mic input of AT-1846
-				GPIO_PinWrite(GPIO_RX_audio_mux, Pin_RX_audio_mux, 1); // connect AT1846S audio to speaker
+				// Enabling the following line cause cracking sound on the DM-1801, at the end of the boot melody.
+				// It's managed anyway by the Squelch code.
+				//GPIO_PinWrite(GPIO_RX_audio_mux, Pin_RX_audio_mux, 1); // connect AT1846S audio to speaker
 				terminate_digital();
 				AT1846SetMode();
 				trxUpdateC6000Calibration();
@@ -317,6 +323,12 @@ void trxSetModeAndBandwidth(int mode, bool bandwidthIs25kHz)
 		else
 		{
 			reset_timeslot_detection();
+			// We need to reset the slot state because some part of the UI
+			// are getting stuck, like the green LED and QSO info, while navigating the UI.
+			if (slot_state != DMR_STATE_IDLE)
+			{
+				slot_state = DMR_STATE_RX_END;
+			}
 		}
 	}
 }
@@ -426,15 +438,11 @@ bool trxCarrierDetected(void)
 	return (trxRxNoise < squelch);
 }
 
-uint32_t lastPIT = 0;
-
 bool trxCheckDigitalSquelch(void)
 {
-	if (PITCounter >= txtNextRssiNoiseSamplePIT)
+	if (PITCounter >= trxNextRssiNoiseSamplePIT)
 	{
 		uint8_t squelch;
-
-		txtNextRssiNoiseSamplePIT = PITCounter + RSSI_NOISE_SAMPLE_PERIOD_PIT;
 
 		trxReadRSSIAndNoise();
 
@@ -457,20 +465,30 @@ bool trxCheckDigitalSquelch(void)
 			}
 		}
 
-		txtNextRssiNoiseSamplePIT = PITCounter + RSSI_NOISE_SAMPLE_PERIOD_PIT;
+		trxNextRssiNoiseSamplePIT = PITCounter + RSSI_NOISE_SAMPLE_PERIOD_PIT;
 	}
 	return digitalSignalReceived;
 }
 
+void trxTerminateCheckAnalogSquelch(void)
+{
+	disableAudioAmp(AUDIO_AMP_MODE_RF);
+	analogSignalReceived = false;
+	analogTriggeredAudio = false;
+	trxCssMeasureCount = 0;
+	//rxCSSTriggerCount = 0;
+}
+
 bool trxCheckAnalogSquelch(void)
 {
-	const int SQUELCH_CLOSE_DELAY = 1;
-	const int CTCSS_HOLD_DELAY = 6;
-
-	if (PITCounter >= txtNextRssiNoiseSamplePIT)
+	if (uiVFOModeSweepScanning(false))
 	{
-		uint8_t squelch;//=45;
-		txtNextRssiNoiseSamplePIT = PITCounter + RSSI_NOISE_SAMPLE_PERIOD_PIT;
+		return false;
+	}
+
+	if (PITCounter >= trxNextRssiNoiseSamplePIT)
+	{
+		uint8_t squelch;
 
 		trxReadRSSIAndNoise();
 
@@ -491,37 +509,44 @@ bool trxCheckAnalogSquelch(void)
 				analogSignalReceived = true;
 				LEDs_PinWrite(GPIO_LEDgreen, Pin_LEDgreen, 1);
 				analogTriggeredAudio = true;
-				rxCSSTriggerCount = 0;
+				//rxCSSTriggerCount = 0;
 				trxCssMeasureCount = 0;
 			}
 		}
 		else
 		{
-			if(analogSignalReceived || LEDs_PinRead(GPIO_LEDgreen, Pin_LEDgreen))
+			if(analogSignalReceived
+#if !defined (PLATFORM_GD77S) // The GD-77S drives the LEDs for the heart beat
+					|| LEDs_PinRead(GPIO_LEDgreen, Pin_LEDgreen)
+#endif
+			)
 			{
 				analogSignalReceived = false;
 				LEDs_PinWrite(GPIO_LEDgreen, Pin_LEDgreen, 0);
 				analogTriggeredAudio = false;
-				rxCSSTriggerCount = 0;
+				//rxCSSTriggerCount = 0;
 				trxCssMeasureCount = 0;
 			}
 		}
 
+		bool cssFlag = (rxCSSactive ? trxCheckCSSFlag(currentChannelData->rxTone) : false);
+
 		if (analogSignalReceived)
 		{
-			if (((getAudioAmpStatus() & AUDIO_AMP_MODE_RF) == 0) && ((rxCSSactive == false) || trxCheckCSSFlag(currentChannelData->rxTone)))
+			if (((getAudioAmpStatus() & AUDIO_AMP_MODE_RF) == 0) && ((rxCSSactive == false) || cssFlag))
 			{
 				/*
 				// Delay the audio amp enabling to avoid false triggering.
 				if (rxCSSactive && (rxCSSTriggerCount < 1))
 				{
 					rxCSSTriggerCount++;
-					txtNextRssiNoiseSamplePIT = PITCounter + RSSI_NOISE_SAMPLE_PERIOD_PIT;
+					trxNextRssiNoiseSamplePIT = PITCounter + RSSI_NOISE_SAMPLE_PERIOD_PIT;
 					return;
 				}*/
 
 				if (analogTriggeredAudio) // Execute that block of code just once after valid signal is received.
 				{
+					taskENTER_CRITICAL();
 					if (!voicePromptsIsPlaying())
 					{
 						GPIO_PinWrite(GPIO_RX_audio_mux, Pin_RX_audio_mux, 1); // Set the audio path to AT1846 -> audio amp.
@@ -530,21 +555,26 @@ bool trxCheckAnalogSquelch(void)
 						analogTriggeredAudio = false;
 						trxCssMeasureCount = 0;
 					}
+					taskEXIT_CRITICAL();
 				}
 			}
 			else if (getAudioAmpStatus() & AUDIO_AMP_MODE_RF)
 			{
-				if (rxCSSactive && (trxCheckCSSFlag(currentChannelData->rxTone) == false)) // CSS disappeared.
+				if (rxCSSactive && (cssFlag == false)) // CSS disappeared.
 				{
 					trxCssMeasureCount++;
-					// If using CTCSS or DCS and signal isn't lost, allow some loss of tone / code
+					// If using CTCSS or DCS and signal isn't lost, allow some loss of tone / code.
+					// Note:
+					//    It's not unusual to have the CSS detection failing (CTCSS, depending of the sub-tone) if
+					//    the signal is over-modulated/deviated, so waiting for 150ms is fine, and almost needed.
+					//    Waiting for shorter time will just constantly disable and enable the audio Amp.
 					if (trxCssMeasureCount >= CTCSS_HOLD_DELAY)
 					{
 						disableAudioAmp(AUDIO_AMP_MODE_RF);
 						analogSignalReceived = false;
 						analogTriggeredAudio = false;
 						trxCssMeasureCount = 0;
-						rxCSSTriggerCount = 0;
+						//rxCSSTriggerCount = 0;
 					}
 				}
 				else
@@ -559,16 +589,19 @@ bool trxCheckAnalogSquelch(void)
 			{
 				trxCssMeasureCount++;
 				// If using CTCSS or DCS and signal isn't lost, allow some loss of tone / code
+				//
+				// NOTE: Currently it is NOT waiting at all.
+				//
 				if ((rxCSSactive == false) || (trxCssMeasureCount >= SQUELCH_CLOSE_DELAY))
 				{
 					disableAudioAmp(AUDIO_AMP_MODE_RF);
 					trxCssMeasureCount = 0;
-					rxCSSTriggerCount = 0;
+					//rxCSSTriggerCount = 0;
 				}
 			}
 		}
 
-		txtNextRssiNoiseSamplePIT = PITCounter + RSSI_NOISE_SAMPLE_PERIOD_PIT;
+		trxNextRssiNoiseSamplePIT = PITCounter + RSSI_NOISE_SAMPLE_PERIOD_PIT;
 	}
 
 	return analogSignalReceived;
@@ -681,7 +714,7 @@ void trxSetFrequency(int fRx,int fTx, int dmrMode)
 			init_digital();
 		}
 
-		txtNextRssiNoiseSamplePIT = PITCounter + RSSI_NOISE_SAMPLE_PERIOD_PIT;
+		trxNextRssiNoiseSamplePIT = PITCounter + RSSI_NOISE_SAMPLE_PERIOD_PIT;
 		taskEXIT_CRITICAL();
 	}
 }
@@ -737,7 +770,7 @@ void trxAT1846RxOff(void)
 
 void trxAT1846RxOn(void)
 {
-	txtNextRssiNoiseSamplePIT = PITCounter + RSSI_NOISE_SAMPLE_PERIOD_PIT;
+	trxNextRssiNoiseSamplePIT = PITCounter + RSSI_NOISE_SAMPLE_PERIOD_PIT;
 	AT1846SetClearReg2byteWithMask(0x30, 0xFF, 0xFF, 0x00, 0x20);
 }
 
@@ -785,7 +818,7 @@ void trxActivateRx(void)
 		AT1846SWriteReg2byte( 0x30, 0x40, 0x26); // 12.5 kHz settings // RX on
 	}
 
-	txtNextRssiNoiseSamplePIT = PITCounter + RSSI_NOISE_SAMPLE_PERIOD_PIT;
+	trxNextRssiNoiseSamplePIT = PITCounter + RSSI_NOISE_SAMPLE_PERIOD_PIT;
 	trxRxSignal = 0;
 	trxRxNoise = 0;
 }
@@ -866,7 +899,7 @@ void trxActivateRx(void)
 		AT1846SWriteReg2byte( 0x30, 0x40, 0x26); // 12.5 kHz settings // RX on
 	}
 
-	txtNextRssiNoiseSamplePIT = PITCounter + RSSI_NOISE_SAMPLE_PERIOD_PIT;
+	trxNextRssiNoiseSamplePIT = PITCounter + RSSI_NOISE_SAMPLE_PERIOD_PIT;
 	trxRxSignal = 0;
 	trxRxNoise = 0;
 }
@@ -923,7 +956,7 @@ static const float fractionalPowers[3][7] = {	{0.59f,0.73f,0.84f,0.93f,0.60f,0.7
 												{0.62f,0.75f,0.85f,0.93f,0.49f,0.64f,0.71f},// 220Mhz
 												{0.62f,0.75f,0.85f,0.93f,0.49f,0.64f,0.71f}};// UHF
 
-#elif defined(PLATFORM_DM1801)
+#elif defined(PLATFORM_DM1801) || defined(PLATFORM_DM1801A)
 
 
 static const float fractionalPowers[3][7] = {	{0.28f,0.37f,0.62f,0.82f,0.60f,0.72f,0.77f},// VHF - THESE VALUE HAVE NOT BEEN CALIBRATED
@@ -1203,19 +1236,23 @@ void trxSetTxCSS(uint16_t tone)
 		// tone value of 0xffff in the codeplug seem to be a flag that no tone has been selected
 		// Zero the CTCSS1 Register
 		AT1846SWriteReg2byte(0x4a, 0x00, 0x00);
-		// disable the transmit CTCSS
+		// Zero the CTCSS2 Register
+		AT1846SWriteReg2byte(0x4d, 0x00, 0x00);
+		// disable the transmit CTCSS/DCS
 		AT1846SetClearReg2byteWithMask(0x4e, 0xF9, 0xFF, 0x00, 0x00);
 	}
 	else if (type == CSS_TYPE_CTCSS)
 	{
 		// value that is stored is 100 time the tone freq but its stored in the codeplug as freq times 10
-		tone = tone * 10;
+		tone *= 10;
+		// CTCSS 1
 		AT1846SWriteReg2byte(0x4a, (tone >> 8) & 0xff, (tone & 0xff));
+		// Zero CTCSS 2
+		AT1846SWriteReg2byte(0x4d, 0x00, 0x00);
 		// init cdcss_code
 		AT1846SWriteReg2byte(0x4b, 0x00, 0x00);
-		// init cdcss_code
-		AT1846SWriteReg2byte(0x4c, 0x0A, 0xE3);
-		//enable the transmit CTCSS
+		AT1846SWriteReg2byte(0x4c, 0x00, 0x00);
+		// enable the transmit CTCSS
 		AT1846SetClearReg2byteWithMask(0x4e, 0xF9, 0xFF, 0x06, 0x00);
 	}
 	else if (type & CSS_TYPE_DCS)
@@ -1243,8 +1280,12 @@ void trxSetRxCSS(uint16_t tone)
 	if (type == CSS_TYPE_NONE)
 	{
 		// tone value of 0xffff in the codeplug seem to be a flag that no tone has been selected
+		// Zero the CTCSS1 Register
+		AT1846SWriteReg2byte(0x4a, 0x00, 0x00);
 		// Zero the CTCSS2 Register
 		AT1846SWriteReg2byte(0x4d, 0x00, 0x00);
+		// disable the transmit CTCSS/DCS
+		AT1846SetClearReg2byteWithMask(0x4e, 0xF9, 0xFF, 0x00, 0x00);
 		rxCSSactive = false;
 	}
 	else if (type == CSS_TYPE_CTCSS)
@@ -1255,12 +1296,16 @@ void trxSetRxCSS(uint16_t tone)
 			threshold = 1;
 		}
 		// value that is stored is 100 time the tone freq but its stored in the codeplug as freq times 10
-		tone = tone * 10;
-		AT1846SWriteReg2byte(0x4d, (tone >> 8) & 0xff, (tone & 0xff));
-		//set the detection thresholds
+		tone *= 10;
+		// CTCSS 1
+		AT1846SWriteReg2byte(0x4a, (tone >> 8) & 0xff, (tone & 0xff));
+		// Zero CTCSS 2
+		AT1846SWriteReg2byte(0x4d, 0x00, 0x00);
+		// set the detection thresholds
 		AT1846SWriteReg2byte(0x5b, (threshold & 0xFF), (threshold & 0xFF));
-		//set detection to CTCSS2
-		AT1846SetClearReg2byteWithMask(0x3a, 0xFF, 0xE0, 0x00, 0x08);
+		// set detection to CTCSS 1
+		AT1846SetClearReg2byteWithMask(0x3a, 0xFF, 0xE0, 0x00, 0x01);
+
 		rxCSSactive = (trxAnalogFilterLevel != ANALOG_FILTER_NONE);
 		// Force closing the AudioAmp
 		disableAudioAmp(AUDIO_AMP_MODE_RF);
@@ -1307,7 +1352,7 @@ bool trxCheckCSSFlag(uint16_t tone)
 
 	CodeplugCSSTypes_t type = codeplugGetCSSType(tone);
 
-	return ((retval == kStatus_Success) && (((type == CSS_TYPE_CTCSS) && (FlagsH & 0x01)) || ((type & CSS_TYPE_DCS) && ((FlagsL & 0x05) == 0x05))));
+	return ((retval == kStatus_Success) && ((type != CSS_TYPE_NONE) && ((FlagsL & 0x05) == 0x05)));
 }
 
 void trxUpdateDeviation(int channel)
@@ -1558,7 +1603,7 @@ void trxPowerUpDownRxAndC6000(bool powerUp, bool includeC6000)
 		AT1846SWriteReg2byte(0x30, 0x00, 0x00); // Now enter power down mode
 #endif
 
-
+		taskENTER_CRITICAL();
 		if (!voicePromptsIsPlaying())
 		{
 			if (includeC6000)
@@ -1568,6 +1613,7 @@ void trxPowerUpDownRxAndC6000(bool powerUp, bool includeC6000)
 				GPIO_PinWrite(GPIO_INT_C6000_PWD, Pin_INT_C6000_PWD, 1);// Power down the C6000
 			}
 		}
+		taskEXIT_CRITICAL();
 
 		GPIO_PinWrite(GPIO_VHF_RX_amp_power, Pin_VHF_RX_amp_power, 0);// VHF pre-amp on
 		GPIO_PinWrite(GPIO_UHF_RX_amp_power, Pin_UHF_RX_amp_power, 0);// UHF pre-amp off

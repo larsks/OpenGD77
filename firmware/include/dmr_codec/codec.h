@@ -45,7 +45,7 @@
 #define AMBE_ENCODE 0x00054F94;
 #define AMBE_ENCODE_ECC 0x0005534C;
 
-void codecInit(void);
+void codecInit(bool fromVoicePrompts);
 bool codecIsAvailable(void);
 void codecInitInternalBuffers(void);
 void codecDecode(uint8_t *indata_ptr, int numbBlocks);

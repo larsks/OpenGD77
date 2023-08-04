@@ -73,7 +73,7 @@ menuStatus_t uiSplashScreen(uiEvent_t *ev, bool isFirstRun)
 				uiDataGlobal.MessageBox.validatorCallback = validatePinCodeCallback;
 				menuSystemPushNewMenu(UI_MESSAGE_BOX);
 
-				addTimerCallback(pincodeAudioAlert, 500, false);// Need to delay playing this for a while, because otherwise it may get played before the volume is turned up enough to hear it.
+				addTimerCallback(pincodeAudioAlert, 500, UI_MESSAGE_BOX, false); // Need to delay playing this for a while, because otherwise it may get played before the volume is turned up enough to hear it.
 				return MENU_STATUS_SUCCESS;
 			}
 		}
@@ -143,6 +143,8 @@ static void updateScreen(void)
 		ucPrintCentered(8, "OpenGD77", FONT_SIZE_3);
 #elif defined(PLATFORM_DM1801)
 		ucPrintCentered(8, "OpenDM1801", FONT_SIZE_3);
+#elif defined(PLATFORM_DM1801A)
+		ucPrintCentered(8, "OpenDM1801A", FONT_SIZE_3);
 #endif
 		ucPrintCentered((DISPLAY_SIZE_Y / 4) * 2, line1, FONT_SIZE_3);
 		ucPrintCentered((DISPLAY_SIZE_Y / 4) * 3, line2, FONT_SIZE_3);

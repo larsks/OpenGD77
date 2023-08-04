@@ -1,5 +1,5 @@
 /* -*- coding: windows-1252-unix; -*- */
-/* 
+/*
  * Copyright (C) 2019-2021 Roger Clark, VK3KYY / G4KYF
  *
  *
@@ -29,7 +29,7 @@
  * Translators: EA3IGM, EA5SW, EB3AM, EA3BIL
  *
  *
- * Rev: 6
+ * Rev: 7
  */
 #ifndef USER_INTERFACE_LANGUAGES_CATALAN_H_
 #define USER_INTERFACE_LANGUAGES_CATALAN_H_
@@ -59,7 +59,7 @@ const stringsTable_t catalanLanguage=
 .language				= "Idioma",
 .new_contact			= "Nou contacte",
 .dmr_contacts				= "DMR contacts", // MaxLen: 16
-.hotspot_mode			= "Mode Hotspot",
+.hotspot_mode			= "Hotspot",
 .contact_details		= "Detall Ctte",
 .built					= "Compilat",
 .zones					= "Zones",
@@ -114,8 +114,8 @@ const stringsTable_t catalanLanguage=
 .rx_group				= "RX Grup",
 .on						= "Sí",
 .timeout_beep			= "Avís T.O.T.",
-.UNUSED_1				= "",
-.calibration			= "Calibració",
+.list_full				= "Llista plena",
+.UNUSED_1			= "",
 .band_limits			= "Límit bandes",
 .beep_volume			= "Volum tons",
 .dmr_mic_gain			= "DMR mic",
@@ -157,20 +157,20 @@ const stringsTable_t catalanLanguage=
 .two_lines				= "2 línies", // MaxLen 16 (with ':' + .contact)
 .new_channel			= "Nou canal", // MaxLen: 16, leave room for a space and four channel digits after
 .priority_order			= "Prio.", // MaxLen 16 (with ':' + 'Cc/DB/TA')
-.dmr_beep				= "DMR Beep", // MaxLen 16 (with ':' + .star/.stop/.both/.none)
+.dmr_beep				= "to DMR", // MaxLen 16 (with ':' + .star/.stop/.both/.none)
 .start					= "Inici", // MaxLen 16 (with ':' + .dmr_beep)
 .both					= "Tots", // MaxLen 16 (with ':' + .dmr_beep)
-.vox_threshold			= "VOX Nivell", // MaxLen 16 (with ':' + .off or 1..30)
-.vox_tail				= "VOX Cua", // MaxLen 16 (with ':' + .n_a or '0.0s')
-.audio_prompt			= "Prompt",// Maxlen 16 (with ':' + .silent, .normal, .beep or .voice_prompt_level_1)
+.vox_threshold			= "Nivell VOX", // MaxLen 16 (with ':' + .off or 1..30)
+.vox_tail				= "Cua VOX", // MaxLen 16 (with ':' + .n_a or '0.0s')
+.audio_prompt			= "Avís",// Maxlen 16 (with ':' + .silent, .beep or .voice_prompt_level_1)
 .silent					= "Silenci", // Maxlen 16 (with : + audio_prompt)
-.normal					= "Normal", // Maxlen 16 (with : + audio_prompt)
+.UNUSED_2			= "",
 .beep					= "Beep", // Maxlen 16 (with : + audio_prompt)
 .voice_prompt_level_1	= "Veu L1", // Maxlen 16 (with : + audio_prompt)
-.transmitTalkerAlias	= "TA Tx", // Maxlen 16 (with : + .on or .off)
-.squelch_VHF			= "VHF Squelch",// Maxlen 16 (with : + XX%)
-.squelch_220			= "220 Squelch",// Maxlen 16 (with : + XX%)
-.squelch_UHF			= "UHF Squelch", // Maxlen 16 (with : + XX%)
+.transmitTalkerAlias	= "Enviar TA", // Maxlen 16 (with : + .on or .off)
+.squelch_VHF			= "Squelch VHF",// Maxlen 16 (with : + XX%)
+.squelch_220			= "Squelch 220",// Maxlen 16 (with : + XX%)
+.squelch_UHF			= "Squelch UHF", // Maxlen 16 (with : + XX%)
 .display_background_colour = "Color" , // Maxlen 16 (with : + .colour_normal or .colour_invert)
 .openGD77 				= "OpenGD77",// Do not translate
 .openGD77S 				= "OpenGD77S",// Do not translate
@@ -179,35 +179,38 @@ const stringsTable_t catalanLanguage=
 .gitCommit				= "Git commit",
 .voice_prompt_level_2	= "Veu L2", // Maxlen 16 (with : + audio_prompt)
 .voice_prompt_level_3	= "Veu L3", // Maxlen 16 (with : + audio_prompt)
-.dmr_filter				= "DMR Filter",// MaxLen: 12 (with ':' + settings: "TG" or "Ct" or "RxG")
-.dmr_cc_filter			= "CC Filter", // MaxLen: 12 (with ':' + settings: .on or .off)
-.dmr_ts_filter			= "TS Filter", // MaxLen: 12 (with ':' + settings: .on or .off)
-.dtmf_contact_list			= "FM DTMF contacts", // Maxlen: 16
-.channel_power				= "Ch Power", //Displayed as "Ch Power:" + .from_master or "Ch Power:"+ power text e.g. "Power:500mW" . Max total length 16
+.dmr_filter				= "Filtre DMR",// MaxLen: 12 (with ':' + settings: "TG" or "Ct" or "RxG")
+.dmr_cc_filter			= "Filtre CC", // MaxLen: 12 (with ':' + settings: .on or .off)
+.dmr_ts_filter			= "Filtre TS", // MaxLen: 12 (with ':' + settings: .on or .off)
+.dtmf_contact_list			= "Contactes DTMF", // Maxlen: 16
+.channel_power				= "Pot. Ch", //Displayed as "Ch Power:" + .from_master or "Ch Power:"+ power text e.g. "Power:500mW" . Max total length 16
 .from_master				= "Master",// Displayed if per-channel power is not enabled  the .channel_power
-.set_quickkey				= "Set Quickkey", // MaxLen: 16
+.set_quickkey				= "Ajust Quickkey", // MaxLen: 16
 .dual_watch				= "Dual Watch", // MaxLen: 16
 .info					= "Info", // MaxLen: 16 (with ':' + .off or.ts or .pwr or .both)
 .pwr					= "Pwr",
-.user_power				= "User Power",
-.temperature				= "Temperature", // MaxLen: 16 (with ':' + .celcius or .fahrenheit)
+.user_power				= "Pwr usuari",
+.temperature				= "Temperatura", // MaxLen: 16 (with ':' + .celcius or .fahrenheit)
 .celcius				= "°C",
-.seconds				= "seconds",
-.radio_info				= "Radio infos",
-.temperature_calibration		= "Temp Cal",
-.pin_code				= "Pin Code",
-.please_confirm				= "Please confirm", // MaxLen: 15
+.seconds				= "segonds",
+.radio_info				= "Ràdio infos",
+.temperature_calibration		= "Cal temp.",
+.pin_code				= "Codi pin",
+.please_confirm				= "Confirma", // MaxLen: 15
 .vfo_freq_bind_mode			= "Freq. Bind",
-.overwrite_qm				= "Overwrite ?", //Maxlen: 14 chars
-.eco_level				= "Eco Level",
-.buttons				= "Buttons",
+.overwrite_qm				= "Guardo ?", //Maxlen: 14 chars
+.eco_level				= "Nivell eco",
+.buttons				= "Botons",
 .leds					= "LEDs",
-.scan_dwell_time			= "Scan dwell",
-.battery_calibration			= "Batt. Cal",
-.low					= "Low",
-.high					= "High",
-.dmr_id					= "DMR ID",
-.scan_on_boot				= "Scan On Boot"
+.scan_dwell_time			= "Temps dwell",
+.battery_calibration			= "Cal bat.",
+.low					= "Baix",
+.high					= "Alt",
+.dmr_id					= "ID DMR",
+.scan_on_boot				= "Scan inici",
+.dtmf_entry				= "Entrada DTMF",
+.name					= "Nom",
+.openDM1801A 				= "OpenDM1801A" // Do not translate
 };
 /********************************************************************
  *

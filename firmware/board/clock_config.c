@@ -143,7 +143,7 @@ const mcg_config_t mcgConfig_BOARD_BootClockRUN = {
     .pll0Config =
         {
             .enableMode = MCG_PLL_DISABLE, /* MCGPLLCLK disabled */
-#if defined(PLATFORM_DM1801) || defined(PLATFORM_RD5R)
+#if defined(PLATFORM_DM1801) || defined(PLATFORM_DM1801A) || defined(PLATFORM_RD5R)
 			// Currently need to tweak the Rx Clock speed on the DM1801 and RD5R, otherwise for some reason the DMR Tx audio doesn't work
 			// due to timing problems with the compression of the raw mic audio to AMBE
             .prdiv = 6,                 /* PLL Reference divider: divided by 1 + prdiv */

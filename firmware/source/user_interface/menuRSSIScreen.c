@@ -79,11 +79,6 @@ menuStatus_t menuRSSIScreen(uiEvent_t *ev, bool isFirstRun)
 // Returns S-Unit 0..9..10(S9+10dB)..15(S9+60)
 static int32_t getSignalStrength(int dbm)
 {
-	if (dbm)
-	{
-		return 0;
-	}
-
 	for (int8_t i = 15; i >= 0; i--)
 	{
 		if (dbm >= DBM_LEVELS[i])
@@ -97,7 +92,7 @@ static int32_t getSignalStrength(int dbm)
 
 static void updateScreen(bool forceRedraw, bool isFirstRun)
 {
-	char buffer[17];
+	char buffer[SCREEN_LINE_BUFFER_SIZE];
 	int barWidth;
 
 	dBm = getRSSIdBm();
@@ -105,16 +100,10 @@ static void updateScreen(bool forceRedraw, bool isFirstRun)
 
 	if (isFirstRun && (nonVolatileSettings.audioPromptMode >= AUDIO_PROMPT_MODE_VOICE_LEVEL_1))
 	{
-		if (voicePromptsIsPlaying())
-		{
-			voicePromptsTerminate();
-		}
 		voicePromptsInit();
-		voicePromptsAppendPrompt(PROMPT_SILENCE);
 		voicePromptsAppendPrompt(PROMPT_SILENCE);
 		voicePromptsAppendLanguageString(&currentLanguage->rssi);
 		voicePromptsAppendLanguageString(&currentLanguage->menu);
-		voicePromptsAppendPrompt(PROMPT_SILENCE);
 		voicePromptsAppendPrompt(PROMPT_SILENCE);
 		updateVoicePrompts(false, true);
 	}
@@ -179,7 +168,7 @@ static void updateScreen(bool forceRedraw, bool isFirstRun)
 		ucFillRect(((DISPLAY_SIZE_X - (7 * 8)) >> 1), DISPLAY_Y_POS_RSSI_VALUE, (7 * 8), FONT_SIZE_3_HEIGHT, true);
 	}
 
-	snprintf(buffer, 17, "%d%s", dBm, "dBm");
+	snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "%d%s", dBm, "dBm");
 	ucPrintCentered(DISPLAY_Y_POS_RSSI_VALUE, buffer, FONT_SIZE_3);
 
 #if 0 // DEBUG

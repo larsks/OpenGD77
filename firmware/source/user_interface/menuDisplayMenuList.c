@@ -39,11 +39,32 @@ menuStatus_t menuDisplayMenuList(uiEvent_t *ev, bool isFirstRun)
 {
 	if (isFirstRun)
 	{
+		char **menuName = NULL;
 		int currentMenuNumber = menuSystemGetCurrentMenuNumber();
+
 		menuDataGlobal.currentMenuList = (menuItemNewData_t *)menuDataGlobal.data[currentMenuNumber]->items;
 		menuDataGlobal.endIndex = menuDataGlobal.data[currentMenuNumber]->numItems;
 
+		if ((currentMenuNumber != MENU_MAIN_MENU) && (menuDataGlobal.controlData.stackPosition >= 1))
+		{
+			if (menuDataGlobal.data[menuDataGlobal.controlData.stack[menuDataGlobal.controlData.stackPosition - 1]] != NULL)
+			{
+				int lastIndex = menuSystemGetLastItemIndex(menuDataGlobal.controlData.stackPosition - 1);
+
+				if (lastIndex != -1)
+				{
+					menuName = (char **)((int)&currentLanguage->LANGUAGE_NAME +
+							(menuDataGlobal.data[menuDataGlobal.controlData.stack[menuDataGlobal.controlData.stackPosition - 1]]->items[lastIndex].stringOffset * sizeof(char *)));
+				}
+			}
+		}
+
 		voicePromptsInit();
+		if (menuName)
+		{
+			voicePromptsAppendPrompt(PROMPT_SILENCE);
+			voicePromptsAppendLanguageString((const char * const *)menuName);
+		}
 		voicePromptsAppendLanguageString(&currentLanguage->menu);
 		voicePromptsAppendPrompt(PROMPT_SILENCE);
 
@@ -97,6 +118,7 @@ static void updateScreen(bool isFirstRun)
 					{
 						voicePromptsInit();
 					}
+
 					voicePromptsAppendLanguageString((const char * const *)menuName);
 					promptsPlayNotAfterTx();
 				}

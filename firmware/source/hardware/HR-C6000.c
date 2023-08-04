@@ -215,17 +215,17 @@ volatile bool hotspotDMRTxFrameBufferEmpty = true;
 volatile bool hotspotDMRRxFrameBufferAvailable = false;
 
 volatile uint8_t DMR_frame_buffer[DMR_FRAME_BUFFER_SIZE];
-uint8_t deferredUpdateBuffer[DMR_FRAME_BUFFER_SIZE*6];
+static uint8_t deferredUpdateBuffer[DMR_FRAME_BUFFER_SIZE*6];
 volatile bool deferredBufferAvailable = false;
 volatile uint8_t *deferredUpdateBufferOutPtr = deferredUpdateBuffer;
 volatile uint8_t *deferredUpdateBufferInPtr = deferredUpdateBuffer;
 
-const int NUM_AMBE_BLOCK_PER_DMR_FRAME = 3;
-const int NUM_AMBE_BUFFERS = 2;
-const int AMBE_AUDIO_LENGTH = 27;
-const int LENGTH_AMBE_BLOCK = 9;
-const uint8_t *deferredUpdateBufferEnd = (uint8_t *)deferredUpdateBuffer + (AMBE_AUDIO_LENGTH * NUM_AMBE_BUFFERS) -1;
-int ambeBufferCount = 0;
+static const int NUM_AMBE_BLOCK_PER_DMR_FRAME = 3;
+static const int NUM_AMBE_BUFFERS = 2;
+static const int AMBE_AUDIO_LENGTH = 27;
+static const int LENGTH_AMBE_BLOCK = 9;
+static const uint8_t *deferredUpdateBufferEnd = (uint8_t *)deferredUpdateBuffer + (AMBE_AUDIO_LENGTH * NUM_AMBE_BUFFERS) -1;
+static volatile int ambeBufferCount = 0;
 
 static volatile int int_timeout;
 
@@ -250,7 +250,7 @@ static volatile int rxwait;// used for Repeater wakeup sequence
 static volatile int rxcnt;// used for Repeater wakeup sequence
 static volatile int tsLockCount = 0;
 
-volatile int lastTimeCode = 0;
+static volatile int lastTimeCode = 0;
 static volatile uint8_t previousLCBuf[12];
 volatile bool updateLastHeard = false;
 volatile int dmrMonitorCapturedTS = -1;
@@ -267,17 +267,17 @@ static inline void HRC6000TxInterruptHandler(void);
 static void HRC6000TransitionToTx(void);
 static void triggerQSOdataDisplay(void);
 
-enum RXSyncClass { SYNC_CLASS_HEADER = 0, SYNC_CLASS_VOICE = 1, SYNC_CLASS_DATA = 2, SYNC_CLASS_RC = 3};
-enum RXSyncType { MS_SYNC =0 , BS_SYNC =1 , TDMA1_SYNC = 2 , TDMA2_SYNC =3};
+enum RXSyncClass { SYNC_CLASS_HEADER = 0, SYNC_CLASS_VOICE = 1, SYNC_CLASS_DATA = 2, SYNC_CLASS_RC = 3 };
+enum RXSyncType { MS_SYNC = 0 , BS_SYNC = 1 , TDMA1_SYNC = 2 , TDMA2_SYNC = 3 };
 
 static const int START_TICK_TIMEOUT = 20;
 static const int END_TICK_TIMEOUT 	= 13;
 
-static volatile int lastRxColorCode = 0;
+static volatile int lastRxColorCode = -1;
 static bool ccHold = true;
 static int ccHoldTimer = 0;
 static const int CCHOLDVALUE = 1000;			//1 second
-static int wakeTriesCount;
+static int wakeTriesCount = 0;
 
 static void writeSPIRegister0x04Multi(const uint8_t values[][2], uint8_t length)
 {
@@ -603,7 +603,7 @@ inline static void HRC6000SysPostAccessInt(void)
 	// Late entry into ongoing RX
 	if (slot_state == DMR_STATE_IDLE)
 	{
-		codecInit();
+		codecInit(false);
 		LEDs_PinWrite(GPIO_LEDgreen, Pin_LEDgreen, 1);
 
 		SPI0WritePageRegByte(0x04, 0x41, 0x50);     //Receive only in next timeslot
@@ -641,7 +641,11 @@ inline static void HRC6000SysReceivedDataInt(void)
 	int rpi;
 	int rxSyncType;
 
-	SPI0ReadPageRegByte(0x04, 0x51, &reg_0x51);
+	if (SPI0ReadPageRegByte(0x04, 0x51, &reg_0x51) != kStatus_Success)
+	{
+		rxCRCisValid = false;
+		return;
+	}
 
 	//read_SPI_page_reg_byte_SPI0(0x04, 0x57, &reg_0x57);// Kai said that the official firmware uses this register instead of 0x52 for the timecode
 
@@ -650,16 +654,20 @@ inline static void HRC6000SysReceivedDataInt(void)
 	rxCRCisValid = (((reg_0x51 >> 2) & 0x01) == 0);// CRC is OK if its 0
 	rpi = (reg_0x51 >> 3) & 0x01;
 
-	SPI0ReadPageRegByte(0x04, 0x5f, &reg_0x5F);
-	rxSyncType=reg_0x5F & 0x03;                       //received Sync Type
-
-	if (rxSyncType==BS_SYNC)                                           // if we are receiving from a base station (Repeater)
+	if (SPI0ReadPageRegByte(0x04, 0x5f, &reg_0x5F) != kStatus_Success)
 	{
-		trxDMRModeRx = DMR_MODE_RMO;                               // switch to RMO mode to allow reception
+		return;
+	}
+
+	rxSyncType = reg_0x5F & 0x03; //received Sync Type
+
+	if (rxSyncType == BS_SYNC)       // if we are receiving from a base station (Repeater)
+	{
+		trxDMRModeRx = DMR_MODE_RMO; // switch to RMO mode to allow reception
 	}
 	else
 	{
-		trxDMRModeRx = DMR_MODE_DMO;								   // not base station so must be DMO
+		trxDMRModeRx = DMR_MODE_DMO; // not base station so must be DMO
 
 	}
 
@@ -721,7 +729,7 @@ inline static void HRC6000SysReceivedDataInt(void)
 		{
 			if (checkColourCodeFilter())// Voice LC Header
 			{
-				codecInit();
+				codecInit(false);
 				LEDs_PinWrite(GPIO_LEDgreen, Pin_LEDgreen, 1);
 
 				SPI0WritePageRegByte(0x04, 0x41, 0x50);     //Receive only in next timeslot
@@ -743,10 +751,31 @@ inline static void HRC6000SysReceivedDataInt(void)
 			// Detect/decode voice packet and transfer it into the output soundbuffer
 
 			if (((skip_count == 0) || ((receivedSrcId != trxDMRID) && (receivedSrcId != 0x00))) &&
-			(rxSyncClass != SYNC_CLASS_DATA) && (sequenceNumber >= 0x01) && (sequenceNumber <= 0x06) &&
-			(((trxDMRModeRx == DMR_MODE_RMO) && (checkTimeSlotFilter() && lastTimeCode != timeCode)) || ((trxDMRModeRx == DMR_MODE_DMO) &&
-			 (slot_state == DMR_STATE_RX_1))) && checkTalkGroupFilter() && checkColourCodeFilter())
+					(rxSyncClass != SYNC_CLASS_DATA) && (sequenceNumber >= 0x01) && (sequenceNumber <= 0x06) &&
+					(((trxDMRModeRx == DMR_MODE_RMO) && (checkTimeSlotFilter() && lastTimeCode != timeCode)) || ((trxDMRModeRx == DMR_MODE_DMO) &&
+							(slot_state == DMR_STATE_RX_1))) && checkTalkGroupFilter() && checkColourCodeFilter())
 			{
+				// We just got a valid audio, while in Monitor Mode, hence, we need to
+				// (re)send the QSO info
+				if (monitorModeData.isEnabled)
+				{
+					if (ccHold == false)
+					{
+						if (monitorModeData.dmrIsValid == false)
+						{
+							monitorModeData.qsoInfoUpdated = false;
+							updateLastHeard = false;
+							monitorModeData.dmrIsValid = true;
+							// Hack: Skip the two first frames
+							//   The HR-C6000 is returning, on the first iteration, the LC data from the previous
+							//   transmission, hence the displayed QSO info are messed up on the screen at the beginning
+							//   of the decoding.
+							//   Skipping the first two frames circumvent the problem (but delay a bit the QSO info displaying).
+							monitorModeData.dmrFrameSkip = 2;
+						}
+					}
+				}
+
 				ccHold = true;				//don't allow CC to change if we are receiving audio
 
 				if((settingsUsbMode != USB_MODE_HOTSPOT) && ((getAudioAmpStatus() & AUDIO_AMP_MODE_RF) == 0) &&
@@ -757,7 +786,22 @@ inline static void HRC6000SysReceivedDataInt(void)
 
 				if (sequenceNumber == 1)
 				{
-					triggerQSOdataDisplay();
+					if ((monitorModeData.isEnabled && monitorModeData.dmrIsValid && (monitorModeData.dmrFrameSkip == 0)) ||
+							(monitorModeData.isEnabled == false))
+					{
+						triggerQSOdataDisplay();
+					}
+
+					if (monitorModeData.isEnabled && monitorModeData.dmrIsValid && monitorModeData.dmrFrameSkip)
+					{
+						monitorModeData.dmrFrameSkip--;
+
+						if (monitorModeData.dmrFrameSkip == 0) // All frames are skipped, clear the last heard now.
+						{
+							clearActiveDMRID();
+							lastHeardClearLastID();
+						}
+					}
 				}
 
 				SPI1ReadPageRegByteArray(0x03, 0x00, DMR_frame_buffer + 0x0C, 27);
@@ -813,120 +857,146 @@ inline static void HRC6000SysPhysicalLayerInt(void)
 inline static void HRC6000SysInterruptHandler(void)
 {
 	uint8_t reg0x52;
-	SPI0ReadPageRegByte(0x04, 0x82, &reg_0x82);  //Read Interrupt Flag Register1
-	SPI0ReadPageRegByte(0x04, 0x52, &reg0x52);  //Read Received CC and CACH
-	rxColorCode = (reg0x52 >> 4) & 0x0f;
+	bool reg82Result = (SPI0ReadPageRegByte(0x04, 0x82, &reg_0x82) == kStatus_Success);  //Read Interrupt Flag Register1
+	bool reg52Result = (SPI0ReadPageRegByte(0x04, 0x52, &reg0x52) == kStatus_Success);  //Read Received CC and CACH
 
+	if (reg52Result)
+	{
+		rxColorCode = (reg0x52 >> 4) & 0x0f;
+	}
 
 	if (!trxTransmissionEnabled) // ignore the LC data when we are transmitting
 	{
 		//if ((!ccHold) && (nonVolatileSettings.dmrDestinationFilter < DMR_CCTS_FILTER_CC))
-		if ((!ccHold) && (nonVolatileSettings.dmrCcTsFilter == DMR_CCTS_FILTER_NONE || nonVolatileSettings.dmrCcTsFilter == DMR_CCTS_FILTER_TS))
+		if (reg52Result && ((!ccHold) && (nonVolatileSettings.dmrCcTsFilter == DMR_CCTS_FILTER_NONE || nonVolatileSettings.dmrCcTsFilter == DMR_CCTS_FILTER_TS)))
 		{
 			if(rxColorCode == lastRxColorCode)
 			{
 				trxSetDMRColourCode(rxColorCode);
 			}
+
 			lastRxColorCode = rxColorCode;
 		}
 
 		uint8_t LCBuf[12];
-		SPI0ReadPageRegBytAarray(0x02, 0x00, LCBuf, 12);// read the LC from the C6000
-		SPI0ReadPageRegByte(0x04, 0x51, &reg_0x51);
-		bool rxCRCStatus = (((reg_0x51 >> 2) & 0x01) == 0);// CRC is OK if its 0
+		bool lcResult = (SPI0ReadPageRegByteArray(0x02, 0x00, LCBuf, 12) == kStatus_Success);// read the LC from the C6000
+		bool reg51Result = (SPI0ReadPageRegByte(0x04, 0x51, &reg_0x51) == kStatus_Success);
+		bool rxCRCStatus = (reg51Result && (((reg_0x51 >> 2) & 0x01) == 0));// CRC is OK if its 0
 
-		if (rxCRCStatus && ((LCBuf[0] == TG_CALL_FLAG) || (LCBuf[0] == PC_CALL_FLAG) || ((LCBuf[0] >= DMR_EMBEDDED_DATA_TALKER_ALIAS_HEADER) && (LCBuf[0] <= DMR_EMBEDDED_DATA_GPS_INFO))) &&
-			(memcmp((uint8_t *)previousLCBuf, LCBuf, 12) != 0))
+		if (lcResult && rxCRCStatus && ccHold)
 		{
-
-			if (((checkTimeSlotFilter() || (trxDMRModeRx == DMR_MODE_DMO))) && checkColourCodeFilter()) // only do this for the selected timeslot, or when in Active mode
+			if (((LCBuf[0] == TG_CALL_FLAG) || (LCBuf[0] == PC_CALL_FLAG) || ((LCBuf[0] >= DMR_EMBEDDED_DATA_TALKER_ALIAS_HEADER) && (LCBuf[0] <= DMR_EMBEDDED_DATA_GPS_INFO))) &&
+					((memcmp((uint8_t *)previousLCBuf, LCBuf, 12) != 0) || (monitorModeData.isEnabled && (monitorModeData.qsoInfoUpdated == false))))
 			{
-				if ((LCBuf[0] == TG_CALL_FLAG) || (LCBuf[0] == PC_CALL_FLAG))
+				if (((checkTimeSlotFilter() || (trxDMRModeRx == DMR_MODE_DMO))) && checkColourCodeFilter()) // only do this for the selected timeslot, or when in Active mode
 				{
-					receivedTgOrPcId 	= (LCBuf[0] << 24) + (LCBuf[3] << 16) + (LCBuf[4] << 8) + (LCBuf[5] << 0);// used by the call accept filter
-					receivedSrcId 		= (LCBuf[6] << 16) + (LCBuf[7] << 8) + (LCBuf[8] << 0);// used by the call accept filter
-
-					if ((receivedTgOrPcId != 0) && (receivedSrcId != 0) && checkTalkGroupFilter()) // only store the data if its actually valid
+					if ((LCBuf[0] == TG_CALL_FLAG) || (LCBuf[0] == PC_CALL_FLAG))
 					{
-						if (updateLastHeard == false)
+						receivedTgOrPcId 	= (LCBuf[0] << 24) + (LCBuf[3] << 16) + (LCBuf[4] << 8) + (LCBuf[5] << 0);// used by the call accept filter
+						receivedSrcId 		= (LCBuf[6] << 16) + (LCBuf[7] << 8) + (LCBuf[8] << 0);// used by the call accept filter
+
+						if ((receivedTgOrPcId != 0) && (receivedSrcId != 0) && checkTalkGroupFilter()) // only store the data if its actually valid
 						{
-							memcpy((uint8_t *)DMR_frame_buffer, LCBuf, 12);
-							updateLastHeard = true;	//lastHeardListUpdate((uint8_t *)DMR_frame_buffer);
-						}
+							if (monitorModeData.isEnabled && monitorModeData.dmrIsValid && (monitorModeData.dmrFrameSkip == 0) && monitorModeData.qsoInfoUpdated && (updateLastHeard == false))
+							{
+								monitorModeData.qsoInfoUpdated = false;
+							}
 
+							if ((monitorModeData.isEnabled && monitorModeData.dmrIsValid && (monitorModeData.dmrFrameSkip == 0) && ((monitorModeData.qsoInfoUpdated == false))) ||
+									((monitorModeData.isEnabled == false) && (updateLastHeard == false)))
+							{
+								memcpy((uint8_t *)DMR_frame_buffer, LCBuf, 12);
+								updateLastHeard = true;
+								monitorModeData.qsoInfoUpdated = true;
+							}
+						}
 					}
-				}
-				else
-				{
-					if ((updateLastHeard == false) && (receivedTgOrPcId != 0) && checkTalkGroupFilter())
+					else
 					{
-						memcpy((uint8_t *)DMR_frame_buffer, LCBuf, 12);
-						updateLastHeard = true;//lastHeardListUpdate((uint8_t *)DMR_frame_buffer);
+						if ((updateLastHeard == false) && (receivedTgOrPcId != 0) && checkTalkGroupFilter())
+						{
+							if (monitorModeData.isEnabled && monitorModeData.dmrIsValid && (monitorModeData.dmrFrameSkip == 0) && monitorModeData.qsoInfoUpdated)
+							{
+								monitorModeData.qsoInfoUpdated = false;
+							}
+
+							if ((monitorModeData.isEnabled && monitorModeData.dmrIsValid && (monitorModeData.dmrFrameSkip == 0) && (((monitorModeData.qsoInfoUpdated == false)) && (receivedSrcId != 0))) ||
+									(monitorModeData.isEnabled == false))
+							{
+								memcpy((uint8_t *)DMR_frame_buffer, LCBuf, 12);
+								updateLastHeard = true;
+								monitorModeData.qsoInfoUpdated = true;
+							}
+						}
 					}
 				}
 			}
+
+			memcpy((uint8_t *)previousLCBuf, LCBuf, 12);
 		}
-		memcpy((uint8_t *)previousLCBuf, LCBuf, 12);
 	}
 	else
 	{
 		ccHold = true;					//prevent CC change when transmitting.
 	}
 
-	if (reg_0x82 & SYS_INT_SEND_REQUEST_REJECTED)
+	if (reg82Result)
 	{
-		HRC6000SysSendRejectedInt();
-	}
+		if (reg_0x82 & SYS_INT_SEND_REQUEST_REJECTED)
+		{
+			HRC6000SysSendRejectedInt();
+		}
 
-	if (reg_0x82 & SYS_INT_SEND_START)
-	{
-		HRC6000SysSendStartInt();
-	}
-	else
-	{
-		reg_0x84 = 0x00;
-	}
+		if (reg_0x82 & SYS_INT_SEND_START)
+		{
+			HRC6000SysSendStartInt();
+		}
+		else
+		{
+			reg_0x84 = 0x00;
+		}
 
-	if (reg_0x82 & SYS_INT_SEND_END)// Kai's comment was InterSendStop interrupt
-	{
-		HRC6000SysSendEndInt();
-	}
-	else
-	{
-		reg_0x86 = 0x00;
-	}
+		if (reg_0x82 & SYS_INT_SEND_END)// Kai's comment was InterSendStop interrupt
+		{
+			HRC6000SysSendEndInt();
+		}
+		else
+		{
+			reg_0x86 = 0x00;
+		}
 
-	if (reg_0x82 & SYS_INT_POST_ACCESS)
-	{
-		HRC6000SysPostAccessInt();
-	}
+		if (reg_0x82 & SYS_INT_POST_ACCESS)
+		{
+			HRC6000SysPostAccessInt();
+		}
 
-	if (reg_0x82 & SYS_INT_RECEIVED_DATA)
-	{
-		HRC6000SysReceivedDataInt();
-	}
+		if (reg_0x82 & SYS_INT_RECEIVED_DATA)
+		{
+			HRC6000SysReceivedDataInt();
+		}
 
-	if (reg_0x82 & SYS_INT_RECEIVED_INFORMATION)
-	{
-		HRC6000SysReceivedInformationInt();
-	}
-	else
-	{
-		reg_0x90 = 0x00;
-	}
+		if (reg_0x82 & SYS_INT_RECEIVED_INFORMATION)
+		{
+			HRC6000SysReceivedInformationInt();
+		}
+		else
+		{
+			reg_0x90 = 0x00;
+		}
 
-	if (reg_0x82 & SYS_INT_ABNORMAL_EXIT)
-	{
-		HRC6000SysAbnormalExitInt();
-	}
-	else
-	{
-		reg_0x98 = 0x00;
-	}
+		if (reg_0x82 & SYS_INT_ABNORMAL_EXIT)
+		{
+			HRC6000SysAbnormalExitInt();
+		}
+		else
+		{
+			reg_0x98 = 0x00;
+		}
 
-	if (reg_0x82 & SYS_INT_PHYSICAL_LAYER)
-	{
-		HRC6000SysPhysicalLayerInt();
+		if (reg_0x82 & SYS_INT_PHYSICAL_LAYER)
+		{
+			HRC6000SysPhysicalLayerInt();
+		}
 	}
 
 	SPI0WritePageRegByte(0x04, 0x83, reg_0x82);  //Clear remaining Interrupt Flags
@@ -937,7 +1007,7 @@ static void HRC6000TransitionToTx(void)
 {
 	disableAudioAmp(AUDIO_AMP_MODE_RF);
 	LEDs_PinWrite(GPIO_LEDgreen, Pin_LEDgreen, 0);
-	codecInit();
+	codecInit(false);
 
 	SPI0WritePageRegByte(0x04, 0x21, 0xA2); // Set Polite to Color Code and Reset vocoder encodingbuffer
 	SPI0WritePageRegByte(0x04, 0x22, 0x86); // Start Vocoder Encode, I2S mode
@@ -947,7 +1017,14 @@ static void HRC6000TransitionToTx(void)
 inline static void HRC6000TimeslotInterruptHandler(void)
 {
 	uint8_t reg0x52;
-	SPI0ReadPageRegByte(0x04, 0x52, &reg0x52);  	//Read CACH Register to get the timecode (TS number)
+	bool reg52Result = (SPI0ReadPageRegByte(0x04, 0x52, &reg0x52) == kStatus_Success);  	//Read CACH Register to get the timecode (TS number)
+
+	if (reg52Result == false)
+	{
+		timer_hrc6000task = 0;
+		return;
+	}
+
 	receivedTimeCode = ((reg0x52 & 0x04) >> 2);				// extract the timecode from the CACH register
 
 	if ((slot_state == DMR_STATE_REPEATER_WAKE_3) || (timeCode == -1))			//if we are waking up the repeater, or we don't currently have a valid value for the timecode
@@ -973,7 +1050,11 @@ inline static void HRC6000TimeslotInterruptHandler(void)
 		else												//if there is a disagree it might be just a glitch so ignore it a couple of times.
 		{
 			rxcnt++;										//count the number of disagrees.
-			tsLockCount--;
+
+			if (tsLockCount > 0)
+			{
+				tsLockCount--;
+			}
 
 			if (rxcnt > 3)										//if we have had four disagrees then re-sync.
 			{
@@ -1071,7 +1152,6 @@ inline static void HRC6000TimeslotInterruptHandler(void)
 			break;
 
 		case DMR_STATE_TX_1: // Ongoing TX (inactive timeslot)
-
 			SPI0WritePageRegByte(0x04, 0x41, 0x00);
 			if ((trxTransmissionEnabled == false) && (tx_sequence == 0))
 			{
@@ -1161,6 +1241,7 @@ inline static void HRC6000TimeslotInterruptHandler(void)
 		case DMR_STATE_TX_END_2: // Stop TX (second step)
 			// Need to hold on this TS after Tx ends otherwise if DMR Mon TS filtering is disabled the radio may switch timeslot
 			dmrMonitorCapturedTS = trxGetDMRTimeSlot();
+
 			dmrMonitorCapturedTimeout = nonVolatileSettings.dmrCaptureTimeout * 1000;
 #ifdef THREE_STATE_SHUTDOWN
 			slot_state = DMR_STATE_TX_END_3_RMO;
@@ -1187,7 +1268,7 @@ inline static void HRC6000TimeslotInterruptHandler(void)
 			break;
 
 		case DMR_STATE_TX_END_3_RMO:
-			skip_count=2;// Hold off displaying or opening the DMR squelch frames under some conditions
+			skip_count = 2;// Hold off displaying or opening the DMR squelch frames under some conditions
 			if (trxDMRModeTx == DMR_MODE_RMO)
 			{
 				LEDs_PinWrite(GPIO_LEDgreen, Pin_LEDgreen, 1);
@@ -1269,6 +1350,7 @@ inline static void HRC6000TimeslotInterruptHandler(void)
 			}
 		}
 	}
+
 	timer_hrc6000task = 0;// I don't think this actually does anything. Its probably redundant legacy code
 }
 
@@ -1297,6 +1379,7 @@ void init_digital_state(void)
 	tick_cnt = 0;
 	skip_count = 0;
 	qsodata_timer = 0;
+	lastRxColorCode = -1;
 }
 
 void init_digital_DMR_RX(void)
@@ -1326,7 +1409,7 @@ void init_digital(void)
 	init_digital_state();
 	NVIC_EnableIRQ(PORTC_IRQn);
 
-	codecInit();
+	codecInit(false);
 }
 
 void terminate_digital(void)
@@ -1421,7 +1504,6 @@ bool callAcceptFilter(void)
 
 void tick_HR_C6000(void)
 {
-
 	if((nonVolatileSettings.dmrCcTsFilter & DMR_CC_FILTER_PATTERN) == 0)
 	{
 		if(slot_state == DMR_STATE_IDLE)
@@ -1433,6 +1515,7 @@ void tick_HR_C6000(void)
 			else
 			{
 				ccHold = false;
+				monitorModeData.dmrIsValid = false;
 			}
 		}
 		else
@@ -1460,7 +1543,7 @@ void tick_HR_C6000(void)
 			{
 				if (settingsUsbMode != USB_MODE_HOTSPOT)
 				{
-					codecInit();
+					codecInit(false);
 				}
 				else
 				{
@@ -1477,7 +1560,7 @@ void tick_HR_C6000(void)
 			{
 				if (settingsUsbMode != USB_MODE_HOTSPOT)
 				{
-					codecInit();
+					codecInit(false);
 				}
 				isWaking = WAKING_MODE_WAITING;
 				wakeTriesCount = 0;
@@ -1597,16 +1680,17 @@ void tick_HR_C6000(void)
 		}
 		else
 		{
-			if (monitorModeData.isEnabled && (monitorModeData.DMRTimeout > 0))
+			if (monitorModeData.isEnabled && (monitorModeData.dmrTimeout > 0))
 			{
 				if (!rxCRCisValid)
 				{
-					monitorModeData.DMRTimeout--;
-					if (monitorModeData.DMRTimeout == 0)
+					monitorModeData.dmrTimeout--;
+					if (monitorModeData.dmrTimeout == 0)
 					{
-						// switch to analogue
+						monitorModeData.dmrIsValid = false;
+						// switch to analog
 						trxSetModeAndBandwidth(RADIO_MODE_ANALOG, true);
-						currentChannelData->sql =  CODEPLUG_MIN_VARIABLE_SQUELCH;;
+						currentChannelData->sql = CODEPLUG_MIN_VARIABLE_SQUELCH;
 						trxSetRxCSS(CODEPLUG_CSS_TONE_NONE);
 						headerRowIsDirty = true;
 					}
@@ -1614,18 +1698,31 @@ void tick_HR_C6000(void)
 				else
 				{
 					//found DMR signal
-					//SEGGER_RTT_printf(0, "%d\n",monitorModeData.DMRTimeout);
-					monitorModeData.DMRTimeout = 0;
+					//SEGGER_RTT_printf(0, "%d\n",monitorModeData.dmrTimeout);
+					monitorModeData.dmrTimeout = 0;
+					monitorModeData.qsoInfoUpdated = true;
+					monitorModeData.dmrIsValid = false;
+					clearActiveDMRID();
+					lastHeardClearLastID();
+					// Detect the correct TS
+					// Avoid to call reset_timeslot_detection(), as it close the Audio amp and turn the LED off
+					timeCode = -1;
+					tsLockCount = 0;
+					lastTimeCode = 0;
+					dmrMonitorCapturedTS = -1;
+					dmrMonitorCapturedTimeout = 0;
 				}
 			}
 
 			// voice prompts take priority over incoming DMR audio
-			if (!voicePromptsIsPlaying() && hasEncodedAudio)
+			taskENTER_CRITICAL();
+			if (hasEncodedAudio && (voicePromptsIsPlaying() == false) && (soundMelodyIsPlaying() == false))
 			{
 				hasEncodedAudio = false;
 				codecDecode((uint8_t *)DMR_frame_buffer + 0x0C, 3);
 				soundTickRXBuffer();
 			}
+			taskEXIT_CRITICAL();
 		}
 
 		if (qsodata_timer > 0)

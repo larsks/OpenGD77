@@ -61,7 +61,7 @@ static const int BATTERY_ITER_PUSHBACK = 20;
 
 static void updateScreen(bool forceRedraw);
 static void handleEvent(uiEvent_t *ev);
-static void updateVoicePrompts(bool spellIt);
+static void updateVoicePrompts(bool spellIt, bool firstRun);
 
 static void circularBufferInit(voltageCircularBuffer_t *cb)
 {
@@ -126,7 +126,7 @@ menuStatus_t menuRadioInfos(uiEvent_t *ev, bool isFirstRun)
 		menuDisplayTitle(currentLanguage->radio_info);
 		ucRenderRows(0, 2);
 		updateScreen(true);
-		updateVoicePrompts(true);
+		updateVoicePrompts(true, true);
 	}
 	else
 	{
@@ -155,9 +155,9 @@ static void updateScreen(bool forceRedraw)
 	{
 		case RADIO_INFOS_BATTERY_LEVEL:
 		{
-			if ((prevAverageBatteryVoltage != averageBatteryVoltage) || (averageBatteryVoltage < BATTERY_CRITICAL_VOLTAGE) || forceRedraw)
+			if ((prevAverageBatteryVoltage != averageBatteryVoltage) || (averageBatteryVoltage < (BATTERY_CRITICAL_VOLTAGE + (nonVolatileSettings.batteryCalibration - 5))) || forceRedraw)
 			{
-				char buffer[17];
+				char buffer[SCREEN_LINE_BUFFER_SIZE];
 				int volts, mvolts;
 				const int x = 88;
 				const int battLevelHeight = (DISPLAY_SIZE_Y - 28);
@@ -186,9 +186,9 @@ static void updateScreen(bool forceRedraw)
 				}
 
 				getBatteryVoltage(&volts, &mvolts);
-				snprintf(buffer, 17, "%1d.%1dV", volts, mvolts);
+				snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "%1d.%1dV", volts, mvolts);
 				ucPrintAt(((x - (4 * 8)) >> 1), 19 + 1, buffer, FONT_SIZE_3);
-				snprintf(buffer, 17, "%d%%", getBatteryPercentage());
+				snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "%d%%", getBatteryPercentage());
 				ucPrintAt(((x - (strlen(buffer) * 8)) >> 1), (DISPLAY_SIZE_Y - 20)
 #if defined(PLATFORM_RD5R)
 						+ 7
@@ -202,11 +202,11 @@ static void updateScreen(bool forceRedraw)
 				}
 
 				// Draw Level
-				ucFillRoundRect(x + 4, 23 + battLevelHeight - h , 20, h, 2, (averageBatteryVoltage < BATTERY_CRITICAL_VOLTAGE) ? blink : true);
+				ucFillRoundRect(x + 4, 23 + battLevelHeight - h , 20, h, 2, (averageBatteryVoltage < (BATTERY_CRITICAL_VOLTAGE + (nonVolatileSettings.batteryCalibration - 5))) ? blink : true);
 
 				if (voicePromptsIsPlaying() == false)
 				{
-					updateVoicePrompts(false);
+					updateVoicePrompts(false, false);
 				}
 			}
 
@@ -305,7 +305,7 @@ static void updateScreen(bool forceRedraw)
 
 			if (voicePromptsIsPlaying() == false)
 			{
-				updateVoicePrompts(false);
+				updateVoicePrompts(false, false);
 			}
 		}
 		break;
@@ -316,7 +316,7 @@ static void updateScreen(bool forceRedraw)
 
 			if ((prevTemperature != temperature) || (temperature > TEMPERATURE_CRITICAL) || forceRedraw)
 			{
-				char buffer[17];
+				char buffer[SCREEN_LINE_BUFFER_SIZE];
 				const int x = 102;
 #if defined(PLATFORM_RD5R)
 				const int temperatureHeight = (DISPLAY_SIZE_Y - 34);
@@ -364,7 +364,7 @@ static void updateScreen(bool forceRedraw)
 					ucFillRect(x - 4, 20, 9, temperatureHeight, true);
 				}
 
-				snprintf(buffer, 17, "%3d.%1d%s", (temperature / 10), abs(temperature % 10), currentLanguage->celcius);
+				snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "%3d.%1d%s", (temperature / 10), abs(temperature % 10), currentLanguage->celcius);
 				ucPrintAt((((x - (7 + 5)) - (7 * 8)) >> 1), (((DISPLAY_SIZE_Y - (14 + FONT_SIZE_3_HEIGHT)) >> 1) + 14), buffer, FONT_SIZE_3);
 
 				uint32_t t = (uint32_t)((((CLAMP(temperature, 100, 700)) - 100) * temperatureHeight) / (700 - 100)); // clamp to 10..70 °C, then scale
@@ -377,7 +377,7 @@ static void updateScreen(bool forceRedraw)
 
 				if (voicePromptsIsPlaying() == false)
 				{
-					updateVoicePrompts(false);
+					updateVoicePrompts(false, false);
 				}
 			}
 
@@ -401,7 +401,7 @@ static void handleEvent(uiEvent_t *ev)
 		{
 			displayMode = QUICKKEY_ENTRYID(ev->function);
 			updateScreen(true);
-			updateVoicePrompts(true);
+			updateVoicePrompts(true, false);
 			return;
 		}
 	}
@@ -425,7 +425,7 @@ static void handleEvent(uiEvent_t *ev)
 		{
 			displayMode++;
 			updateScreen(true);
-			updateVoicePrompts(true);
+			updateVoicePrompts(true, false);
 		}
 	}
 	else if (KEYCHECK_PRESS(ev->keys, KEY_UP))
@@ -434,7 +434,7 @@ static void handleEvent(uiEvent_t *ev)
 		{
 			displayMode--;
 			updateScreen(true);
-			updateVoicePrompts(true);
+			updateVoicePrompts(true, false);
 		}
 	}
 	else if (KEYCHECK_PRESS(ev->keys, KEY_LEFT))
@@ -497,13 +497,22 @@ void menuRadioInfosPushBackVoltage(int32_t voltage)
 	battery_stack_iter++;
 }
 
-static void updateVoicePrompts(bool spellIt)
+static void updateVoicePrompts(bool spellIt, bool firstRun)
 {
 	if (nonVolatileSettings.audioPromptMode >= AUDIO_PROMPT_MODE_VOICE_LEVEL_1)
 	{
 		char buffer[17];
 
 		voicePromptsInit();
+
+		if (firstRun)
+		{
+			voicePromptsAppendPrompt(PROMPT_SILENCE);
+			voicePromptsAppendLanguageString(&currentLanguage->radio_info);
+			voicePromptsAppendLanguageString(&currentLanguage->menu);
+			voicePromptsAppendPrompt(PROMPT_SILENCE);
+		}
+
 		switch (displayMode)
 		{
 			case RADIO_INFOS_BATTERY_LEVEL:

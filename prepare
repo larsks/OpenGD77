@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+
+if [ -d firmware/linkerdata ]; then
+    if [ -e firmware/tools/codec_cleaner.Linux -a -x firmware/tools/codec_cleaner.Linux ]; then
+	cd firmware/linkerdata && ../tools/codec_cleaner.Linux -C
+    else
+	echo "Error: The required tools are not installed in firmware/tools, the process cannot be completed."
+	exit 1
+    fi
+else
+	echo "Error: Your source tree is incomplete, please fix this."
+	exit 1
+fi
+
+exit 0

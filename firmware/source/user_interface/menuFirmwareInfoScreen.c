@@ -54,12 +54,12 @@ menuStatus_t menuFirmwareInfoScreen(uiEvent_t *ev, bool isFirstRun)
 static void updateScreen(void)
 {
 #if !defined(PLATFORM_GD77S)
-	char buf[17];
+	char buf[SCREEN_LINE_BUFFER_SIZE];
 	char * const *radioModel;
 
-	snprintf(buf, 16, "[ %s", GITVERSION);
+	snprintf(buf, SCREEN_LINE_BUFFER_SIZE, "[ %s", GITVERSION);
 	buf[9] = 0; // git hash id 7 char long;
-	strcat(buf, " ]");
+	strcat(buf, (uiDataGlobal.dmrDisabled ? " F ]" : " D ]"));
 
 	ucClearBuf();
 
@@ -67,6 +67,8 @@ static void updateScreen(void)
 	radioModel = (char * const *)&currentLanguage->openGD77;
 #elif defined(PLATFORM_DM1801)
 	radioModel = (char * const *)&currentLanguage->openDM1801;
+#elif defined(PLATFORM_DM1801A)
+	radioModel = (char * const *)&currentLanguage->openDM1801A;
 #elif defined(PLATFORM_RD5R)
 	radioModel = (char * const *)&currentLanguage->openRD5R;
 #endif
@@ -93,6 +95,7 @@ static void updateScreen(void)
 #endif
 
 	voicePromptsInit();
+	voicePromptsAppendPrompt(PROMPT_SILENCE);
 	voicePromptsAppendLanguageString((const char * const *)radioModel);
 	voicePromptsAppendLanguageString(&currentLanguage->built);
 	voicePromptsAppendString(__TIME__);

@@ -135,10 +135,6 @@ menuStatus_t menuHotspotMode(uiEvent_t *ev, bool isFirstRun)
 	else
 	{
 
-#if defined(PLATFORM_GD77S)
-		uiChannelModeHeartBeatActivityForGD77S(ev);
-#endif
-
 		if (ev->hasEvent)
 		{
 			if (handleEvent(ev) == false)
@@ -264,7 +260,6 @@ void uiHotspotUpdateScreen(uint8_t rxCommandState)
 {
 	int val_before_dp;
 	int val_after_dp;
-	static const int bufferLen = 17;
 	char buffer[22]; // set to 22 due to FW info
 
 	hotspotCurrentRxCommandState = rxCommandState;
@@ -273,7 +268,7 @@ void uiHotspotUpdateScreen(uint8_t rxCommandState)
 	ucPrintAt(4, 4, "DMR", FONT_SIZE_1);
 	ucPrintCentered(0, "Hotspot", FONT_SIZE_3);
 
-	snprintf(buffer, bufferLen, "%d%%", getBatteryPercentage());
+	snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "%d%%", getBatteryPercentage());
 
 	ucPrintAt(DISPLAY_SIZE_X - (strlen(buffer) * 6) - 4, 4, buffer, FONT_SIZE_1);
 
@@ -303,13 +298,22 @@ void uiHotspotUpdateScreen(uint8_t rxCommandState)
 		}
 		else
 		{
-			if ((trxTalkGroupOrPcId & 0xFF000000) == 0)
+			if ((trxTalkGroupOrPcId >> 24) == PC_CALL_FLAG)
 			{
-				snprintf(buffer, bufferLen, "%s %u", currentLanguage->tg, trxTalkGroupOrPcId & 0x00FFFFFF);
+				snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "%s %u", currentLanguage->pc, trxTalkGroupOrPcId & 0x00FFFFFF);
 			}
 			else
 			{
-				snprintf(buffer, bufferLen, "%s %u", currentLanguage->pc, trxTalkGroupOrPcId & 0x00FFFFFF);
+				uint32_t id = (trxTalkGroupOrPcId & 0x00FFFFFF);
+
+				if (id == 0)
+				{
+					buffer[0] = 0; // Do not display "TG 0"
+				}
+				else
+				{
+					snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "%s %u", currentLanguage->tg, id);
+				}
 			}
 		}
 
@@ -333,11 +337,11 @@ void uiHotspotUpdateScreen(uint8_t rxCommandState)
 			{
 				if (dmrIDLookup(hotspotRxedDMR_LC.srcId, &currentRec) == true)
 				{
-					snprintf(buffer, bufferLen, "%s", currentRec.text);
+					snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "%s", currentRec.text);
 				}
 				else
 				{
-					snprintf(buffer, bufferLen, "ID: %u", hotspotRxedDMR_LC.srcId);
+					snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "ID: %u", hotspotRxedDMR_LC.srcId);
 				}
 			}
 
@@ -345,11 +349,11 @@ void uiHotspotUpdateScreen(uint8_t rxCommandState)
 
 			if (hotspotRxedDMR_LC.FLCO == 0)
 			{
-				snprintf(buffer, bufferLen, "%s %u", currentLanguage->tg, hotspotRxedDMR_LC.dstId);
+				snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "%s %u", currentLanguage->tg, hotspotRxedDMR_LC.dstId);
 			}
 			else
 			{
-				snprintf(buffer, bufferLen, "%s %u", currentLanguage->pc, hotspotRxedDMR_LC.dstId);
+				snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "%s %u", currentLanguage->pc, hotspotRxedDMR_LC.dstId);
 			}
 
 			ucPrintCentered(32, buffer, FONT_SIZE_3);
@@ -377,7 +381,7 @@ void uiHotspotUpdateScreen(uint8_t rxCommandState)
 				}
 			}
 
-			snprintf(buffer, bufferLen, "CC:%d", trxGetDMRColourCode());//, trxGetDMRTimeSlot()+1) ;
+			snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "CC:%d", trxGetDMRColourCode());//, trxGetDMRTimeSlot()+1) ;
 
 			ucPrintCore(0, 32, buffer, FONT_SIZE_3, TEXT_ALIGN_LEFT, false);
 
@@ -386,7 +390,7 @@ void uiHotspotUpdateScreen(uint8_t rxCommandState)
 		}
 		val_before_dp = hotspotFreqRx / 100000;
 		val_after_dp = hotspotFreqRx - val_before_dp * 100000;
-		snprintf(buffer, bufferLen, "R %d.%05d MHz", val_before_dp, val_after_dp);
+		snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "R %d.%05d MHz", val_before_dp, val_after_dp);
 	}
 
 	ucPrintCentered(48, buffer, FONT_SIZE_3);

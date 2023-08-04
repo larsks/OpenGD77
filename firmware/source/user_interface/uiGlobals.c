@@ -59,19 +59,23 @@ uiDataGlobal_t uiDataGlobal =
 
 		.Scan =
 		{
-				.timer                  = 0,
-				.timerReload			= 30,
-				.direction              = 1,
-				.availableChannelsCount = 0,
-				.nuisanceDeleteIndex    = 0,
-				.nuisanceDelete         = { 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 },
-				.state                  = SCAN_SCANNING,
-				.active                 = false,
-				.toneActive             = false,
-				.refreshOnEveryStep     = false,
-				.lastIteration          = false,
-				.scanType               = SCAN_TYPE_NORMAL_STEP,
-				.stepTimeMilliseconds   = 0
+				.timer                  	= 0,
+				.timerReload				= 30,
+				.direction              	= 1,
+				.availableChannelsCount 	= 0,
+				.nuisanceDeleteIndex    	= 0,
+				.nuisanceDelete         	= { 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 },
+				.state                  	= SCAN_SCANNING,
+				.active                 	= false,
+				.toneActive             	= false,
+				.refreshOnEveryStep     	= false,
+				.lastIteration          	= false,
+				.scanType               	= SCAN_TYPE_NORMAL_STEP,
+				.stepTimeMilliseconds   	= 0,
+				.scanSweepCurrentFreq		= 0,
+				.sweepSampleIndex			= 0,
+				.sweepSampleIndexIncrement	= 1,
+
 		},
 
 		.QuickMenu =
@@ -136,7 +140,10 @@ settingsStruct_t originalNonVolatileSettings =
 		.magicNumber = 0xDEADBEEF
 };
 
-struct_codeplugZone_t currentZone;
+struct_codeplugZone_t currentZone =
+{
+		.NOT_IN_CODEPLUGDATA_indexNumber = 0xDEADBEEF
+};
 __attribute__((section(".data.$RAM2"))) struct_codeplugRxGroup_t currentRxGroupData;
 int lastLoadedRxGroup = -1;// to show data for which RxGroupIndex has been loaded into    currentRxGroupData
 struct_codeplugContact_t currentContactData;

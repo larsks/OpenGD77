@@ -154,6 +154,8 @@ static void cpsHandleReadCommand(void)
 				radioInfo.radioType = 2;
 #elif defined(PLATFORM_RD5R)
 				radioInfo.radioType = 3;
+#elif defined(PLATFORM_DM1801A)
+				radioInfo.radioType = 4;
 #endif
 				snprintf(radioInfo.gitRevision, 15, "%s", GITVERSION);
 

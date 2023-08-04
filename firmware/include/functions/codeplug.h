@@ -39,6 +39,7 @@ extern const int CODEPLUG_MIN_VARIABLE_SQUELCH;
 extern const int CODEPLUG_MIN_PER_CHANNEL_POWER;
 
 extern const int VFO_FREQ_STEP_TABLE[8];
+extern const int VFO_SWEEP_SCAN_RANGE_SAMPLE_STEP_TABLE[7];
 
 #define CODEPLUG_ADDR_QUICKKEYS                                0x7524 // LSB,HSB
 #define CODEPLUG_QUICKKEYS_SIZE                                    10
@@ -311,6 +312,7 @@ int codeplugDTMFContactsGetCount(void);
 int codeplugContactsGetCount(uint32_t callType);
 int codeplugContactGetDataForNumberInType(int number, uint32_t callType, struct_codeplugContact_t *contact);
 int codeplugDTMFContactGetDataForNumber(int number, struct_codeplugDTMFContact_t *contact);
+int codeplugContactIndexByTGorPCFromNumber(int number, uint32_t tgorpc, uint32_t callType, struct_codeplugContact_t *contact, uint8_t optionalTS);
 int codeplugContactIndexByTGorPC(uint32_t tgorpc, uint32_t callType, struct_codeplugContact_t *contact, uint8_t optionalTS);
 int codeplugContactSaveDataForIndex(int index, struct_codeplugContact_t *contact);
 int codeplugContactGetFreeIndex(void);

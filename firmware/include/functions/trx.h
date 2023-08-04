@@ -135,4 +135,6 @@ void trxDisableTransmission(void);
 void trxPowerUpDownRxAndC6000(bool powerUp, bool includeC6000);
 uint8_t trxGetAnalogFilterLevel();
 void trxSetAnalogFilterLevel(uint8_t newFilterLevel);
+void trxTerminateCheckAnalogSquelch(void);
+
 #endif /* _OPENGD77_TRX_H_ */

@@ -38,7 +38,7 @@
 typedef void (*timerCallback_t)(void);
 
 uint32_t fw_millis(void);
-bool addTimerCallback(timerCallback_t funPtr, uint32_t delayIn_mS, bool updateExistingCallbackTime);
+bool addTimerCallback(timerCallback_t funPtr, uint32_t delayIn_mS, int menuDest, bool updateExistingCallbackTime);
 void handleTimerCallbacks(void);
 
 

@@ -36,7 +36,7 @@
 #define DT_TERMINATOR_WITH_LC 	0x02U
 #define DMR_SYNC_DATA           0x40U
 
-#define HOTSPOT_VERSION_STRING "OpenGD77_HS v0.1.7"
+#define HOTSPOT_VERSION_STRING "OpenGD77_HS v0.1.8"
 
 typedef struct DMRLC
 {

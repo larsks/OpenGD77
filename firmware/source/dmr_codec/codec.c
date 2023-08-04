@@ -217,7 +217,7 @@ static void g2312(uint8_t *inValPtr, uint8_t *outValPtr)
 	memcpy(outValPtr,inValPtr,10);
 }
 
-void initFrame(uint8_t *indata,uint16_t bitbufferDecode[49])
+void initFrame(uint8_t *indata, uint16_t bitbufferDecode[49])
 {
 	uint8_t tmpFrame[4][24];
 	uint8_t gout[0x18];
@@ -289,11 +289,11 @@ void codecInitInternalBuffers(void)
 	memcpy(ambebuffer_encode_ecc, ambebuffer_encode_ecc_init, 0x0100);
 }
 
-void codecInit(void)
+void codecInit(bool fromVoicePrompts)
 {
 	// Need to prevent the DMR side of the code initialising the codec and sound buffers when the voice prompts are playing
 	// This could be done in every location this function is called, but it saves space if the check is done inside the function.
-	if (voicePromptsIsPlaying())
+	if ((fromVoicePrompts == false) && voicePromptsIsPlaying())
 	{
 		return;
 	}
@@ -320,7 +320,7 @@ void codecDecode(uint8_t *indata_ptr, int numbBlocks)
 
     for (int idx = 0; idx < numbBlocks; idx++)
     {
-		initFrame(indata_ptr,bitbuffer_decode);
+		initFrame(indata_ptr, bitbuffer_decode);
 		indata_ptr += 9;
 
 		soundSetupBuffer();// this just sets currentWaveBuffer but the compiler seems to optimise out the code if I try to do it in this file

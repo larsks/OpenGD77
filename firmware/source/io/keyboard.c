@@ -73,6 +73,17 @@ static const uint32_t keyMap[] = {
 		KEY_STAR, KEY_0, KEY_HASH, KEY_RED, KEY_LEFT
 };
 
+#elif defined(PLATFORM_DM1801A)
+
+static const uint32_t keyMap[] = {
+		// VFO/MR as KEY_LEFT
+		// A/B as KEY_RIGHT
+		KEY_1, KEY_2, KEY_3, KEY_GREEN, KEY_RIGHT,
+		KEY_4, KEY_5, KEY_6, KEY_UP, KEY_LEFT,
+		KEY_7, KEY_8, KEY_9, KEY_DOWN, (uint32_t)NULL,
+		KEY_STAR, KEY_0, KEY_HASH, KEY_RED, (uint32_t)NULL
+};
+
 #elif defined(PLATFORM_RD5R)
 
 static const uint32_t keyMap[] = {

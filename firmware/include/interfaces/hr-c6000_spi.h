@@ -71,7 +71,7 @@
 #define GPIO_SPI_DO_C6000_U  GPIOD
 #define Pin_SPI_DO_C6000_U   3
 
-#elif defined(PLATFORM_DM1801)
+#elif defined(PLATFORM_DM1801) || defined(PLATFORM_DM1801A)
 
 // SPI1 to C6000 (V_SPI)
 // OUT/ON  B10 - SPI /V_CS to C6000
@@ -155,7 +155,7 @@ int SPI0WritePageRegByte(uint8_t page, uint8_t reg, uint8_t val);
 int SPI0ReadPageRegByte(uint8_t page, uint8_t reg, volatile uint8_t *val);
 int SPI0SeClearPageRegByteWithMask(uint8_t page, uint8_t reg, uint8_t mask, uint8_t val);
 int SPI0WritePageRegByteArray(uint8_t page, uint8_t reg, const uint8_t *values, uint8_t length);
-int SPI0ReadPageRegBytAarray(uint8_t page, uint8_t reg, volatile uint8_t *values, uint8_t length);
+int SPI0ReadPageRegByteArray(uint8_t page, uint8_t reg, volatile uint8_t *values, uint8_t length);
 
 int SPI1WritePageRegByteArray(uint8_t page, uint8_t reg, const uint8_t *values, uint8_t length);
 int SPI1ReadPageRegByteArray(uint8_t page, uint8_t reg, volatile uint8_t *values, uint8_t length);

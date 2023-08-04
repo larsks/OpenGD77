@@ -236,7 +236,7 @@ int SPI0WritePageRegByteArray(uint8_t page, uint8_t reg, const uint8_t *values, 
 	return status;
 }
 
-int SPI0ReadPageRegBytAarray(uint8_t page, uint8_t reg, volatile uint8_t *values, uint8_t length)
+int SPI0ReadPageRegByteArray(uint8_t page, uint8_t reg, volatile uint8_t *values, uint8_t length)
 {
 	uint8_t rxBuf[0x60 + 2];
 	uint8_t txBuf[0x60 + 2];

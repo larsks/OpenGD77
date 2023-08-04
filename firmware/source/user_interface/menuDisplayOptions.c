@@ -77,10 +77,8 @@ menuStatus_t menuDisplayOptions(uiEvent_t *ev, bool isFirstRun)
 
 		voicePromptsInit();
 		voicePromptsAppendPrompt(PROMPT_SILENCE);
-		voicePromptsAppendPrompt(PROMPT_SILENCE);
 		voicePromptsAppendLanguageString(&currentLanguage->display_options);
 		voicePromptsAppendLanguageString(&currentLanguage->menu);
-		voicePromptsAppendPrompt(PROMPT_SILENCE);
 		voicePromptsAppendPrompt(PROMPT_SILENCE);
 
 		updateScreen(true);
@@ -102,16 +100,15 @@ menuStatus_t menuDisplayOptions(uiEvent_t *ev, bool isFirstRun)
 static void updateScreen(bool isFirstRun)
 {
 	int mNum = 0;
-	static const int bufferLen = 17;
-	char buf[bufferLen];
+	char buf[SCREEN_LINE_BUFFER_SIZE];
 	char * const *leftSide = NULL;// initialize to please the compiler
 	char * const *rightSideConst = NULL;// initialize to please the compiler
-	char rightSideVar[bufferLen];
+	char rightSideVar[SCREEN_LINE_BUFFER_SIZE];
 	voicePrompt_t rightSideUnitsPrompt;
 	const char * rightSideUnitsStr;
 
 	ucClearBuf();
-	bool settingOption = uiShowQuickKeysChoices(buf, bufferLen, currentLanguage->display_options);
+	bool settingOption = uiShowQuickKeysChoices(buf, SCREEN_LINE_BUFFER_SIZE, currentLanguage->display_options);
 
 	// Can only display 3 of the options at a time menu at -1, 0 and +1
 	for(int i = -1; i <= 1; i++)
@@ -130,15 +127,15 @@ static void updateScreen(bool isFirstRun)
 			{
 				case DISPLAY_MENU_BRIGHTNESS:
 					leftSide = (char * const *)&currentLanguage->brightness;
-					snprintf(rightSideVar, bufferLen, "%d%%", nonVolatileSettings.displayBacklightPercentage);
+					snprintf(rightSideVar, SCREEN_LINE_BUFFER_SIZE, "%d%%", nonVolatileSettings.displayBacklightPercentage);
 					break;
 				case DISPLAY_MENU_BRIGHTNESS_OFF:
 					leftSide = (char * const *)&currentLanguage->brightness_off;
-					snprintf(rightSideVar, bufferLen, "%d%%", nonVolatileSettings.displayBacklightPercentageOff);
+					snprintf(rightSideVar, SCREEN_LINE_BUFFER_SIZE, "%d%%", nonVolatileSettings.displayBacklightPercentageOff);
 					break;
 				case DISPLAY_MENU_CONTRAST:
 					leftSide = (char * const *)&currentLanguage->contrast;
-					snprintf(rightSideVar, bufferLen, "%d", nonVolatileSettings.displayContrast);
+					snprintf(rightSideVar, SCREEN_LINE_BUFFER_SIZE, "%d", nonVolatileSettings.displayContrast);
 					break;
 				case DISPLAY_MENU_BACKLIGHT_MODE:
 					{
@@ -159,7 +156,7 @@ static void updateScreen(bool isFirstRun)
 						}
 						else
 						{
-							snprintf(rightSideVar, bufferLen, "%d", nonVolatileSettings.backLightTimeout);
+							snprintf(rightSideVar, SCREEN_LINE_BUFFER_SIZE, "%d", nonVolatileSettings.backLightTimeout);
 							rightSideUnitsPrompt = PROMPT_SECONDS;
 							rightSideUnitsStr = "s";
 						}
@@ -175,7 +172,7 @@ static void updateScreen(bool isFirstRun)
 					break;
 				case DISPLAY_MENU_CONTACT_DISPLAY_ORDER:
 					leftSide = (char * const *)&currentLanguage->priority_order;
-					snprintf(rightSideVar, bufferLen, "%s",contactOrders[nonVolatileSettings.contactDisplayPriority]);
+					snprintf(rightSideVar, SCREEN_LINE_BUFFER_SIZE, "%s",contactOrders[nonVolatileSettings.contactDisplayPriority]);
 					break;
 				case DISPLAY_MENU_CONTACT_DISPLAY_SPLIT_CONTACT:
 					{
@@ -211,7 +208,7 @@ static void updateScreen(bool isFirstRun)
 			}
 
 			// workaround for non standard format of line for colour display
-			snprintf(buf, bufferLen, "%s:%s", *leftSide, (rightSideVar[0] ? rightSideVar : (rightSideConst ? *rightSideConst : "")));
+			snprintf(buf, SCREEN_LINE_BUFFER_SIZE, "%s:%s", *leftSide, (rightSideVar[0] ? rightSideVar : (rightSideConst ? *rightSideConst : "")));
 
 			if (i == 0)
 			{
@@ -243,7 +240,7 @@ static void updateScreen(bool isFirstRun)
 
 				if (rightSideUnitsStr != NULL)
 				{
-					strncat(rightSideVar, rightSideUnitsStr, bufferLen);
+					strncat(rightSideVar, rightSideUnitsStr, SCREEN_LINE_BUFFER_SIZE);
 				}
 
 				if (menuDataGlobal.menuOptionsTimeout != -1)
@@ -265,7 +262,7 @@ static void updateScreen(bool isFirstRun)
 			{
 				if (rightSideUnitsStr != NULL)
 				{
-					strncat(buf, rightSideUnitsStr, bufferLen);
+					strncat(buf, rightSideUnitsStr, SCREEN_LINE_BUFFER_SIZE);
 				}
 
 				menuDisplayEntry(i, mNum, buf);
@@ -330,6 +327,12 @@ static void handleEvent(uiEvent_t *ev)
 		}
 		else if (KEYCHECK_SHORTUP(ev->keys, KEY_GREEN))
 		{
+			// Reset last heard list, otherwise entries won't get updated, accordingly to the new setting value
+			if (nonVolatileSettings.contactDisplayPriority != originalNonVolatileSettings.contactDisplayPriority)
+			{
+				lastheardInitList();
+			}
+
 			// All parameters has already been applied
 			settingsSaveIfNeeded(true);
 			resetOriginalSettingsData();

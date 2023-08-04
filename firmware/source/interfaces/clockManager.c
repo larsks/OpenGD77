@@ -46,6 +46,16 @@ static void APP_SetClockRunFromHsrun(void);
 
 status_t beforeChangeCallback(notifier_notification_block_t *notify, void *dataPtr);
 
+
+/*******************************************************************************
+ * Configurations
+ ******************************************************************************/
+
+/*Power mode configurations*/
+static power_user_config_t vlprConfig = {
+    kAPP_PowerModeVlpr,
+    true
+};
 static power_user_config_t runConfig   = {
 		kAPP_PowerModeRun,
         true
@@ -56,6 +66,7 @@ static power_user_config_t hsrunConfig = {
     };
 
 static notifier_user_config_t *powerConfigs[] = {
+	&vlprConfig,
     &runConfig,
 	&hsrunConfig,
 };
@@ -80,6 +91,46 @@ static void updateRTOSAndPitTimings(void)
     I2C0Setup();
 }
 
+
+void APP_SetClockVlpr(void)
+{
+#if defined(USING_EXTERNAL_DEBUGGER)
+	//    SEGGER_RTT_printf(0,"APP_SetClockRunFromVlpr\n");
+#endif
+
+	CLOCK_SetSimSafeDivs();
+	CLOCK_SetInternalRefClkConfig(kMCG_IrclkEnable, kMCG_IrcFast, 0U);
+
+	/* MCG works in PEE mode now, will switch to BLPI mode. */
+
+	CLOCK_ExternalModeToFbeModeQuick();                     /* Enter FBE. */
+	CLOCK_SetFbiMode(kMCG_Dmx32Default, kMCG_DrsLow, NULL); /* Enter FBI. */
+	CLOCK_SetLowPowerEnable(true);                          /* Enter BLPI. */
+
+	CLOCK_SetSimConfig(&simConfig_BOARD_BootClockVLPR);
+
+	updateRTOSAndPitTimings();
+}
+
+
+void APP_SetClockRunFromVlpr(void)
+{
+
+	CLOCK_SetSimSafeDivs();
+
+	/* Currently in BLPI mode, will switch to PEE mode. */
+	/* Enter FBI. */
+	CLOCK_SetLowPowerEnable(false);
+	/* Enter FBE. */
+	CLOCK_SetFbeMode(3U, kMCG_Dmx32Default, kMCG_DrsLow, NULL);
+	/* Enter PBE. */
+	CLOCK_SetPbeMode(kMCG_PllClkSelPll0, &mcgConfig_BOARD_BootClockRUN.pll0Config);
+	/* Enter PEE. */
+	CLOCK_SetPeeMode();
+
+	CLOCK_SetSimConfig(&simConfig_BOARD_BootClockRUN);
+	updateRTOSAndPitTimings();
+}
 void APP_SetClockHsrun(void)
 {
 	CLOCK_SetPbeMode(kMCG_PllClkSelPll0, &mcgConfig_BOARD_BootClockHSRUN.pll0Config);
@@ -104,6 +155,7 @@ status_t beforeChangeCallback(notifier_notification_block_t *notify, void *dataP
 	status_t ret                       = kStatus_Fail;
 	app_power_mode_t targetMode        = ((power_user_config_t *)notify->targetConfig)->mode;
 	smc_power_state_t originPowerState = userData->originPowerState;
+	smc_power_state_t powerState;
 
 	switch (notify->notifyType)
 	{
@@ -115,7 +167,23 @@ status_t beforeChangeCallback(notifier_notification_block_t *notify, void *dataP
 			break;
 		case kNOTIFIER_CallbackAfter:
 			userData->afterNotificationCounter++;
+			powerState = SMC_GetPowerModeState(SMC);
 
+			/*
+			 * For some other platforms, if enter LLS mode from VLPR mode, when wakeup, the
+			 * power mode is VLPR. But for some platforms, if enter LLS mode from VLPR mode,
+			 * when wakeup, the power mode is RUN. In this case, the clock setting is still
+			 * VLPR mode setting, so change to RUN mode setting here.
+			 */
+			if ((kSMC_PowerStateVlpr == originPowerState) && (kSMC_PowerStateRun == powerState))
+			{
+				APP_SetClockRunFromVlpr();
+			}
+
+			/*
+			 * If enter stop modes when MCG in PEE mode, then after wakeup, the MCG is in PBE mode,
+			 * need to enter PEE mode manually.
+			 */
 			if ((kAPP_PowerModeRun != targetMode) &&  (kAPP_PowerModeVlpr != targetMode))
 			{
 				if (kSMC_PowerStateRun == originPowerState)
@@ -136,6 +204,68 @@ status_t beforeChangeCallback(notifier_notification_block_t *notify, void *dataP
 }
 
 
+bool APP_CheckPowerMode(smc_power_state_t currentPowerState, app_power_mode_t targetPowerMode)
+{
+	bool modeValid = true;
+
+	/*
+	 * Check wether the mode change is allowed.
+	 *
+	 * 1. If current mode is HSRUN mode, the target mode must be RUN mode.
+	 * 2. If current mode is RUN mode, the target mode must not be VLPW mode.
+	 * 3. If current mode is VLPR mode, the target mode must not be HSRUN/WAIT/STOP mode.
+	 * 4. If already in the target mode, don't need to change.
+	 */
+	switch (currentPowerState)
+	{
+		case kSMC_PowerStateHsrun:
+			if (kAPP_PowerModeRun != targetPowerMode)
+			{
+#if defined(USING_EXTERNAL_DEBUGGER)
+				SEGGER_RTT_printf(0,"Current mode is HSRUN, please choose RUN mode as the target mode.\n");
+#endif
+				modeValid = false;
+			}
+			break;
+
+		case kSMC_PowerStateRun:
+			break;
+
+		case kSMC_PowerStateVlpr:
+			if ((kAPP_PowerModeHsrun == targetPowerMode))
+			{
+#if defined(USING_EXTERNAL_DEBUGGER)
+				SEGGER_RTT_printf(0,"Could not enter HSRUN/STOP/WAIT modes from VLPR mode.\n");
+#endif
+				modeValid = false;
+			}
+			break;
+		default:
+#if defined(USING_EXTERNAL_DEBUGGER)
+			SEGGER_RTT_printf(0,"Wrong power state.\n");
+#endif
+			modeValid = false;
+			break;
+	}
+
+	if (!modeValid)
+	{
+		return false;
+	}
+
+	/* Don't need to change power mode if current mode is already the target mode. */
+	if (((kAPP_PowerModeRun == targetPowerMode) && (kSMC_PowerStateRun == currentPowerState)) ||
+			((kAPP_PowerModeHsrun == targetPowerMode) && (kSMC_PowerStateHsrun == currentPowerState)) ||
+			((kAPP_PowerModeVlpr == targetPowerMode) && (kSMC_PowerStateVlpr == currentPowerState)))
+	{
+#if defined(USING_EXTERNAL_DEBUGGER)
+		SEGGER_RTT_printf(0,"Already in the target power mode.\n");
+#endif
+		return false;
+	}
+
+	return true;
+}
 status_t APP_PowerModeSwitch(notifier_user_config_t *targetConfig, void *userData)
 {
 	smc_power_state_t currentPowerMode;
@@ -148,6 +278,15 @@ status_t APP_PowerModeSwitch(notifier_user_config_t *targetConfig, void *userDat
 
 	switch (targetPowerMode)
 	{
+		case kAPP_PowerModeVlpr:
+			APP_SetClockVlpr();
+			SMC_SetPowerModeVlpr(SMC);
+			while (kSMC_PowerStateVlpr != SMC_GetPowerModeState(SMC))
+			{
+			}
+			clockManagerCurrentRunMode = kAPP_PowerModeVlpr;
+			break;
+
 		case kAPP_PowerModeRun:
 			/* If enter RUN from HSRUN, fisrt change clock. */
 			if (kSMC_PowerStateHsrun == currentPowerMode)
@@ -159,6 +298,12 @@ status_t APP_PowerModeSwitch(notifier_user_config_t *targetConfig, void *userDat
 			SMC_SetPowerModeRun(SMC);
 			while (kSMC_PowerStateRun != SMC_GetPowerModeState(SMC))
 			{
+			}
+
+			/* If enter RUN from VLPR, change clock after the power mode change. */
+			if (kSMC_PowerStateVlpr == currentPowerMode)
+			{
+				APP_SetClockRunFromVlpr();
 			}
 
 			clockManagerCurrentRunMode = kAPP_PowerModeRun;

@@ -29,7 +29,7 @@
  * Translators: DG3GSP, DL4LEX
  *
  *
- * Rev: 4.6
+ * Rev: 4.7
 */
 #ifndef USER_INTERFACE_LANGUAGES_GERMAN_H_
 #define USER_INTERFACE_LANGUAGES_GERMAN_H_
@@ -73,7 +73,7 @@ const stringsTable_t germanLanguage =
 .error					= "FEHLER", // MaxLen: 8
 .rx_only				= "Nur Rx", // MaxLen: 16
 .out_of_band			= "AUSSER BAND", // MaxLen: 16
-.timeout				= "Zeit abgelaufen", // MaxLen: 8
+.timeout				= "Timeout", // MaxLen: 8
 .tg_entry				= "TG Eingabe", // MaxLen: 15
 .pc_entry				= "PC Eingabe", // MaxLen: 15
 .user_dmr_id			= "Benutzer ID", // MaxLen: 15
@@ -106,16 +106,16 @@ const stringsTable_t germanLanguage =
 .bandwidth				= "Bandbreite", // MaxLen: 16 (with ':' + .n_a, "25kHz" or "12.5kHz")
 .stepFreq				= "Schritt", // MaxLen: 7 (with ':' + xx.xxkHz fitted)
 .tot					= "TOT", // MaxLen: 16 (with ':' + .off or 15..3825)
-.off					= "Aus", // MaxLen: 16 (with ':' + .timeout_beep, .calibration or .band_limits)
+.off					= "Aus", // MaxLen: 16 (with ':' + .timeout_beep, .band_limits)
 .zone_skip				= "Skip Zone", // MaxLen: 16 (with ':' + .yes or .no) 
 .all_skip				= "Skip Alle", // MaxLen: 16 (with ':' + .yes or .no)
 .yes					= "Ja", // MaxLen: 16 (with ':' + .zone_skip, .all_skip)
 .no						= "Nein", // MaxLen: 16 (with ':' + .zone_skip, .all_skip)
 .rx_group				= "Rx Gruppe", // MaxLen: 16 (with ':' and codeplug group name)
-.on						= "Ein", // MaxLen: 16 (with ':' + .calibration or .band_limits)
+.on						= "Ein", // MaxLen: 16 (with ':' + .band_limits)
 .timeout_beep			= "Timeout-Ton", // MaxLen: 16 (with ':' + .off or 5..20)
-.UNUSED_1				= "",
-.calibration			= "Kalibration", // MaxLen: 16 (with ':' + .on or .off)
+.list_full				= "List full",
+.UNUSED_1			= "",
 .band_limits			= "Band Limit", // MaxLen: 16 (with ':' + .on or .off)
 .beep_volume			= "Beep Lauts", // MaxLen: 16 (with ':' + -24..6 + 'dB')
 .dmr_mic_gain			= "DMR Mikro", // MaxLen: 16 (with ':' + -33..12 + 'dB')
@@ -162,9 +162,9 @@ const stringsTable_t germanLanguage =
 .both					= "Beide", // MaxLen 16 (with ':' + .dmr_beep)
 .vox_threshold                          = "VOX Empf.", // MaxLen 16 (with ':' + .off or 1..30)
 .vox_tail                               = "VOX Dauer", // MaxLen 16 (with ':' + .n_a or '0.0s')
-.audio_prompt				= "Ansage",// Maxlen 16 (with ':' + .silent, .normal, .beep or .voice_prompt_level_1)
+.audio_prompt				= "Ansage",// Maxlen 16 (with ':' + .silent, .beep or .voice_prompt_level_1)
 .silent                                 = "Still", // Maxlen 16 (with : + audio_prompt)
-.normal                                 = "Normal", // Maxlen 16 (with : + audio_prompt)
+.UNUSED_2			= "",
 .beep					= "Töne", // Maxlen 16 (with : + audio_prompt)
 .voice_prompt_level_1					= "Stimme L1", // Maxlen 16 (with : + audio_prompt)
 .transmitTalkerAlias	= "TA senden", // Maxlen 16 (with : + .on or .off)
@@ -194,7 +194,7 @@ const stringsTable_t germanLanguage =
 .celcius				= "°C",
 .seconds				= "sekunden",
 .radio_info				= "Radio Infos",
-.temperature_calibration		= "Temp Kal",
+.temperature_calibration		= "Temp.Kal", // MaxLen: 8
 .pin_code				= "Pin Code",
 .please_confirm				= "Bitte bestätigen", // MaxLen: 15
 .vfo_freq_bind_mode			= "Freq. Bind",
@@ -203,11 +203,14 @@ const stringsTable_t germanLanguage =
 .buttons				= "Tasten",
 .leds					= "LEDs",
 .scan_dwell_time			= "Scan Halt",
-.battery_calibration			= "Batt. Cal",
+.battery_calibration			= "Batt. Kal", // MaxLen: 9
 .low					= "Nieder",
 .high					= "Hoch",
 .dmr_id					= "DMR ID",
-.scan_on_boot				= "Scan On Boot"
+.scan_on_boot				= "Scan @ Start", //Maxlen: 12 chars
+.dtmf_entry				= "DTMF entry",
+.name					= "Name",
+.openDM1801A 				= "OpenDM1801A" // Do not translate
 };
 /********************************************************************
  *

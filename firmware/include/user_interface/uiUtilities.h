@@ -44,6 +44,7 @@ ANNOUNCE_STATIC void announceRadioMode(bool voicePromptWasPlaying);
 ANNOUNCE_STATIC void announceZoneName(bool voicePromptWasPlaying);
 ANNOUNCE_STATIC void announceContactNameTgOrPc(bool voicePromptWasPlaying);
 ANNOUNCE_STATIC void announcePowerLevel(bool voicePromptWasPlaying);
+void announceEcoLevel(bool voicePromptWasPlaying);
 ANNOUNCE_STATIC void announceBatteryPercentage(void);
 ANNOUNCE_STATIC void announceTS(void);
 ANNOUNCE_STATIC void announceCC(void);
@@ -65,6 +66,9 @@ typedef enum
 typedef enum
 {
 	PROMPT_SEQUENCE_CHANNEL_NAME_OR_VFO_FREQ_AND_MODE,
+	PROMPT_SEQUENCE_ZONE_NAME_CHANNEL_NAME_AND_CONTACT_OR_VFO_FREQ_AND_MODE,
+	PROMPT_SEQUENCE_ZONE_NAME_CHANNEL_NAME_AND_CONTACT_OR_VFO_FREQ_AND_MODE_AND_TS_AND_CC,
+	PROMPT_SEQUENCE_CHANNEL_NAME_AND_CONTACT_OR_VFO_FREQ_AND_MODE_AND_TS_AND_CC,
 	PROMPT_SEQUENCE_CHANNEL_NAME_AND_CONTACT_OR_VFO_FREQ_AND_MODE,
 	PROMPT_SEQUENCE_CHANNEL_NAME_OR_VFO_FREQ,
 	PROMPT_SEQUENCE_VFO_FREQ_UPDATE,
@@ -77,6 +81,8 @@ typedef enum
 	PROMPT_SEQUENCE_BATTERY,
 	PROMPT_SQUENCE_SQUELCH,
 	PROMPT_SEQUENCE_TEMPERATURE,
+	PROMPT_SEQUENCE_DIRECTION_TX,
+	PROMPT_SEQUENCE_DIRECTION_RX,
 	NUM_PROMPT_SEQUENCES
 } voicePromptItem_t;
 
@@ -121,8 +127,8 @@ void dmrIDCacheInit(void);
 bool dmrIDLookup(uint32_t targetId, dmrIdDataStruct_t *foundRecord);
 bool contactIDLookup(uint32_t id, uint32_t calltype, char *buffer);
 void uiUtilityRenderQSOData(void);
-void uiUtilityRenderHeader(bool isVFODualWatchScanning);
-void uiUtilityRedrawHeaderOnly(bool isVFODualWatchScanning);
+void uiUtilityRenderHeader(bool isVFODualWatchScanning, bool isVFOSweepScanning);
+void uiUtilityRedrawHeaderOnly(bool isVFODualWatchScanning, bool isVFOSweepScanning);
 LinkItem_t *lastheardFindInList(uint32_t id);
 void lastheardInitList(void);
 bool lastHeardListUpdate(uint8_t *dmrDataBuffer, bool forceOnHotspot);
@@ -154,11 +160,13 @@ void announceChar(char ch);
 void buildCSSCodeVoicePrompts(uint16_t tone, CodeplugCSSTypes_t cssType, Direction_t direction, bool announceType);
 void announceCSSCode(uint16_t tone, CodeplugCSSTypes_t cssType, Direction_t direction, bool announceType, audioPromptThreshold_t immediateAnnounceThreshold);
 
+void announceItemWithInit(bool init, voicePromptItem_t item, audioPromptThreshold_t immediateAnnounceThreshold);
 void announceItem(voicePromptItem_t item, audioPromptThreshold_t immediateAnnouceThreshold);
 void promptsPlayNotAfterTx(void);
 void playNextSettingSequence(void);
 void uiUtilityBuildTgOrPCDisplayName(char *nameBuf, int bufferLen);
 void acceptPrivateCall(uint32_t id, int timeslot);
+bool rebuildVoicePromptOnExtraLongSK1(uiEvent_t *ev);
 bool repeatVoicePromptOnSK1(uiEvent_t *ev);
 bool handleMonitorMode(uiEvent_t *ev);
 void uiUtilityDisplayInformation(const char *str, displayInformation_t line, int8_t yOverride);

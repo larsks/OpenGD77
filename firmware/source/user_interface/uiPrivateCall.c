@@ -38,8 +38,7 @@ menuStatus_t menuPrivateCall(uiEvent_t *ev, bool isFirstRun)
 {
 	if (isFirstRun)
 	{
-		static const int bufferLen = 17;
-		char buffer[bufferLen];
+		char buffer[SCREEN_LINE_BUFFER_SIZE];
 		dmrIdDataStruct_t currentRec;
 
 		// privateCallCallback() has been called, so this screen is
@@ -65,7 +64,7 @@ menuStatus_t menuPrivateCall(uiEvent_t *ev, bool isFirstRun)
 		}
 
 		snprintf(uiDataGlobal.MessageBox.message, MESSAGEBOX_MESSAGE_LEN_MAX, "%s\n%s\n%s",
-		currentLanguage->private_call, currentLanguage->accept_call, buffer);
+				currentLanguage->private_call, currentLanguage->accept_call, buffer);
 		uiDataGlobal.MessageBox.type = MESSAGEBOX_TYPE_INFO;
 		uiDataGlobal.MessageBox.buttons = MESSAGEBOX_BUTTONS_YESNO;
 		uiDataGlobal.MessageBox.decoration = MESSAGEBOX_DECORATION_NONE;

@@ -124,8 +124,8 @@ typedef struct
    const char *rx_group;
    const char *on;
    const char *timeout_beep;
+   const char *list_full;
    const char *UNUSED_1;
-   const char *calibration;
    const char *band_limits;
    const char *beep_volume;
    const char *dmr_mic_gain;
@@ -174,7 +174,7 @@ typedef struct
    const char *vox_tail;
    const char *audio_prompt;
    const char *silent;
-   const char *normal;
+   const char *UNUSED_2;
    const char *beep;
    const char *voice_prompt_level_1;
    const char *transmitTalkerAlias;
@@ -218,29 +218,34 @@ typedef struct
    const char *high;
    const char *dmr_id;
    const char *scan_on_boot;
+   const char *dtmf_entry;
+   const char *name;
+   const char *openDM1801A;
 } stringsTable_t;
 
 extern const stringsTable_t languages[];
 extern const stringsTable_t *currentLanguage;
 
-enum languageNamesOrder  { 	englishLanguageName = 0,
+enum languageNamesOrder
+{
+	englishLanguageName = 0,
 #if defined(LANGUAGE_BUILD_JAPANESE)
-							japaneseLanguageName,
+	japaneseLanguageName,
 #else
-							catalanLanguageName,
-							danishLanguageName,
-							frenchLanguageName,
-							deutschGermanLanguageName,
-							italianLanguageName,
-							portuguesLanguageName,
-							spanishLanguageName,
-							suomiFinnishLanguageName,
-							polishLanguageName,
-							turkishLanguageName,
-							czechLanguageName,
-							nederlandsDutchLanguageName,
-							slovenianLanguageName,
-							portuguesBrazilLanguageName
+	catalanLanguageName,
+	danishLanguageName,
+	frenchLanguageName,
+	deutschGermanLanguageName,
+	italianLanguageName,
+	portuguesLanguageName,
+	spanishLanguageName,
+	suomiFinnishLanguageName,
+	polishLanguageName,
+	turkishLanguageName,
+	czechLanguageName,
+	nederlandsDutchLanguageName,
+	slovenianLanguageName,
+	portuguesBrazilLanguageName
 #endif
 };
 

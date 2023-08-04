@@ -94,7 +94,7 @@
 #define MIN_TG_OR_PC_VALUE                     1
 #define MAX_TG_OR_PC_VALUE              16777215
 
-#define RSSI_UPDATE_COUNTER_RELOAD           100
+#define RSSI_UPDATE_COUNTER_RELOAD           200
 
 #define FREQ_ENTER_DIGITS_MAX                 12
 
@@ -109,6 +109,19 @@
 #define SCAN_SKIP_CHANNEL_INTERVAL             1 //This is actually just an implicit flag value to indicate the channel should be skipped
 
 #define CH_DETAILS_VFO_CHANNEL                -1
+
+#define VFO_SWEEP_NUM_SAMPLES                128
+#define VFO_SWEEP_PIXELS_PER_STEP              4
+#define VFO_SWEEP_GAIN_STEP                    5
+#define VFO_SWEEP_GAIN_MIN                     0
+#define VFO_SWEEP_GAIN_MAX                   120
+#define VFO_SWEEP_GAIN_DEFAULT                86
+#define VFO_SWEEP_RSSI_NOISE_FLOOR_MIN         4
+#define VFO_SWEEP_RSSI_NOISE_FLOOR_MAX        24
+#define VFO_SWEEP_RSSI_NOISE_FLOOR_DEFAULT    14
+
+#define SCREEN_LINE_BUFFER_SIZE               17 // 16 characters (for a 8 pixels font width) + NULL
+
 
 #define SMETER_S0                             -129
 #define SMETER_S1                             -125
@@ -263,6 +276,10 @@ typedef struct
 		bool				lastIteration;
 		ScanType_t			scanType;
 		int					stepTimeMilliseconds;
+		int					scanSweepCurrentFreq;
+		int					sweepSampleIndex;
+		int					sweepStepSizeIndex;
+		int					sweepSampleIndexIncrement;
 	} Scan;
 
 	struct

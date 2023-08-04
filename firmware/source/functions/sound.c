@@ -115,7 +115,7 @@ static const int freqs[64] = {0,104,110,117,123,131,139,147,156,165,175,185,196,
 volatile int *melody_play = NULL;
 volatile int melody_idx = 0;
 int soundBeepVolumeDivider;
-static uint8_t audioAmpStatusMask = 0;
+static volatile uint8_t audioAmpStatusMask = 0;
 
 uint8_t getAudioAmpStatus(void)
 {
@@ -155,10 +155,13 @@ void soundSetMelody(const int *melody)
 	}
 
 	taskENTER_CRITICAL();
-	sine_beep_freq = 0;
-	sine_beep_duration = 0;
-	melody_play = (int *)melody;
-	melody_idx = 0;
+	if ((voicePromptsIsPlaying() == false) || (melody == NULL))
+	{
+		sine_beep_freq = 0;
+		sine_beep_duration = 0;
+		melody_play = (int *)melody;
+		melody_idx = 0;
+	}
 	taskEXIT_CRITICAL();
 }
 
@@ -166,7 +169,8 @@ void soundSetMelody(const int *melody)
 void soundCreateSong(const uint8_t *melody)
 {
 	int song_idx = 0;
-	for (int i = 0; i < 256; i++)
+
+	for (int i = 0; i < 255; i++)
 	{
 		if (melody[(2 * i) + 1] != 0)
 		{
@@ -180,12 +184,12 @@ void soundCreateSong(const uint8_t *melody)
 		}
 		else
 		{
-			melody_generic[song_idx++] = -1;
-			melody_generic[song_idx++] = -1;
-			song_idx = song_idx + 2;
 			break;
 		}
 	}
+
+	melody_generic[song_idx++] = -1;
+	melody_generic[song_idx] = -1;
 }
 
 void soundInitBeepTask(void)
@@ -231,11 +235,7 @@ void soundStoreBuffer(void)
 
 	if (tmp_wavbuffer_count < WAV_BUFFER_COUNT)
 	{
-		wavbuffer_write_idx++;
-		if (wavbuffer_write_idx >= WAV_BUFFER_COUNT)
-		{
-			wavbuffer_write_idx = 0;
-		}
+		wavbuffer_write_idx = ((wavbuffer_write_idx + 1) % WAV_BUFFER_COUNT);
 		wavbuffer_count++;
 	}
 	taskEXIT_CRITICAL();
@@ -247,19 +247,14 @@ void soundRetrieveBuffer(void)
 	if (wavbuffer_count > 0)
 	{
 		currentWaveBuffer = (uint8_t *)audioAndHotspotDataBuffer.wavbuffer[wavbuffer_read_idx];// cast just to prevent compiler warning
-		wavbuffer_read_idx++;
-		if (wavbuffer_read_idx >= WAV_BUFFER_COUNT)
-		{
-			wavbuffer_read_idx = 0;
-		}
+		wavbuffer_read_idx = ((wavbuffer_read_idx + 1) % WAV_BUFFER_COUNT);
 		wavbuffer_count--;
 	}
 	taskEXIT_CRITICAL();
 }
 
-
-// This function is used when receiving
-void soundSendData(void)
+// This function is used by the I2S TX callback function to send the data through the bus
+bool soundRefillData(void)
 {
 	if (wavbuffer_count > 0)
 	{
@@ -271,26 +266,42 @@ void soundSendData(void)
 			*(spi_soundBuf + (4 * i) + 2) = audioAndHotspotDataBuffer.wavbuffer[wavbuffer_read_idx][2 * i];
 		}
 
-		I2STransferTransmit(spi_soundBuf, WAV_BUFFER_SIZE * 2);
-
-		wavbuffer_read_idx++;
-		if (wavbuffer_read_idx >= WAV_BUFFER_COUNT)
+		// The transfer can fail
+		if (I2STransferTransmit(spi_soundBuf, WAV_BUFFER_SIZE * 2))
 		{
-			wavbuffer_read_idx = 0;
+			g_TX_SAI_in_use = false;
 		}
+
+		wavbuffer_read_idx = ((wavbuffer_read_idx + 1) % WAV_BUFFER_COUNT);
 		wavbuffer_count--;
+
+		return (wavbuffer_count > 0);
+	}
+
+	return false;
+}
+
+// This function is used when receiving
+void soundSendData(void)
+{
+	if (wavbuffer_count > 0)
+	{
+		if (g_TX_SAI_in_use == false)
+		{
+			g_TX_SAI_in_use = true;
+			soundRefillData();
+		}
 	}
 }
 
 // This function is used during transmission.
-void soundReceiveData(void)
+bool soundReceiveData(void)
 {
 	if (trxTransmissionEnabled == false)
 	{
-		return;
+		return false;
 	}
-
-	if (wavbuffer_count < WAV_BUFFER_COUNT)
+	if (wavbuffer_count < (WAV_BUFFER_COUNT - 1))
 	{
 		// spi_soundBuf == NULL  happens the first time through there is no previously sampled buffer to load into the wave buffer
 		if (spi_soundBuf != NULL)
@@ -306,6 +317,7 @@ void soundReceiveData(void)
 					runningMaxValue = abs(swapper.byte16);
 				}
 			}
+
 			if (micAudioAverageCounter-- == 0)
 			{
 				micAudioAverageCounter = MIC_AVERAGE_COUNTER_RELOAD;
@@ -313,26 +325,25 @@ void soundReceiveData(void)
 				runningMaxValue = 0;
 			}
 
-			wavbuffer_write_idx++;
-
-			if (wavbuffer_write_idx >= WAV_BUFFER_COUNT)
-			{
-				wavbuffer_write_idx = 0;
-			}
+			wavbuffer_write_idx = ((wavbuffer_write_idx + 1) % WAV_BUFFER_COUNT);
 			wavbuffer_count++;
 		}
 
 		spi_soundBuf = spi_sound[g_SAI_RX_Handle.queueUser];
 		I2STransferReceive(spi_soundBuf, WAV_BUFFER_SIZE * 2);
+
+		return true;
 	}
+
+	return false;
 }
 
 void soundTickRXBuffer(void)
 {
 	// The AMBE codec decodes 1 DMR frame into 6 buffers.
-	// Hence waiting for more than 6 buffers delays the sound playback by 1 DMR frame which gives some effective bufffering
-	// Max value for this is 12, as the total number of buffers is 18.
-	if (!g_TX_SAI_in_use && wavbuffer_count > 6)
+	// Hence waiting for 12 or more buffers delays the sound playback by 1 DMR frame which gives some effective buffering
+	// Max value for this has to be lower than WAV_BUFFER_COUNT.
+	if (wavbuffer_count >= (WAV_BUFFER_COUNT / 2))
 	{
 		soundSendData();
 	}
@@ -365,6 +376,11 @@ void soundStopMelody(void)
 
 	disableAudioAmp(AUDIO_AMP_MODE_BEEP);
 	soundSetMelody(NULL);
+}
+
+bool soundMelodyIsPlaying(void)
+{
+	return (melody_play != NULL);
 }
 
 void soundTickMelody(void)
@@ -481,7 +497,6 @@ static void soundBeepTask(void *data)
 					beep = false;
 				}
 			}
-
 		}
 
 		vTaskDelay(0);

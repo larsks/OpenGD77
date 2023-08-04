@@ -111,7 +111,6 @@ static void redrawScreen(bool update, bool state)
 		ucPrintCentered(6, buf, FONT_SIZE_3);
 
 #if defined(PLATFORM_RD5R)
-
 		ucPrintCentered(14, currentLanguage->locked, FONT_SIZE_3);
 		ucPrintCentered(24, currentLanguage->press_blue_plus_star, FONT_SIZE_1);
 		ucPrintCentered(32, currentLanguage->to_unlock, FONT_SIZE_1);
@@ -137,10 +136,15 @@ static void redrawScreen(bool update, bool state)
 		}
 
 		voicePromptsAppendLanguageString(&currentLanguage->locked);
-		voicePromptsAppendPrompt(PROMPT_SILENCE);
-		voicePromptsAppendLanguageString(&currentLanguage->press_blue_plus_star);
-		voicePromptsAppendLanguageString(&currentLanguage->to_unlock);
-		voicePromptsAppendPrompt(PROMPT_SILENCE);
+
+		if (nonVolatileSettings.audioPromptMode > AUDIO_PROMPT_MODE_VOICE_LEVEL_2)
+		{
+			voicePromptsAppendPrompt(PROMPT_SILENCE);
+			voicePromptsAppendLanguageString(&currentLanguage->press_blue_plus_star);
+			voicePromptsAppendLanguageString(&currentLanguage->to_unlock);
+			voicePromptsAppendPrompt(PROMPT_SILENCE);
+		}
+
 		voicePromptsPlay();
 	}
 	else

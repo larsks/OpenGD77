@@ -130,7 +130,7 @@ void menuLastHeardUpdateScreen(bool showTitleOrHeader, bool displayDetails, bool
 	}
 	else
 	{
-		uiUtilityRenderHeader(false);
+		uiUtilityRenderHeader(false, false);
 	}
 
 	// skip over the first menuDataGlobal.currentItemIndex in the listing
@@ -349,23 +349,16 @@ void menuLastHeardInit(void)
 
 static void promptsInit(bool isFirstRun)
 {
-	if (voicePromptsIsPlaying())
-	{
-		voicePromptsTerminate();
-	}
-
 	voicePromptsInit();
 	if (isFirstRun)
 	{
 		voicePromptsAppendPrompt(PROMPT_SILENCE);
-		voicePromptsAppendPrompt(PROMPT_SILENCE);
 		voicePromptsAppendLanguageString(&currentLanguage->last_heard);
 		voicePromptsAppendLanguageString(&currentLanguage->menu);
-		voicePromptsAppendPrompt(PROMPT_SILENCE);
-		voicePromptsAppendPrompt(PROMPT_SILENCE);
 
 		if (uiDataGlobal.lastHeardCount == 0)
 		{
+			voicePromptsAppendPrompt(PROMPT_SILENCE);
 			voicePromptsAppendLanguageString(&currentLanguage->empty_list);
 		}
 	}
@@ -374,14 +367,14 @@ static void promptsInit(bool isFirstRun)
 static void displayTalkerAlias(uint8_t y, char *text, uint32_t time, uint32_t now, uint32_t TGorPC, size_t maxLen, bool displayDetails, bool itemIsSelected, bool isFirstRun)
 {
 	char buffer[37]; // Max: TA 27 (in 7bit format) + ' [' + 6 (Maidenhead)  + ']' + NULL
-	char tg_Buffer[17];
-	char timeBuffer[17];
+	char tg_Buffer[SCREEN_LINE_BUFFER_SIZE];
+	char timeBuffer[SCREEN_LINE_BUFFER_SIZE];
 	uint32_t tg = (TGorPC & 0xFFFFFF);
 	bool isPC = ((TGorPC >> 24) == PC_CALL_FLAG);
 
 	// Do TG and Time stuff first as its always needed for the Voice prompts
 
-	snprintf(tg_Buffer, 17, "%s %u", (isPC ? currentLanguage->pc : currentLanguage->tg), tg);// PC or TG
+	snprintf(tg_Buffer, SCREEN_LINE_BUFFER_SIZE, "%s %u", (isPC ? currentLanguage->pc : currentLanguage->tg), tg);// PC or TG
 	snprintf(timeBuffer, 6, "%u", (((now - time) / 1000U) / 60U));// Time
 
 	if (itemIsSelected && (nonVolatileSettings.audioPromptMode >= AUDIO_PROMPT_MODE_VOICE_LEVEL_1))
@@ -414,8 +407,8 @@ static void displayTalkerAlias(uint8_t y, char *text, uint32_t time, uint32_t no
 				else // Nope, look for first name
 				{
 					uint32_t npos;
-					char nameBuf[17];
-					char outputBuf[17];
+					char nameBuf[SCREEN_LINE_BUFFER_SIZE];
+					char outputBuf[SCREEN_LINE_BUFFER_SIZE];
 
 					memset(nameBuf, 0, sizeof(nameBuf));
 
@@ -430,7 +423,7 @@ static void displayTalkerAlias(uint8_t y, char *text, uint32_t time, uint32_t no
 						memcpy(nameBuf, (text + cpos + 1), npos);
 						nameBuf[npos] = 0;
 
-						snprintf(outputBuf, 17, "%s %s", chomp(buffer), chomp(nameBuf));
+						snprintf(outputBuf, SCREEN_LINE_BUFFER_SIZE, "%s %s", chomp(buffer), chomp(nameBuf));
 
 						ucPrintCore(0,y, chomp(outputBuf), FONT_SIZE_3,TEXT_ALIGN_CENTER, itemIsSelected);
 					}
@@ -441,7 +434,7 @@ static void displayTalkerAlias(uint8_t y, char *text, uint32_t time, uint32_t no
 						buffer[cpos] = 0;
 
 						memcpy(nameBuf, (text + cpos + 1), strlen(text) - cpos - 1);
-						nameBuf[16] = 0;
+						nameBuf[(SCREEN_LINE_BUFFER_SIZE - 1)] = 0;
 
 						snprintf(outputBuf, 17, "%s %s", chomp(buffer), chomp(nameBuf));
 
@@ -452,8 +445,8 @@ static void displayTalkerAlias(uint8_t y, char *text, uint32_t time, uint32_t no
 			else
 			{
 				// No space found, use a chainsaw
-				memcpy(buffer, text, 16);
-				buffer[16] = 0;
+				memcpy(buffer, text, (SCREEN_LINE_BUFFER_SIZE - 1));
+				buffer[(SCREEN_LINE_BUFFER_SIZE - 1)] = 0;
 
 				ucPrintCore(0, y, chomp(buffer), FONT_SIZE_3,TEXT_ALIGN_CENTER, itemIsSelected);
 			}

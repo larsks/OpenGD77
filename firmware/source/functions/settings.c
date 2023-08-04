@@ -37,7 +37,7 @@
 #include "functions/rxPowerSaving.h"
 
 static const int STORAGE_BASE_ADDRESS 		= 0x6000;
-static const int STORAGE_MAGIC_NUMBER 		= 0x475D; // NOTE: never use 0xDEADBEEF, it's reserved value
+static const int STORAGE_MAGIC_NUMBER 		= 0x475E; // NOTE: never use 0xDEADBEEF, it's reserved value
 
 // Bit patterns for DMR Beep
 const uint8_t BEEP_TX_NONE  = 0x00;
@@ -61,7 +61,7 @@ int settingsUsbMode = USB_MODE_CPS;
 int *nextKeyBeepMelody = (int *)MELODY_KEY_BEEP;
 struct_codeplugGeneralSettings_t settingsCodeplugGeneralSettings;
 
-monitorModeSettingsStruct_t monitorModeData = {.isEnabled = false};
+monitorModeSettingsStruct_t monitorModeData = { .isEnabled = false, .qsoInfoUpdated = true, .dmrIsValid = false };
 const int ECO_LEVEL_MAX = 5;
 
 bool settingsSaveSettings(bool includeVFOs)
@@ -208,7 +208,7 @@ void settingsRestoreDefaultSettings(void)
 #endif
 	nonVolatileSettings.backLightTimeout = 0U;//0 = never timeout. 1 - 255 time in seconds
 	nonVolatileSettings.displayContrast =
-#if defined(PLATFORM_DM1801)
+#if defined(PLATFORM_DM1801) || defined(PLATFORM_DM1801A)
 			0x0e; // 14
 #elif defined (PLATFORM_RD5R)
 			0x06;
@@ -313,11 +313,9 @@ void settingsRestoreDefaultSettings(void)
 	nonVolatileSettings.temperatureCalibration = 0;
 	nonVolatileSettings.batteryCalibration = 5;
 
-#if defined(PLATFORM_GD77S)
-	nonVolatileSettings.ecoLevel = 3;
-#else
 	nonVolatileSettings.ecoLevel = 1;
-#endif
+
+	nonVolatileSettings.vfoSweepSettings = ((((sizeof(VFO_SWEEP_SCAN_RANGE_SAMPLE_STEP_TABLE) / sizeof(VFO_SWEEP_SCAN_RANGE_SAMPLE_STEP_TABLE[0])) - 1) << 12) | (VFO_SWEEP_RSSI_NOISE_FLOOR_DEFAULT << 7) | VFO_SWEEP_GAIN_DEFAULT);
 
 	currentChannelData = &settingsVFOChannel[nonVolatileSettings.currentVFONumber];// Set the current channel data to point to the VFO data since the default screen will be the VFO
 
@@ -326,14 +324,15 @@ void settingsRestoreDefaultSettings(void)
 	settingsSaveSettings(false);
 }
 
-void enableVoicePromptsIfLoaded(void)
+void enableVoicePromptsIfLoaded(bool enableFullPrompts)
 {
 	if (voicePromptDataIsLoaded)
 	{
 #if defined(PLATFORM_GD77S)
 		nonVolatileSettings.audioPromptMode = AUDIO_PROMPT_MODE_VOICE_LEVEL_3;
 #else
-		nonVolatileSettings.audioPromptMode = AUDIO_PROMPT_MODE_VOICE_LEVEL_1;
+
+		nonVolatileSettings.audioPromptMode = enableFullPrompts?AUDIO_PROMPT_MODE_VOICE_LEVEL_3:AUDIO_PROMPT_MODE_VOICE_LEVEL_1;
 #endif
 		settingsDirty = true;
 		settingsSaveSettings(false);

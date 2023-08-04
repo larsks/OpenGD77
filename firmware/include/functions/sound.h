@@ -56,7 +56,7 @@ extern volatile int micAudioSamplesTotal;
 extern int soundBeepVolumeDivider;
 
 #define WAV_BUFFER_SIZE 0xa0
-#define WAV_BUFFER_COUNT 18
+#define WAV_BUFFER_COUNT 24
 #define HOTSPOT_BUFFER_SIZE 50U
 #define HOTSPOT_BUFFER_COUNT 48U
 
@@ -86,13 +86,15 @@ void soundTerminateSound(void);
 void soundSetMelody(const int *melody);
 void soundCreateSong(const uint8_t *melody);
 void soundInitBeepTask(void);
+bool soundRefillData(void);
 void soundSendData(void);
-void soundReceiveData(void);
+bool soundReceiveData(void);
 void soundStoreBuffer(void);
 void soundRetrieveBuffer(void);
 void soundTickRXBuffer(void);
 void soundSetupBuffer(void);
 void soundStopMelody(void);
+bool soundMelodyIsPlaying(void);
 void soundTickMelody(void);
 
 

@@ -46,7 +46,9 @@ menuStatus_t menuZoneList(uiEvent_t *ev, bool isFirstRun)
 		menuDataGlobal.currentItemIndex = nonVolatileSettings.currentZone;
 
 		voicePromptsInit();
+		voicePromptsAppendPrompt(PROMPT_SILENCE);
 		voicePromptsAppendLanguageString(&currentLanguage->zone);
+		voicePromptsAppendLanguageString(&currentLanguage->menu);
 		voicePromptsAppendPrompt(PROMPT_SILENCE);
 
 		updateScreen(true);

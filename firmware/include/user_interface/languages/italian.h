@@ -29,7 +29,7 @@
  * Translators: IU4LEG, IZ2EIB
  *
  *
- * Rev: 2021.04.09 IZ2EIB  & IU4LEG
+ * Rev: 2021.05.30 IZ2EIB  & IU4LEG
  */
 #ifndef USER_INTERFACE_LANGUAGES_ITALIAN_H_
 #define USER_INTERFACE_LANGUAGES_ITALIAN_H_
@@ -106,16 +106,16 @@ const stringsTable_t italianLanguage =
 .bandwidth				   = "Banda", // MaxLen: 16 (with ':' + .n_a, "25kHz" or "12.5kHz")
 .stepFreq				   = "Step", // MaxLen: 7 (with ':' + xx.xxkHz fitted)
 .tot					   = "TOT", // MaxLen: 16 (with ':' + .off or 15..3825)
-.off					   = "Off", // MaxLen: 16 (with ':' + .timeout_beep, .calibration or .band_limits)
+.off					   = "Off", // MaxLen: 16 (with ':' + .timeout_beep, .band_limits)
 .zone_skip				   = "Salta Zona", // MaxLen: 16 (with ':' + .yes or .no)
 .all_skip				   = "Salta Tutti",// MaxLen: 16 (with ':' + .yes or .no)
 .yes					   = "Sì", // MaxLen: 16 (with ':' + .zone_skip, .all_skip)
 .no						   = "No", // MaxLen: 16 (with ':' + .zone_skip, .all_skip)
 .rx_group				   = "Rx Grp", // MaxLen: 16 (with ':' and codeplug group name)
-.on						   = "On", // MaxLen: 16 (with ':' + .calibration or .band_limits)
+.on						   = "On", // MaxLen: 16 (with ':' + .band_limits)
 .timeout_beep			   = "Bip Timeout", // MaxLen: 16 (with ':' + .off or 5..20)
-.UNUSED_1				= "",
-.calibration			   = "Calibrazione", // MaxLen: 16 (with ':' + .on or .off)
+.list_full				= "List full",
+.UNUSED_1			= "",
 .band_limits			   = "Limiti Banda", // MaxLen: 16 (with ':' + .on or .off)
 .beep_volume			   = "Volume Bip", // MaxLen: 16 (with ':' + -24..6 + 'dB')
 .dmr_mic_gain			   = "DMR mic", // MaxLen: 16 (with ':' + -33..12 + 'dB')
@@ -162,9 +162,9 @@ const stringsTable_t italianLanguage =
 .both					   = "Ambedue", // MaxLen 16 (with ':' + .dmr_beep)
 .vox_threshold             = "Soglia VOX", // MaxLen 16 (with ':' + .off or 1..30)
 .vox_tail                  = "Coda VOX", // MaxLen 16 (with ':' + .n_a or '0.0s')
-.audio_prompt			   = "Guida",// Maxlen 16 (with ':' + .silent, .normal, .beep or .voice_prompt_level_1)
+.audio_prompt			   = "Guida",// Maxlen 16 (with ':' + .silent, .beep or .voice_prompt_level_1)
 .silent                    = "Silenziosa", // Maxlen 16 (with : + audio_prompt)
-.normal                    = "Normale", // Maxlen 16 (with : + audio_prompt)
+.UNUSED_2			= "",
 .beep					   = "Bip", // Maxlen 16 (with : + audio_prompt)
 .voice_prompt_level_1	   = "Voce L1", // Maxlen 16 (with : + audio_prompt)
 .transmitTalkerAlias	   = "TA Tx", // Maxlen 16 (with : + .on or .off)
@@ -206,8 +206,11 @@ const stringsTable_t italianLanguage =
 .battery_calibration			= "Cal BATT.",
 .low					= "Bassa",
 .high					= "Alta",
-.dmr_id					= "DMR ID",
-.scan_on_boot				= "Scan On Boot"
+.dmr_id					= "2°idDMR",
+.scan_on_boot				= "Scan su ON",
+.dtmf_entry				= "DTMF entry",
+.name					= "Name",
+.openDM1801A 				= "OpenDM1801A" // Do not translate
 };
 /********************************************************************
  *

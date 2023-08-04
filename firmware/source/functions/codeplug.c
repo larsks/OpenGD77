@@ -76,6 +76,8 @@ const int CODEPLUG_ADDR_VFO_A_CHANNEL = 0x7590;
 int codeplugChannelsPerZone = 16;
 
 const int VFO_FREQ_STEP_TABLE[8] = {250,500,625,1000,1250,2500,3000,5000};
+const int VFO_SWEEP_SCAN_RANGE_SAMPLE_STEP_TABLE[7] = {78,157,313,625, 1250,2500,5000};
+
 
 const int CODEPLUG_MAX_VARIABLE_SQUELCH = 21;
 const int CODEPLUG_MIN_VARIABLE_SQUELCH = 1;
@@ -689,20 +691,23 @@ int codeplugContactsGetCount(uint32_t callType) // 0:TG 1:PC 2:ALL
 	return 0; // Should not happen
 }
 
+// Returns contact's index, or 0 on failure.
 int codeplugDTMFContactGetDataForNumber(int number, struct_codeplugDTMFContact_t *contact)
 {
 	if ((number >= CODEPLUG_DTMF_CONTACTS_MIN) && (number <= CODEPLUG_DTMF_CONTACTS_MAX))
 	{
-		codeplugDTMFContactGetDataForIndex(codeplugContactsCache.contactsDTMFLookupCache[number - 1].index, contact);
-		return number;
+		if (codeplugDTMFContactGetDataForIndex(codeplugContactsCache.contactsDTMFLookupCache[number - 1].index, contact))
+		{
+			return codeplugContactsCache.contactsDTMFLookupCache[number - 1].index;
+		}
 	}
 
 	return 0;
 }
 
+// Returns contact's index, or 0 on failure.
 int codeplugContactGetDataForNumberInType(int number, uint32_t callType, struct_codeplugContact_t *contact)
 {
-	int pos = 0;
 	int numContacts = codeplugContactsCache.numTGContacts + codeplugContactsCache.numALLContacts + codeplugContactsCache.numPCContacts;
 
 	for (int i = 0; i < numContacts; i++)
@@ -716,22 +721,21 @@ int codeplugContactGetDataForNumberInType(int number, uint32_t callType, struct_
 		{
 			if (codeplugContactGetDataForIndex(codeplugContactsCache.contactsLookupCache[i].index, contact))
 			{
-				pos = i + 1;
-				break;
+				return codeplugContactsCache.contactsLookupCache[i].index;
 			}
 		}
 	}
 
-	return pos;
+	return 0;
 }
 
 // optionalTS: 0 = no TS checking, 1..2 = TS
-int codeplugContactIndexByTGorPC(uint32_t tgorpc, uint32_t callType, struct_codeplugContact_t *contact, uint8_t optionalTS)
+int codeplugContactIndexByTGorPCFromNumber(int number, uint32_t tgorpc, uint32_t callType, struct_codeplugContact_t *contact, uint8_t optionalTS)
 {
 	int numContacts = codeplugContactsCache.numTGContacts + codeplugContactsCache.numALLContacts + codeplugContactsCache.numPCContacts;
 	int firstMatch = -1;
 
-	for (int i = 0; i < numContacts; i++)
+	for (int i = number; i < numContacts; i++)
 	{
 		if (((codeplugContactsCache.contactsLookupCache[i].tgOrPCNum & 0xFFFFFF) == tgorpc) &&
 				((codeplugContactsCache.contactsLookupCache[i].tgOrPCNum >> 24) == callType))
@@ -770,6 +774,12 @@ int codeplugContactIndexByTGorPC(uint32_t tgorpc, uint32_t callType, struct_code
 	}
 
 	return -1;
+}
+
+// optionalTS: 0 = no TS checking, 1..2 = TS
+int codeplugContactIndexByTGorPC(uint32_t tgorpc, uint32_t callType, struct_codeplugContact_t *contact, uint8_t optionalTS)
+{
+	return codeplugContactIndexByTGorPCFromNumber(0, tgorpc, callType, contact, optionalTS);
 }
 
 bool codeplugContactsContainsPC(uint32_t pc)
@@ -1014,7 +1024,7 @@ static bool codeplugContactGetReserve1ByteForIndex(int index, struct_codeplugCon
 
 bool codeplugContactGetDataForIndex(int index, struct_codeplugContact_t *contact)
 {
-	char buf[17];
+	char buf[SCREEN_LINE_BUFFER_SIZE];
 
 	if (((codeplugContactsCache.numTGContacts > 0) || (codeplugContactsCache.numPCContacts > 0) || (codeplugContactsCache.numALLContacts > 0)) &&
 			(index >= CODEPLUG_CONTACTS_MIN) && (index <= CODEPLUG_CONTACTS_MAX))
@@ -1031,7 +1041,7 @@ bool codeplugContactGetDataForIndex(int index, struct_codeplugContact_t *contact
 	contact->callType = CONTACT_CALLTYPE_TG;
 	contact->reserve1 = 0xff;
 	contact->NOT_IN_CODEPLUGDATA_indexNumber = -1;
-	snprintf(buf, 17, "%s 9", currentLanguage->tg);
+	snprintf(buf, SCREEN_LINE_BUFFER_SIZE, "%s 9", currentLanguage->tg);
 	codeplugUtilConvertStringToBuf(buf, contact->name, 16);
 	return false;
 }
@@ -1159,13 +1169,13 @@ void codeplugGetRadioName(char *buf)
 // Max length the user can enter is 16. Hence buf must be 17 chars to allow for the termination
 void codeplugGetBootScreenData(char *line1, char *line2, uint8_t *displayType)
 {
-	memset(line1, 0, 17);
-	memset(line2, 0, 17);
+	memset(line1, 0, SCREEN_LINE_BUFFER_SIZE);
+	memset(line2, 0, SCREEN_LINE_BUFFER_SIZE);
 
-	EEPROM_Read(CODEPLUG_ADDR_BOOT_LINE1, (uint8_t *)line1, 16);
-	codeplugUtilConvertBufToString(line1, line1, 16);
-	EEPROM_Read(CODEPLUG_ADDR_BOOT_LINE2, (uint8_t *)line2, 16);
-	codeplugUtilConvertBufToString(line2, line2, 16);
+	EEPROM_Read(CODEPLUG_ADDR_BOOT_LINE1, (uint8_t *)line1, (SCREEN_LINE_BUFFER_SIZE - 1));
+	codeplugUtilConvertBufToString(line1, line1, (SCREEN_LINE_BUFFER_SIZE - 1));
+	EEPROM_Read(CODEPLUG_ADDR_BOOT_LINE2, (uint8_t *)line2, (SCREEN_LINE_BUFFER_SIZE - 1));
+	codeplugUtilConvertBufToString(line2, line2, (SCREEN_LINE_BUFFER_SIZE - 1));
 
 	EEPROM_Read(CODEPLUG_ADDR_BOOT_INTRO_SCREEN, displayType, 1);// read the display type
 }

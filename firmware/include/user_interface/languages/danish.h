@@ -114,8 +114,8 @@ const stringsTable_t danishLanguage =
 .rx_group				= "Rx Grp",
 .on						= "On",
 .timeout_beep			= "Timeout bip",
-.UNUSED_1				= "",
-.calibration			= "Justering",
+.list_full				= "List full",
+.UNUSED_1			= "",
 .band_limits			= "Åben FRQ",
 .beep_volume			= "Bip vol",
 .dmr_mic_gain			= "DMR mic",
@@ -162,9 +162,9 @@ const stringsTable_t danishLanguage =
 .both					= "Both", // MaxLen 16 (with ':' + .dmr_beep)
 .vox_threshold                          = "VOX Thres.", // MaxLen 16 (with ':' + .off or 1..30)
 .vox_tail                               = "VOX Tail", // MaxLen 16 (with ':' + .n_a or '0.0s')
-.audio_prompt				= "Prompt",// Maxlen 16 (with ':' + .silent, .normal, .beep or .voice_prompt_level_1)
+.audio_prompt				= "Prompt",// Maxlen 16 (with ':' + .silent, .beep or .voice_prompt_level_1)
 .silent                                 = "Silent", // Maxlen 16 (with : + audio_prompt)
-.normal                                 = "Normal", // Maxlen 16 (with : + audio_prompt)
+.UNUSED_2			= "",
 .beep					= "Beep", // Maxlen 16 (with : + audio_prompt)
 .voice_prompt_level_1					= "Voice", // Maxlen 16 (with : + audio_prompt)
 .transmitTalkerAlias	= "TA Tx", // Maxlen 16 (with : + .on or .off)
@@ -207,7 +207,10 @@ const stringsTable_t danishLanguage =
 .low					= "Low",
 .high					= "High",
 .dmr_id					= "DMR ID",
-.scan_on_boot				= "Scan On Boot"
+.scan_on_boot				= "Scan On Boot",
+.dtmf_entry				= "DTMF entry",
+.name					= "Name",
+.openDM1801A 				= "OpenDM1801A" // Do not translate
 };
 /********************************************************************
  *

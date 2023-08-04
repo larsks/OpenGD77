@@ -78,7 +78,7 @@ void adcInit(void)
 }
 void approxRollingAverage (unsigned int newSample)
 {
-#if defined(PLATFORM_DM1801)
+#if defined(PLATFORM_DM1801) || defined(PLATFORM_DM1801A)
 	const int AVERAGING_LENGTH = 1000;
 #elif defined(PLATFORM_RD5R)
 	const int AVERAGING_LENGTH = 250;
@@ -140,7 +140,7 @@ int getVOX(void)
 
 int getTemperature(void)
 {
-#if defined(PLATFORM_DM1801)
+#if defined(PLATFORM_DM1801) || defined(PLATFORM_DM1801A)
 	const int OFFSET = 9420;// Value needs to be validated as average for this radio
 #elif defined(PLATFORM_RD5R)
 	const int OFFSET = 9130;// Value needs to be validated as average for this radio

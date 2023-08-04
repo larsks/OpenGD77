@@ -65,10 +65,8 @@ menuStatus_t menuOptions(uiEvent_t *ev, bool isFirstRun)
 
 		voicePromptsInit();
 		voicePromptsAppendPrompt(PROMPT_SILENCE);
-		voicePromptsAppendPrompt(PROMPT_SILENCE);
 		voicePromptsAppendLanguageString(&currentLanguage->options);
 		voicePromptsAppendLanguageString(&currentLanguage->menu);
-		voicePromptsAppendPrompt(PROMPT_SILENCE);
 		voicePromptsAppendPrompt(PROMPT_SILENCE);
 
 		updateScreen(true);
@@ -89,17 +87,16 @@ menuStatus_t menuOptions(uiEvent_t *ev, bool isFirstRun)
 static void updateScreen(bool isFirstRun)
 {
 	int mNum = 0;
-	static const int bufferLen = 17;
-	char buf[bufferLen];
-	char buf2[bufferLen];
+	char buf[SCREEN_LINE_BUFFER_SIZE];
+	char buf2[SCREEN_LINE_BUFFER_SIZE];
 	char * const *leftSide = NULL;// initialize to please the compiler
 	char * const *rightSideConst = NULL;// initialize to please the compiler
-	char rightSideVar[bufferLen];
+	char rightSideVar[SCREEN_LINE_BUFFER_SIZE];
 	voicePrompt_t rightSideUnitsPrompt;
 	const char * rightSideUnitsStr;
 
 	ucClearBuf();
-	bool settingOption = uiShowQuickKeysChoices(buf, bufferLen,currentLanguage->options);
+	bool settingOption = uiShowQuickKeysChoices(buf, SCREEN_LINE_BUFFER_SIZE, currentLanguage->options);
 
 	// Can only display 3 of the options at a time menu at -1, 0 and +1
 	for(int i = -1; i <= 1; i++)
@@ -135,31 +132,31 @@ static void updateScreen(bool isFirstRun)
 					break;
 				case OPTIONS_MENU_KEYPAD_TIMER_LONG:// Timer longpress
 					leftSide = (char * const *)&currentLanguage->key_long;
-					snprintf(rightSideVar, bufferLen, "%1d.%1d", nonVolatileSettings.keypadTimerLong / 10, nonVolatileSettings.keypadTimerLong % 10);
+					snprintf(rightSideVar, SCREEN_LINE_BUFFER_SIZE, "%1d.%1d", nonVolatileSettings.keypadTimerLong / 10, nonVolatileSettings.keypadTimerLong % 10);
 					rightSideUnitsPrompt = PROMPT_SECONDS;
 					rightSideUnitsStr = "s";
 					break;
 				case OPTIONS_MENU_KEYPAD_TIMER_REPEAT:// Timer repeat
 					leftSide = (char * const *)&currentLanguage->key_repeat;
-					snprintf(rightSideVar, bufferLen, "%1d.%1d", nonVolatileSettings.keypadTimerRepeat/10, nonVolatileSettings.keypadTimerRepeat % 10);
+					snprintf(rightSideVar, SCREEN_LINE_BUFFER_SIZE, "%1d.%1d", nonVolatileSettings.keypadTimerRepeat/10, nonVolatileSettings.keypadTimerRepeat % 10);
 					rightSideUnitsPrompt = PROMPT_SECONDS;
 					rightSideUnitsStr = "s";
 					break;
 				case OPTIONS_MENU_DMR_MONITOR_CAPTURE_TIMEOUT:// DMR filtr timeout repeat
 					leftSide = (char * const *)&currentLanguage->dmr_filter_timeout;
-					snprintf(rightSideVar, bufferLen, "%d", nonVolatileSettings.dmrCaptureTimeout);
+					snprintf(rightSideVar, SCREEN_LINE_BUFFER_SIZE, "%d", nonVolatileSettings.dmrCaptureTimeout);
 					rightSideUnitsPrompt = PROMPT_SECONDS;
 					rightSideUnitsStr = "s";
 					break;
 				case OPTIONS_MENU_SCAN_DELAY:// Scan hold and pause time
 					leftSide = (char * const *)&currentLanguage->scan_delay;
-					snprintf(rightSideVar, bufferLen, "%d", nonVolatileSettings.scanDelay);
+					snprintf(rightSideVar, SCREEN_LINE_BUFFER_SIZE, "%d", nonVolatileSettings.scanDelay);
 					rightSideUnitsPrompt = PROMPT_SECONDS;
 					rightSideUnitsStr = "s";
 					break;
 				case OPTIONS_MENU_SCAN_STEP_TIME:// Scan step time
 					leftSide = (char * const *)&currentLanguage->scan_dwell_time;
-					snprintf(rightSideVar, bufferLen, "%d", settingsGetScanStepTimeMilliseconds());
+					snprintf(rightSideVar, SCREEN_LINE_BUFFER_SIZE, "%d", settingsGetScanStepTimeMilliseconds());
 					rightSideUnitsPrompt = PROMPT_MILLISECONDS;
 					rightSideUnitsStr = "ms";
 					break;
@@ -177,15 +174,15 @@ static void updateScreen(bool isFirstRun)
 					break;
 				case OPTIONS_MENU_SQUELCH_DEFAULT_VHF:
 					leftSide = (char * const *)&currentLanguage->squelch_VHF;
-					snprintf(rightSideVar, bufferLen, "%d%%", (nonVolatileSettings.squelchDefaults[RADIO_BAND_VHF] - 1) * 5);// 5% steps
+					snprintf(rightSideVar, SCREEN_LINE_BUFFER_SIZE, "%d%%", (nonVolatileSettings.squelchDefaults[RADIO_BAND_VHF] - 1) * 5);// 5% steps
 					break;
 				case OPTIONS_MENU_SQUELCH_DEFAULT_220MHz:
 					leftSide = (char * const *)&currentLanguage->squelch_220;
-					snprintf(rightSideVar, bufferLen, "%d%%", (nonVolatileSettings.squelchDefaults[RADIO_BAND_220MHz] - 1) * 5);// 5% steps
+					snprintf(rightSideVar, SCREEN_LINE_BUFFER_SIZE, "%d%%", (nonVolatileSettings.squelchDefaults[RADIO_BAND_220MHz] - 1) * 5);// 5% steps
 					break;
 				case OPTIONS_MENU_SQUELCH_DEFAULT_UHF:
 					leftSide = (char * const *)&currentLanguage->squelch_UHF;
-					snprintf(rightSideVar, bufferLen, "%d%%", (nonVolatileSettings.squelchDefaults[RADIO_BAND_UHF] - 1) * 5);// 5% steps
+					snprintf(rightSideVar, SCREEN_LINE_BUFFER_SIZE, "%d%%", (nonVolatileSettings.squelchDefaults[RADIO_BAND_UHF] - 1) * 5);// 5% steps
 					break;
 				case OPTIONS_MENU_PTT_TOGGLE:
 					leftSide = (char * const *)&currentLanguage->ptt_toggle;
@@ -210,7 +207,7 @@ static void updateScreen(bool isFirstRun)
 						}
 						else
 						{
-							snprintf(rightSideVar, bufferLen, "%s", hsTypes[nonVolatileSettings.hotspotType - 1]);
+							snprintf(rightSideVar, SCREEN_LINE_BUFFER_SIZE, "%s", hsTypes[nonVolatileSettings.hotspotType - 1]);
 						}
 					}
 #endif
@@ -226,32 +223,32 @@ static void updateScreen(bool isFirstRun)
 					break;
 				case OPTIONS_MENU_USER_POWER:
 					leftSide = (char * const *)&currentLanguage->user_power;
-					snprintf(rightSideVar, bufferLen, "%d", (nonVolatileSettings.userPower));
+					snprintf(rightSideVar, SCREEN_LINE_BUFFER_SIZE, "%d", (nonVolatileSettings.userPower));
 					break;
 				case OPTIONS_MENU_TEMPERATURE_CALIBRATON:
 					{
 						int absValue = abs(nonVolatileSettings.temperatureCalibration);
 						leftSide = (char * const *)&currentLanguage->temperature_calibration;
-						snprintf(buf2, bufferLen, "%c%d.%d", (nonVolatileSettings.temperatureCalibration == 0 ? ' ' :
+						snprintf(buf2, SCREEN_LINE_BUFFER_SIZE, "%c%d.%d", (nonVolatileSettings.temperatureCalibration == 0 ? ' ' :
 								(nonVolatileSettings.temperatureCalibration > 0 ? '+' : '-')), ((absValue) / 2), ((absValue % 2) * 5));
-						snprintf(rightSideVar, bufferLen, "%s%s", buf2, currentLanguage->celcius);
+						snprintf(rightSideVar, SCREEN_LINE_BUFFER_SIZE, "%s%s", buf2, currentLanguage->celcius);
 					}
 					break;
 				case OPTIONS_MENU_BATTERY_CALIBRATON:
 					{
 						int batCal = nonVolatileSettings.batteryCalibration - 5;
 						leftSide = (char * const *)&currentLanguage->battery_calibration;
-						snprintf(buf2, bufferLen, "%c0.%d", (batCal == 0 ? ' ' : (batCal > 0 ? '+' : '-')), abs(batCal));
-						snprintf(rightSideVar, bufferLen, "%sV", buf2);
+						snprintf(buf2, SCREEN_LINE_BUFFER_SIZE, "%c0.%d", (batCal == 0 ? ' ' : (batCal > 0 ? '+' : '-')), abs(batCal));
+						snprintf(rightSideVar, SCREEN_LINE_BUFFER_SIZE, "%sV", buf2);
 					}
 					break;
 				case OPTIONS_MENU_ECO_LEVEL:
 					leftSide = (char * const *)&currentLanguage->eco_level;
-					snprintf(rightSideVar, bufferLen, "%d", (nonVolatileSettings.ecoLevel));
+					snprintf(rightSideVar, SCREEN_LINE_BUFFER_SIZE, "%d", (nonVolatileSettings.ecoLevel));
 					break;
 			}
 
-			snprintf(buf, bufferLen, "%s:%s", *leftSide, (rightSideVar[0] ? rightSideVar : (rightSideConst ? *rightSideConst : "")));
+			snprintf(buf, SCREEN_LINE_BUFFER_SIZE, "%s:%s", *leftSide, (rightSideVar[0] ? rightSideVar : (rightSideConst ? *rightSideConst : "")));
 
 			if (i == 0)
 			{
@@ -296,7 +293,7 @@ static void updateScreen(bool isFirstRun)
 
 				if (rightSideUnitsStr != NULL)
 				{
-					strncat(rightSideVar, rightSideUnitsStr, bufferLen);
+					strncat(rightSideVar, rightSideUnitsStr, SCREEN_LINE_BUFFER_SIZE);
 				}
 
 				if (menuDataGlobal.menuOptionsTimeout != -1)
@@ -318,7 +315,7 @@ static void updateScreen(bool isFirstRun)
 			{
 				if (rightSideUnitsStr != NULL)
 				{
-					strncat(buf, rightSideUnitsStr, bufferLen);
+					strncat(buf, rightSideUnitsStr, SCREEN_LINE_BUFFER_SIZE);
 				}
 
 				menuDisplayEntry(i, mNum, buf);

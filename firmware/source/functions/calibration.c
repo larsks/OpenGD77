@@ -361,7 +361,7 @@ const uint32_t VARIANT_CALIBRATION_BASE 				= 0x0008F000;
 const int MARKER_BYTES_LENGTH = 8;
 const uint8_t MARKER_BYTES[] = {0xA0 ,0x0F ,0xC0 ,0x12 ,0xA0 ,0x0F ,0xC0 ,0x12};
 
-#elif defined(PLATFORM_DM1801)
+#elif defined(PLATFORM_DM1801) || defined(PLATFORM_DM1801A)
 
 const uint32_t VARIANT_CALIBRATION_BASE 				= 0x0006F000;
 const int MARKER_BYTES_LENGTH = 2;

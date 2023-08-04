@@ -60,7 +60,7 @@
 #define KEY_LEFT         3
 #define KEY_RIGHT        4
 
-#if defined(PLATFORM_DM1801) || defined(PLATFORM_RD5R)
+#if defined(PLATFORM_DM1801) || defined(PLATFORM_DM1801A) || defined(PLATFORM_RD5R)
 #define KEY_VFO_MR       5
 #define KEY_A_B          6
 #endif
@@ -129,6 +129,6 @@ void keyboardReset(void);
 bool keyboardKeyIsDTMFKey(char key);
 uint32_t keyboardRead(void);
 void keyboardCheckKeyEvent(keyboardCode_t *keys, int *event);
-bool heyboardScanKey(uint32_t scancode, char *keycode);
+bool keyboardScanKey(uint32_t scancode, char *keycode);
 
 #endif /* _OPENGD77_KEYBOARD_H_ */
