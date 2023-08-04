@@ -32,7 +32,9 @@
 #include <FreeRTOS.h>
 #include <task.h>
 #include "interfaces/i2s.h"
+#include "interfaces/wdog.h"
 
+extern Task_t beepTask;
 
 extern int melody_generic[512];
 extern const int MELODY_POWER_ON[];
@@ -55,27 +57,23 @@ extern volatile int melody_idx;
 extern volatile int micAudioSamplesTotal;
 extern int soundBeepVolumeDivider;
 
-#define WAV_BUFFER_SIZE 0xa0
-#define WAV_BUFFER_COUNT 24
-#define HOTSPOT_BUFFER_SIZE 50U
-#define HOTSPOT_BUFFER_COUNT 48U
+#define WAV_BUFFER_SIZE                          160
+#define WAV_BUFFER_COUNT                          30 // 5 DMR frames, was 24
+#define WAV_BUFFER_AMBE_PREBUFFERING_COUNT        12 // 2 DMR frames, 6 buffers each
+#define HOTSPOT_BUFFER_SIZE                      50U
+#define HOTSPOT_BUFFER_COUNT                     48U
 
 extern union sharedDataBuffer
 {
-	volatile uint8_t wavbuffer[WAV_BUFFER_COUNT][WAV_BUFFER_SIZE];
-	volatile uint8_t hotspotBuffer[HOTSPOT_BUFFER_COUNT][HOTSPOT_BUFFER_SIZE];
-	volatile uint8_t rawBuffer[HOTSPOT_BUFFER_COUNT * HOTSPOT_BUFFER_SIZE];
+	volatile uint8_t wavbuffer[WAV_BUFFER_COUNT][WAV_BUFFER_SIZE]; // 3840
+	volatile uint8_t hotspotBuffer[HOTSPOT_BUFFER_COUNT][HOTSPOT_BUFFER_SIZE]; // 2400
+	volatile uint8_t rawBuffer[HOTSPOT_BUFFER_COUNT * HOTSPOT_BUFFER_SIZE]; // 2400
 } audioAndHotspotDataBuffer;
 
 extern volatile int wavbuffer_read_idx;
 extern volatile int wavbuffer_write_idx;
 extern volatile int wavbuffer_count;
-extern uint8_t *currentWaveBuffer;
-
-extern uint8_t spi_sound1[WAV_BUFFER_SIZE*2];
-extern uint8_t spi_sound2[WAV_BUFFER_SIZE*2];
-extern uint8_t spi_sound3[WAV_BUFFER_SIZE*2];
-extern uint8_t spi_sound4[WAV_BUFFER_SIZE*2];
+extern volatile uint8_t *currentWaveBuffer;
 
 extern volatile bool g_TX_SAI_in_use;
 

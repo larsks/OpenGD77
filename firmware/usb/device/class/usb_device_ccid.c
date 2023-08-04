@@ -64,7 +64,7 @@ USB_GLOBAL USB_RAM_ADDRESS_ALIGNMENT(USB_DATA_ALIGN_SIZE) static usb_device_ccid
  */
 static usb_status_t USB_DeviceCcidAllocateHandle(usb_device_ccid_struct_t **handle)
 {
-    int32_t count;
+    uint32_t count;
     for (count = 0U; count < USB_DEVICE_CONFIG_CCID; count++)
     {
         if (NULL == s_UsbDeviceCcidHandle[count].handle)
@@ -88,10 +88,10 @@ static usb_status_t USB_DeviceCcidAllocateHandle(usb_device_ccid_struct_t **hand
  */
 static usb_status_t USB_DeviceCcidFreeHandle(usb_device_ccid_struct_t *handle)
 {
-    handle->handle = NULL;
-    handle->configStruct = (usb_device_class_config_struct_t *)NULL;
+    handle->handle        = NULL;
+    handle->configStruct  = (usb_device_class_config_struct_t *)NULL;
     handle->configuration = 0U;
-    handle->alternate = 0U;
+    handle->alternate     = 0U;
     return kStatus_USB_Success;
 }
 
@@ -109,22 +109,22 @@ static usb_status_t USB_DeviceCcidFreeHandle(usb_device_ccid_struct_t *handle)
 static usb_status_t USB_DeviceCcidRemoveTransfer(usb_device_ccid_transfer_struct_t **transfer_queue,
                                                  usb_device_ccid_transfer_struct_t **transfer)
 {
-    USB_OSA_SR_ALLOC();
+    OSA_SR_ALLOC();
 
     if ((NULL == transfer_queue) || (NULL == transfer))
     {
         return kStatus_USB_InvalidParameter;
     }
 
-    USB_OSA_ENTER_CRITICAL();
+    OSA_ENTER_CRITICAL();
     *transfer = *transfer_queue;
-    if (*transfer_queue)
+    if (NULL != *transfer_queue)
     {
         *transfer_queue = (*transfer_queue)->next;
-        USB_OSA_EXIT_CRITICAL();
+        OSA_EXIT_CRITICAL();
         return kStatus_USB_Success;
     }
-    USB_OSA_EXIT_CRITICAL();
+    OSA_EXIT_CRITICAL();
     return kStatus_USB_Busy;
 }
 
@@ -144,7 +144,7 @@ static usb_status_t USB_DeviceCcidAddTransfer(usb_device_ccid_transfer_struct_t 
 {
     usb_device_ccid_transfer_struct_t *p;
     usb_device_ccid_transfer_struct_t *q;
-    USB_OSA_SR_ALLOC();
+    OSA_SR_ALLOC();
 
     if (NULL == transfer_queue)
     {
@@ -153,19 +153,19 @@ static usb_status_t USB_DeviceCcidAddTransfer(usb_device_ccid_transfer_struct_t 
     p = *transfer_queue;
     q = *transfer_queue;
 
-    USB_OSA_ENTER_CRITICAL();
-    while (p)
+    OSA_ENTER_CRITICAL();
+    while (NULL != p)
     {
         q = p;
         if (p == transfer)
         {
-            USB_OSA_EXIT_CRITICAL();
+            OSA_EXIT_CRITICAL();
             return kStatus_USB_Error;
         }
         p = p->next;
     }
     transfer->next = NULL;
-    if (q)
+    if (NULL != q)
     {
         q->next = transfer;
     }
@@ -173,7 +173,7 @@ static usb_status_t USB_DeviceCcidAddTransfer(usb_device_ccid_transfer_struct_t 
     {
         *transfer_queue = transfer;
     }
-    USB_OSA_EXIT_CRITICAL();
+    OSA_EXIT_CRITICAL();
     return kStatus_USB_Success;
 }
 
@@ -196,8 +196,9 @@ static usb_status_t USB_DeviceCcidInterruptIn(usb_device_handle deviceHandle,
 {
     usb_device_ccid_struct_t *ccidHandle = (usb_device_ccid_struct_t *)callbackParam;
     usb_device_ccid_notification_struct_t notification;
-    usb_status_t error = kStatus_USB_Error;
-    USB_OSA_SR_ALLOC();
+    usb_status_t error = kStatus_USB_Success;
+    void *temp;
+    OSA_SR_ALLOC();
 
     if (((NULL == deviceHandle) || (NULL == callbackParam) || (NULL == event)) || (NULL == event->buffer))
     {
@@ -207,52 +208,54 @@ static usb_status_t USB_DeviceCcidInterruptIn(usb_device_handle deviceHandle,
     /* Save the transed buffer address and length */
     notification.buffer = event->buffer;
     notification.length = event->length;
+    temp                = (void *)event->buffer;
     usb_device_ccid_notify_slot_chnage_notification_t *ccidNotify =
-        (usb_device_ccid_notify_slot_chnage_notification_t *)event->buffer;
+        (usb_device_ccid_notify_slot_chnage_notification_t *)temp;
 
     if (USB_DEVICE_CCID_RDR_TO_PC_NOTIFYSLOTCHANGE == ccidNotify->bMessageType)
     {
-        if (ccidHandle->configStruct->classCallback)
+        if (NULL != ccidHandle->configStruct->classCallback)
         {
             /* Notify the up layer, the slot change notification sent.
             classCallback is initialized in classInit of s_UsbDeviceClassInterfaceMap,
             it is from the second parameter of classInit */
-            ccidHandle->configStruct->classCallback((class_handle_t)ccidHandle, kUSB_DeviceCcidEventSlotChangeSent,
-                                                    &notification);
+            (void)ccidHandle->configStruct->classCallback((class_handle_t)ccidHandle,
+                                                          kUSB_DeviceCcidEventSlotChangeSent, &notification);
         }
     }
     else if (USB_DEVICE_CCID_RDR_TO_PC_HARDWAREERROR == ccidNotify->bMessageType)
     {
-        if (ccidHandle->configStruct->classCallback)
+        if (NULL != ccidHandle->configStruct->classCallback)
         {
             /* Notify the up layer, the hardware error notification sent.
             classCallback is initialized in classInit of s_UsbDeviceClassInterfaceMap,
             it is from the second parameter of classInit */
-            ccidHandle->configStruct->classCallback((class_handle_t)ccidHandle, kUSB_DeviceCcidEventHardwareErrorSent,
-                                                    &notification);
+            (void)ccidHandle->configStruct->classCallback((class_handle_t)ccidHandle,
+                                                          kUSB_DeviceCcidEventHardwareErrorSent, &notification);
         }
     }
     else
     {
+        /*no action*/;
     }
-    USB_OSA_ENTER_CRITICAL();
-    if ((ccidHandle->configuration) && (ccidHandle->endpointInterruptIn))
+    OSA_ENTER_CRITICAL();
+    if ((0U != ccidHandle->configuration) && (0U != ccidHandle->endpointInterruptIn))
     {
         /* If there is a blocking slot changed notification, send it to the host */
-        if (ccidHandle->slotsChanged)
+        if (0U != ccidHandle->slotsChanged)
         {
             ccidHandle->slotsSendingChangeBuffer[0] = ccidHandle->slotsChangeBuffer[0];
             for (uint8_t i = 1U; i < sizeof(ccidHandle->slotsChangeBuffer); i++)
             {
                 ccidHandle->slotsSendingChangeBuffer[i] = ccidHandle->slotsChangeBuffer[i];
-                ccidHandle->slotsChangeBuffer[i] &= ~0xAAU;
+                ccidHandle->slotsChangeBuffer[i] &= (uint8_t)(~0xAAU);
             }
             error = USB_DeviceSendRequest(ccidHandle->handle, ccidHandle->endpointInterruptIn,
                                           ccidHandle->slotsSendingChangeBuffer,
                                           sizeof(ccidHandle->slotsSendingChangeBuffer));
             if (kStatus_USB_Success == error)
             {
-                ccidHandle->slotsChanged = 0U;
+                ccidHandle->slotsChanged    = 0U;
                 ccidHandle->interruptInBusy = 1U;
             }
             else
@@ -264,9 +267,10 @@ static usb_status_t USB_DeviceCcidInterruptIn(usb_device_handle deviceHandle,
         {
             ccidHandle->interruptInBusy = 0U;
         }
+        error = kStatus_USB_Success;
     }
-    USB_OSA_EXIT_CRITICAL();
-    return kStatus_USB_Success;
+    OSA_EXIT_CRITICAL();
+    return error;
 }
 
 /*!
@@ -289,8 +293,10 @@ static usb_status_t USB_DeviceCcidBulkIn(usb_device_handle deviceHandle,
     usb_device_ccid_struct_t *ccidHandle = (usb_device_ccid_struct_t *)callbackParam;
     usb_device_ccid_transfer_struct_t *transfer;
     usb_status_t error = kStatus_USB_Error;
+
+    /* endpoint callback length is USB_CANCELLED_TRANSFER_LENGTH (0xFFFFFFFFU) when transfer is canceled */
     if (((NULL == deviceHandle) || (NULL == callbackParam) || (NULL == event)) || (NULL == event->buffer) ||
-        (USB_UNINITIALIZED_VAL_32 == event->length))
+        (USB_CANCELLED_TRANSFER_LENGTH == event->length))
     {
         return kStatus_USB_Error;
     }
@@ -298,22 +304,22 @@ static usb_status_t USB_DeviceCcidBulkIn(usb_device_handle deviceHandle,
     /* Remove the transed transfer from the busy queue. */
     if (kStatus_USB_Success == USB_DeviceCcidRemoveTransfer(&ccidHandle->transferHead, &transfer))
     {
-        if (ccidHandle->configStruct->classCallback)
+        if (NULL != ccidHandle->configStruct->classCallback)
         {
             /* Notify the up layer, the response sent.
             classCallback is initialized in classInit of s_UsbDeviceClassInterfaceMap,
             it is from the second parameter of classInit */
-            ccidHandle->configStruct->classCallback((class_handle_t)ccidHandle, kUSB_DeviceCcidEventResponseSent,
-                                                    transfer->buffer);
+            (void)ccidHandle->configStruct->classCallback((class_handle_t)ccidHandle, kUSB_DeviceCcidEventResponseSent,
+                                                          transfer->buffer);
         }
         /* Add the transfer node to the idle queue */
-        USB_DeviceCcidAddTransfer(&ccidHandle->transferFree, transfer);
+        (void)USB_DeviceCcidAddTransfer(&ccidHandle->transferFree, transfer);
     }
 
     /* Clear the bulk IN pipe busy flag. */
     ccidHandle->bulkInBusy = 0U;
     /* If there is a blocking transfer, send it to the host */
-    if (ccidHandle->transferHead)
+    if (NULL != ccidHandle->transferHead)
     {
         error = USB_DeviceSendRequest(ccidHandle->handle, ccidHandle->endpointBulkIn, ccidHandle->transferHead->buffer,
                                       ccidHandle->transferHead->length);
@@ -345,21 +351,25 @@ static usb_status_t USB_DeviceCcidBulkOut(usb_device_handle deviceHandle,
     usb_device_ccid_struct_t *ccidHandle;
     usb_device_ccid_common_command_t *commonRequest;
     usb_device_ccid_transfer_struct_t *transfer = NULL;
-    usb_status_t usbError = kStatus_USB_InvalidRequest;
+    void *temp;
+    usb_status_t usbError  = kStatus_USB_InvalidRequest;
     uint8_t response_error = USB_DEVICE_CCID_SLOT_ERROR_COMMAND_NOT_SUPPORTED;
 
+    /* endpoint callback length is USB_CANCELLED_TRANSFER_LENGTH (0xFFFFFFFFU) when transfer is canceled */
     if (((NULL == deviceHandle) || (NULL == callbackParam) || (NULL == event)) || (NULL == event->buffer) ||
-        (USB_UNINITIALIZED_VAL_32 == event->length))
+        (USB_CANCELLED_TRANSFER_LENGTH == event->length))
     {
         return kStatus_USB_Error;
     }
-    ccidHandle = (usb_device_ccid_struct_t *)callbackParam;
-    commonRequest = (usb_device_ccid_common_command_t *)event->buffer;
+    ccidHandle    = (usb_device_ccid_struct_t *)callbackParam;
+    temp          = (void *)event->buffer;
+    commonRequest = (usb_device_ccid_common_command_t *)temp;
 
     /* Check the slot is valid or not */
+    temp = (void *)&commonRequest->dwLength;
     if ((ccidHandle->slots <= commonRequest->bSlot) ||
         (event->length <
-         (USB_LONG_FROM_LITTLE_ENDIAN_DATA(commonRequest->dwLength) + USB_DEVICE_CCID_COMMAND_HEADER_LENGTH)))
+         (USB_LONG_FROM_LITTLE_ENDIAN_ADDRESS(((uint8_t *)temp)) + USB_DEVICE_CCID_COMMAND_HEADER_LENGTH)))
     {
         if (ccidHandle->slots <= commonRequest->bSlot)
         {
@@ -390,7 +400,7 @@ static usb_status_t USB_DeviceCcidBulkOut(usb_device_handle deviceHandle,
             case USB_DEVICE_CCID_PC_TO_RDR_MECHANICAL:
             case USB_DEVICE_CCID_PC_TO_RDR_ABORT:
             case USB_DEVICE_CCID_PC_TO_RDR_SETDATARATEANDCLOCKFREQUENCY:
-                if (ccidHandle->configStruct->classCallback)
+                if (NULL != ccidHandle->configStruct->classCallback)
                 {
                     usb_device_ccid_command_struct_t command;
                     command.commandBuffer = event->buffer;
@@ -409,8 +419,8 @@ static usb_status_t USB_DeviceCcidBulkOut(usb_device_handle deviceHandle,
                             transfer->buffer = command.responseBuffer;
                             transfer->length = command.responseLength;
                             /* Add the transfer node to the busy queue */
-                            USB_DeviceCcidAddTransfer(&ccidHandle->transferHead, transfer);
-                            if (!ccidHandle->bulkInBusy)
+                            (void)USB_DeviceCcidAddTransfer(&ccidHandle->transferHead, transfer);
+                            if (0U == ccidHandle->bulkInBusy)
                             {
                                 /* If the bulk IN pipe is idle, send the response data to the host */
                                 if (kStatus_USB_Success == USB_DeviceSendRequest(ccidHandle->handle,
@@ -425,6 +435,7 @@ static usb_status_t USB_DeviceCcidBulkOut(usb_device_handle deviceHandle,
                 }
                 break;
             default:
+                /*no action*/
                 break;
         }
     }
@@ -435,27 +446,28 @@ static usb_status_t USB_DeviceCcidBulkOut(usb_device_handle deviceHandle,
         if (kStatus_USB_Success == USB_DeviceCcidRemoveTransfer(&ccidHandle->transferFree, &transfer))
         {
             usb_device_ccid_slot_status_struct_t slotStatus;
-            transfer->buffer = (uint8_t *)&transfer->response;
-            transfer->length = sizeof(transfer->response);
+            transfer->buffer                = (uint8_t *)&transfer->response;
+            transfer->length                = sizeof(transfer->response);
             transfer->response.bMessageType = USB_DEVICE_CCID_RDR_TO_PC_SLOTSTATUS;
-            USB_LONG_TO_LITTLE_ENDIAN_DATA(0U, transfer->response.dwLength);
+            temp                            = (void *)&transfer->response.dwLength;
+            USB_LONG_TO_LITTLE_ENDIAN_ADDRESS(0U, ((uint8_t *)temp));
             transfer->response.bSlot = commonRequest->bSlot;
-            transfer->response.bSeq = commonRequest->bSeq;
-            slotStatus.clockStatus = USB_DEVICE_CCID_CLCOK_STATUS_CLOCK_STOPPED_UNKNOWN;
-            slotStatus.slot = commonRequest->bSlot;
-            slotStatus.present = USB_DEVICE_CCID_SLOT_STATUS_ICC_NOT_PRESENT;
-            if (ccidHandle->configStruct->classCallback)
+            transfer->response.bSeq  = commonRequest->bSeq;
+            slotStatus.clockStatus   = USB_DEVICE_CCID_CLCOK_STATUS_CLOCK_STOPPED_UNKNOWN;
+            slotStatus.slot          = commonRequest->bSlot;
+            slotStatus.present       = USB_DEVICE_CCID_SLOT_STATUS_ICC_NOT_PRESENT;
+            if (NULL != ccidHandle->configStruct->classCallback)
             {
                 /* classCallback is initialized in classInit of s_UsbDeviceClassInterfaceMap,
                 it is from the second parameter of classInit*/
-                ccidHandle->configStruct->classCallback((class_handle_t)ccidHandle, kUSB_DeviceCcidEventGetSlotStatus,
-                                                        &slotStatus);
+                (void)ccidHandle->configStruct->classCallback((class_handle_t)ccidHandle,
+                                                              kUSB_DeviceCcidEventGetSlotStatus, &slotStatus);
             }
-            transfer->response.bStatus = slotStatus.present | USB_DEVICE_CCID_SLOT_STATUS_COMMAND_STATUS_FAILED;
-            transfer->response.bError = response_error;
+            transfer->response.bStatus      = slotStatus.present | USB_DEVICE_CCID_SLOT_STATUS_COMMAND_STATUS_FAILED;
+            transfer->response.bError       = response_error;
             transfer->response.bClockStatus = slotStatus.clockStatus;
-            USB_DeviceCcidAddTransfer(&ccidHandle->transferHead, transfer);
-            if (!ccidHandle->bulkInBusy)
+            (void)USB_DeviceCcidAddTransfer(&ccidHandle->transferHead, transfer);
+            if (0U == ccidHandle->bulkInBusy)
             {
                 usbError = USB_DeviceSendRequest(ccidHandle->handle, ccidHandle->endpointBulkIn, transfer->buffer,
                                                  transfer->length);
@@ -467,10 +479,10 @@ static usb_status_t USB_DeviceCcidBulkOut(usb_device_handle deviceHandle,
         }
     }
     /* Prime next transfer to receive a command from the host */
-    if (ccidHandle->endpointBulkOut)
+    if (0U != ccidHandle->endpointBulkOut)
     {
-        USB_DeviceRecvRequest(ccidHandle->handle, ccidHandle->endpointBulkOut, ccidHandle->commandBuffer,
-                              sizeof(ccidHandle->commandBuffer));
+        (void)USB_DeviceRecvRequest(ccidHandle->handle, ccidHandle->endpointBulkOut, ccidHandle->commandBuffer,
+                                    sizeof(ccidHandle->commandBuffer));
     }
     return usbError;
 }
@@ -489,34 +501,34 @@ static usb_status_t USB_DeviceCcidEndpointsInit(usb_device_ccid_struct_t *ccidHa
 {
     usb_device_interface_list_t *interfaceList;
     usb_device_interface_struct_t *interface = (usb_device_interface_struct_t *)NULL;
-    usb_status_t error = kStatus_USB_Error;
+    usb_status_t status                      = kStatus_USB_Error;
 
     /* Check the configuration is valid or not. */
-    if (!ccidHandle->configuration)
+    if (0U == ccidHandle->configuration)
     {
-        return error;
+        return status;
     }
 
     if (ccidHandle->configuration > ccidHandle->configStruct->classInfomation->configurations)
     {
-        return error;
+        return status;
     }
 
     /* Get the interface list of the new configuration. */
     if (NULL == ccidHandle->configStruct->classInfomation->interfaceList)
     {
-        return error;
+        return status;
     }
     interfaceList = &ccidHandle->configStruct->classInfomation->interfaceList[ccidHandle->configuration - 1U];
 
     /* Find stream interface by using the alternate setting of the interface. */
-    for (int count = 0U; count < interfaceList->count; count++)
+    for (uint32_t count = 0U; count < interfaceList->count; count++)
     {
         if ((USB_DEVICE_CCID_CLASS_CODE == interfaceList->interfaces[count].classCode) &&
             (USB_DEVICE_CCID_SUBCLASS_CODE == interfaceList->interfaces[count].subclassCode) &&
             (USB_DEVICE_CCID_PROTOCOL_CODE == interfaceList->interfaces[count].protocolCode))
         {
-            for (int index = 0U; index < interfaceList->interfaces[count].count; index++)
+            for (uint32_t index = 0U; index < interfaceList->interfaces[count].count; index++)
             {
                 if (interfaceList->interfaces[count].interface[index].alternateSetting == ccidHandle->alternate)
                 {
@@ -528,37 +540,37 @@ static usb_status_t USB_DeviceCcidEndpointsInit(usb_device_ccid_struct_t *ccidHa
             break;
         }
     }
-    if (!interface)
+    if (NULL == interface)
     {
         /* Return error if the stream interface is not found. */
-        return error;
+        return status;
     }
     /* Keep new interface handle. */
     ccidHandle->interfaceHandle = interface;
     /* Initialize the endpoints of the new interface. */
-    for (int count = 0U; count < interface->endpointList.count; count++)
+    for (uint32_t count = 0U; count < interface->endpointList.count; count++)
     {
         usb_device_endpoint_init_struct_t epInitStruct;
         usb_device_endpoint_callback_struct_t epCallback;
-        epInitStruct.zlt = 0U;
-        epInitStruct.interval = interface->endpointList.endpoint[count].interval;
+        epInitStruct.zlt             = 0U;
+        epInitStruct.interval        = interface->endpointList.endpoint[count].interval;
         epInitStruct.endpointAddress = interface->endpointList.endpoint[count].endpointAddress;
-        epInitStruct.maxPacketSize = interface->endpointList.endpoint[count].maxPacketSize;
-        epInitStruct.transferType = interface->endpointList.endpoint[count].transferType;
+        epInitStruct.maxPacketSize   = interface->endpointList.endpoint[count].maxPacketSize;
+        epInitStruct.transferType    = interface->endpointList.endpoint[count].transferType;
 
         if ((USB_ENDPOINT_BULK == (epInitStruct.transferType & USB_DESCRIPTOR_ENDPOINT_ATTRIBUTE_TYPE_MASK)) &&
             (USB_IN == ((epInitStruct.endpointAddress & USB_DESCRIPTOR_ENDPOINT_ADDRESS_DIRECTION_MASK) >>
                         USB_DESCRIPTOR_ENDPOINT_ADDRESS_DIRECTION_SHIFT)))
         {
-            epCallback.callbackFn = USB_DeviceCcidBulkIn;
-            epInitStruct.zlt = 1U;
+            epCallback.callbackFn      = USB_DeviceCcidBulkIn;
+            epInitStruct.zlt           = 1U;
             ccidHandle->endpointBulkIn = epInitStruct.endpointAddress & USB_DESCRIPTOR_ENDPOINT_ADDRESS_NUMBER_MASK;
         }
         else if ((USB_ENDPOINT_BULK == (epInitStruct.transferType & USB_DESCRIPTOR_ENDPOINT_ATTRIBUTE_TYPE_MASK)) &&
                  (USB_OUT == ((epInitStruct.endpointAddress & USB_DESCRIPTOR_ENDPOINT_ADDRESS_DIRECTION_MASK) >>
                               USB_DESCRIPTOR_ENDPOINT_ADDRESS_DIRECTION_SHIFT)))
         {
-            epCallback.callbackFn = USB_DeviceCcidBulkOut;
+            epCallback.callbackFn       = USB_DeviceCcidBulkOut;
             ccidHandle->endpointBulkOut = epInitStruct.endpointAddress & USB_DESCRIPTOR_ENDPOINT_ADDRESS_NUMBER_MASK;
         }
         else
@@ -569,9 +581,9 @@ static usb_status_t USB_DeviceCcidEndpointsInit(usb_device_ccid_struct_t *ccidHa
         }
         epCallback.callbackParam = ccidHandle;
 
-        error = USB_DeviceInitEndpoint(ccidHandle->handle, &epInitStruct, &epCallback);
+        status = USB_DeviceInitEndpoint(ccidHandle->handle, &epInitStruct, &epCallback);
     }
-    return error;
+    return status;
 }
 
 /*!
@@ -586,23 +598,23 @@ static usb_status_t USB_DeviceCcidEndpointsInit(usb_device_ccid_struct_t *ccidHa
  */
 static usb_status_t USB_DeviceCcidEndpointsDeinit(usb_device_ccid_struct_t *ccidHandle)
 {
-    usb_status_t error = kStatus_USB_Error;
+    usb_status_t status = kStatus_USB_Error;
 
-    if (!ccidHandle->interfaceHandle)
+    if (NULL == ccidHandle->interfaceHandle)
     {
-        return error;
+        return status;
     }
     /* De-initialize all endpoints of the interface */
-    for (int count = 0U; count < ccidHandle->interfaceHandle->endpointList.count; count++)
+    for (uint32_t count = 0U; count < ccidHandle->interfaceHandle->endpointList.count; count++)
     {
-        error = USB_DeviceDeinitEndpoint(ccidHandle->handle,
-                                         ccidHandle->interfaceHandle->endpointList.endpoint[count].endpointAddress);
+        status = USB_DeviceDeinitEndpoint(ccidHandle->handle,
+                                          ccidHandle->interfaceHandle->endpointList.endpoint[count].endpointAddress);
     }
-    ccidHandle->endpointBulkIn = 0U;
-    ccidHandle->endpointBulkOut = 0U;
+    ccidHandle->endpointBulkIn      = 0U;
+    ccidHandle->endpointBulkOut     = 0U;
     ccidHandle->endpointInterruptIn = 0U;
-    ccidHandle->interfaceHandle = NULL;
-    return error;
+    ccidHandle->interfaceHandle     = NULL;
+    return status;
 }
 
 /*!
@@ -624,12 +636,14 @@ usb_status_t USB_DeviceCcidEvent(void *handle, uint32_t event, void *param)
     usb_device_ccid_struct_t *ccidHandle;
     usb_device_ccid_notify_slot_chnage_notification_t *ccidNotify;
     uint8_t *temp8;
-    usb_status_t error = kStatus_USB_Error;
+    void *temp;
+    usb_status_t status = kStatus_USB_Error;
     uint16_t interfaceAlternate;
     uint8_t alternate;
-    USB_OSA_SR_ALLOC();
+    usb_device_class_event_t eventCode = (usb_device_class_event_t)event;
+    OSA_SR_ALLOC();
 
-    if ((!param) || (!handle))
+    if ((NULL == param) || (NULL == handle))
     {
         return kStatus_USB_InvalidHandle;
     }
@@ -637,7 +651,7 @@ usb_status_t USB_DeviceCcidEvent(void *handle, uint32_t event, void *param)
     /* Get the ccid class handle. */
     ccidHandle = (usb_device_ccid_struct_t *)handle;
 
-    switch (event)
+    switch (eventCode)
     {
         case kUSB_DeviceClassEventDeviceReset:
             /* Bus reset, clear the configuration. */
@@ -646,7 +660,7 @@ usb_status_t USB_DeviceCcidEvent(void *handle, uint32_t event, void *param)
         case kUSB_DeviceClassEventSetConfiguration:
             /* Get the new configuration. */
             temp8 = ((uint8_t *)param);
-            if (!ccidHandle->configStruct)
+            if (NULL == ccidHandle->configStruct)
             {
                 break;
             }
@@ -656,11 +670,11 @@ usb_status_t USB_DeviceCcidEvent(void *handle, uint32_t event, void *param)
             }
 
             /* De-initialize the endpoints when current configuration is none zero. */
-            if (ccidHandle->configuration)
+            if (0U != ccidHandle->configuration)
             {
-                error = USB_DeviceCcidEndpointsDeinit(ccidHandle);
+                status = USB_DeviceCcidEndpointsDeinit(ccidHandle);
             }
-            USB_OSA_ENTER_CRITICAL();
+            OSA_ENTER_CRITICAL();
             /* Save new configuration. */
             ccidHandle->configuration = *temp8;
             /* Clear the alternate setting value. */
@@ -679,56 +693,57 @@ usb_status_t USB_DeviceCcidEvent(void *handle, uint32_t event, void *param)
             for (uint8_t i = 1U; i < USB_DEVICE_CONFIG_CCID_TRANSFER_COUNT; i++)
             {
                 ccidHandle->transferHead->next = &ccidHandle->transfers[i];
-                ccidHandle->transferHead = &ccidHandle->transfers[i];
+                ccidHandle->transferHead       = &ccidHandle->transfers[i];
             }
             ccidHandle->transferHead->next = NULL;
-            ccidHandle->transferHead = NULL;
+            ccidHandle->transferHead       = NULL;
 
             /* Initialize the endpoints of the new current configuration by using the alternate setting 0. */
-            error = USB_DeviceCcidEndpointsInit(ccidHandle);
-            if (ccidHandle->endpointBulkOut)
+            status = USB_DeviceCcidEndpointsInit(ccidHandle);
+            if (0U != ccidHandle->endpointBulkOut)
             {
                 /* Prime a transfer to receive a command from the host */
-                USB_DeviceRecvRequest(ccidHandle->handle, ccidHandle->endpointBulkOut, ccidHandle->commandBuffer,
-                                      sizeof(ccidHandle->commandBuffer));
+                (void)USB_DeviceRecvRequest(ccidHandle->handle, ccidHandle->endpointBulkOut, ccidHandle->commandBuffer,
+                                            sizeof(ccidHandle->commandBuffer));
             }
 
             /* Notify the host the slot changed when the interrut IN pipe is valid and there are some ICC present. */
-            if (ccidHandle->endpointInterruptIn)
+            if (0U != ccidHandle->endpointInterruptIn)
             {
                 uint8_t send_slot_change = 0U;
-                ccidNotify = (usb_device_ccid_notify_slot_chnage_notification_t *)&ccidHandle->slotsChangeBuffer[0];
+                temp                     = (void *)&ccidHandle->slotsChangeBuffer[0];
+                ccidNotify               = (usb_device_ccid_notify_slot_chnage_notification_t *)temp;
 
                 ccidNotify->bMessageType = USB_DEVICE_CCID_RDR_TO_PC_NOTIFYSLOTCHANGE;
                 for (uint8_t i = 0U; i < USB_DEVICE_CONFIG_CCID_SLOT_MAX; i++)
                 {
-                    if (ccidNotify->bmSlotICCState[i >> 2] & (0x01U << ((i % 4U) << 1U)))
+                    if (0U != (ccidNotify->bmSlotICCState[i >> 2] & (0x01U << ((i % 4U) << 1U))))
                     {
                         ccidNotify->bmSlotICCState[i >> 2] |= (0x02U << ((i % 4U) << 1U));
                         send_slot_change = 1U;
                     }
                 }
-                if (send_slot_change)
+                if (0U != send_slot_change)
                 {
                     ccidHandle->slotsSendingChangeBuffer[0] = ccidHandle->slotsChangeBuffer[0];
                     for (uint8_t i = 1U; i < sizeof(ccidHandle->slotsChangeBuffer); i++)
                     {
                         ccidHandle->slotsSendingChangeBuffer[i] = ccidHandle->slotsChangeBuffer[i];
-                        ccidHandle->slotsChangeBuffer[i] &= ~0xAAU;
+                        ccidHandle->slotsChangeBuffer[i] &= (uint8_t)(~0xAAU);
                     }
-                    error = USB_DeviceSendRequest(ccidHandle->handle, ccidHandle->endpointInterruptIn,
-                                                  ccidHandle->slotsSendingChangeBuffer,
-                                                  sizeof(ccidHandle->slotsSendingChangeBuffer));
-                    if (kStatus_USB_Success == error)
+                    status = USB_DeviceSendRequest(ccidHandle->handle, ccidHandle->endpointInterruptIn,
+                                                   ccidHandle->slotsSendingChangeBuffer,
+                                                   sizeof(ccidHandle->slotsSendingChangeBuffer));
+                    if (kStatus_USB_Success == status)
                     {
                         ccidHandle->interruptInBusy = 1U;
                     }
                 }
             }
-            USB_OSA_EXIT_CRITICAL();
+            OSA_EXIT_CRITICAL();
             break;
         case kUSB_DeviceClassEventSetInterface:
-            if (!ccidHandle->configStruct)
+            if (NULL == ccidHandle->configStruct)
             {
                 break;
             }
@@ -748,121 +763,121 @@ usb_status_t USB_DeviceCcidEvent(void *handle, uint32_t event, void *param)
                 break;
             }
             /* De-initialize old endpoints */
-            error = USB_DeviceCcidEndpointsDeinit(ccidHandle);
+            status                = USB_DeviceCcidEndpointsDeinit(ccidHandle);
             ccidHandle->alternate = alternate;
             /* Initialize new endpoints */
-            error = USB_DeviceCcidEndpointsInit(ccidHandle);
-            if (ccidHandle->endpointBulkOut)
+            status = USB_DeviceCcidEndpointsInit(ccidHandle);
+            if (0U != ccidHandle->endpointBulkOut)
             {
                 /* Prime a transfer to receive a command from the host */
-                USB_DeviceRecvRequest(ccidHandle->handle, ccidHandle->endpointBulkOut, ccidHandle->commandBuffer,
-                                      sizeof(ccidHandle->commandBuffer));
+                (void)USB_DeviceRecvRequest(ccidHandle->handle, ccidHandle->endpointBulkOut, ccidHandle->commandBuffer,
+                                            sizeof(ccidHandle->commandBuffer));
             }
             break;
         case kUSB_DeviceClassEventSetEndpointHalt:
-            if ((!ccidHandle->configStruct) || (!ccidHandle->interfaceHandle))
+            if ((NULL == ccidHandle->configStruct) || (NULL == ccidHandle->interfaceHandle))
             {
                 break;
             }
             /* Get the endpoint address */
             temp8 = ((uint8_t *)param);
-            for (int count = 0U; count < ccidHandle->interfaceHandle->endpointList.count; count++)
+            for (uint32_t count = 0U; count < ccidHandle->interfaceHandle->endpointList.count; count++)
             {
                 if (*temp8 == ccidHandle->interfaceHandle->endpointList.endpoint[count].endpointAddress)
                 {
                     /* Only stall the endpoint belongs to the interface of the class */
-                    error = USB_DeviceStallEndpoint(ccidHandle->handle, *temp8);
+                    status = USB_DeviceStallEndpoint(ccidHandle->handle, *temp8);
                 }
             }
             break;
         case kUSB_DeviceClassEventClearEndpointHalt:
-            if ((!ccidHandle->configStruct) || (!ccidHandle->interfaceHandle))
+            if ((NULL == ccidHandle->configStruct) || (NULL == ccidHandle->interfaceHandle))
             {
                 break;
             }
             /* Get the endpoint address */
             temp8 = ((uint8_t *)param);
-            for (int count = 0U; count < ccidHandle->interfaceHandle->endpointList.count; count++)
+            for (uint32_t count = 0U; count < ccidHandle->interfaceHandle->endpointList.count; count++)
             {
                 if (*temp8 == ccidHandle->interfaceHandle->endpointList.endpoint[count].endpointAddress)
                 {
                     /* Only un-stall the endpoint belongs to the interface of the class */
-                    error = USB_DeviceUnstallEndpoint(ccidHandle->handle, *temp8);
+                    status = USB_DeviceUnstallEndpoint(ccidHandle->handle, *temp8);
                 }
             }
             break;
         case kUSB_DeviceClassEventClassRequest:
-            if (param)
+        {
+            /* Handle the ccid class specific request. */
+            usb_device_control_request_struct_t *controlRequest = (usb_device_control_request_struct_t *)param;
+
+            if ((controlRequest->setup->bmRequestType & USB_REQUEST_TYPE_RECIPIENT_MASK) !=
+                USB_REQUEST_TYPE_RECIPIENT_INTERFACE)
             {
-                /* Handle the ccid class specific request. */
-                usb_device_control_request_struct_t *controlRequest = (usb_device_control_request_struct_t *)param;
-
-                if ((controlRequest->setup->bmRequestType & USB_REQUEST_TYPE_RECIPIENT_MASK) !=
-                    USB_REQUEST_TYPE_RECIPIENT_INTERFACE)
-                {
-                    break;
-                }
-
-                if ((controlRequest->setup->wIndex & 0xFFU) != ccidHandle->interfaceNumber)
-                {
-                    break;
-                }
-
-                switch (controlRequest->setup->bRequest)
-                {
-                    case USB_DEVICE_CCID_ABORT:
-                        /* Abort a command */
-                        if (ccidHandle->configStruct->classCallback)
-                        {
-                            /* classCallback is initialized in classInit of s_UsbDeviceClassInterfaceMap,
-                            it is from the second parameter of classInit */
-                            error = ccidHandle->configStruct->classCallback((class_handle_t)ccidHandle,
-                                                                            kUSB_DeviceCcidEventCommandAbort,
-                                                                            &controlRequest->setup->wValue);
-                        }
-                        break;
-                    case USB_DEVICE_CCID_GET_CLOCK_FREQUENCIES:
-                        /* Get the clock frequencies */
-                        if (ccidHandle->configStruct->classCallback)
-                        {
-                            usb_device_ccid_control_request_struct_t ccid_request;
-                            /* classCallback is initialized in classInit of s_UsbDeviceClassInterfaceMap,
-                            it is from the second parameter of classInit */
-                            error = ccidHandle->configStruct->classCallback(
-                                (class_handle_t)ccidHandle, kUSB_DeviceCcidEventGetClockFrequencies, &ccid_request);
-                            if (kStatus_USB_Success == error)
-                            {
-                                controlRequest->buffer = ccid_request.buffer;
-                                controlRequest->length = ccid_request.length;
-                            }
-                        }
-                        break;
-                    case USB_DEVICE_CCID_GET_DATA_RATES:
-                        /* Get the data rates */
-                        if (ccidHandle->configStruct->classCallback)
-                        {
-                            usb_device_ccid_control_request_struct_t ccid_request;
-                            /* classCallback is initialized in classInit of s_UsbDeviceClassInterfaceMap,
-                            it is from the second parameter of classInit */
-                            error = ccidHandle->configStruct->classCallback(
-                                (class_handle_t)ccidHandle, kUSB_DeviceCcidEventGetDataRate, &ccid_request);
-                            if (kStatus_USB_Success == error)
-                            {
-                                controlRequest->buffer = ccid_request.buffer;
-                                controlRequest->length = ccid_request.length;
-                            }
-                        }
-                        break;
-                    default:
-                        error = kStatus_USB_InvalidRequest;
-                        break;
-                }
+                break;
             }
-            break;
+
+            if ((controlRequest->setup->wIndex & 0xFFU) != ccidHandle->interfaceNumber)
+            {
+                break;
+            }
+
+            switch (controlRequest->setup->bRequest)
+            {
+                case USB_DEVICE_CCID_ABORT:
+                    /* Abort a command */
+                    if (NULL != ccidHandle->configStruct->classCallback)
+                    {
+                        /* classCallback is initialized in classInit of s_UsbDeviceClassInterfaceMap,
+                        it is from the second parameter of classInit */
+                        status = ccidHandle->configStruct->classCallback((class_handle_t)ccidHandle,
+                                                                         kUSB_DeviceCcidEventCommandAbort,
+                                                                         &controlRequest->setup->wValue);
+                    }
+                    break;
+                case USB_DEVICE_CCID_GET_CLOCK_FREQUENCIES:
+                    /* Get the clock frequencies */
+                    if (NULL != ccidHandle->configStruct->classCallback)
+                    {
+                        usb_device_ccid_control_request_struct_t ccid_request;
+                        /* classCallback is initialized in classInit of s_UsbDeviceClassInterfaceMap,
+                        it is from the second parameter of classInit */
+                        status = ccidHandle->configStruct->classCallback(
+                            (class_handle_t)ccidHandle, kUSB_DeviceCcidEventGetClockFrequencies, &ccid_request);
+                        if (kStatus_USB_Success == status)
+                        {
+                            controlRequest->buffer = ccid_request.buffer;
+                            controlRequest->length = ccid_request.length;
+                        }
+                    }
+                    break;
+                case USB_DEVICE_CCID_GET_DATA_RATES:
+                    /* Get the data rates */
+                    if (NULL != ccidHandle->configStruct->classCallback)
+                    {
+                        usb_device_ccid_control_request_struct_t ccid_request;
+                        /* classCallback is initialized in classInit of s_UsbDeviceClassInterfaceMap,
+                        it is from the second parameter of classInit */
+                        status = ccidHandle->configStruct->classCallback(
+                            (class_handle_t)ccidHandle, kUSB_DeviceCcidEventGetDataRate, &ccid_request);
+                        if (kStatus_USB_Success == status)
+                        {
+                            controlRequest->buffer = ccid_request.buffer;
+                            controlRequest->length = ccid_request.length;
+                        }
+                    }
+                    break;
+                default:
+                    status = kStatus_USB_InvalidRequest;
+                    break;
+            }
+        }
+        break;
         default:
+            /*no action*/
             break;
     }
-    return error;
+    return status;
 }
 
 /*!
@@ -879,7 +894,7 @@ usb_status_t USB_DeviceCcidEvent(void *handle, uint32_t event, void *param)
 usb_status_t USB_DeviceCcidInit(uint8_t controllerId, usb_device_class_config_struct_t *config, class_handle_t *handle)
 {
     usb_device_ccid_struct_t *ccidHandle;
-    usb_status_t error = kStatus_USB_Error;
+    usb_status_t error;
 
     /* Allocate a ccid class handle. */
     error = USB_DeviceCcidAllocateHandle(&ccidHandle);
@@ -896,36 +911,36 @@ usb_status_t USB_DeviceCcidInit(uint8_t controllerId, usb_device_class_config_st
         return error;
     }
 
-    if (!ccidHandle->handle)
+    if (NULL == ccidHandle->handle)
     {
-        USB_DeviceCcidFreeHandle(ccidHandle);
+        (void)USB_DeviceCcidFreeHandle(ccidHandle);
         return kStatus_USB_InvalidHandle;
     }
     /* Save the configuration of the class. */
     ccidHandle->configStruct = config;
     /* Clear the configuration value. */
-    ccidHandle->configuration = 0U;
-    ccidHandle->alternate = 0xffU;
-    ccidHandle->bulkInBusy = 0U;
-    ccidHandle->endpointBulkIn = 0U;
-    ccidHandle->endpointBulkOut = 0U;
+    ccidHandle->configuration       = 0U;
+    ccidHandle->alternate           = 0xffU;
+    ccidHandle->bulkInBusy          = 0U;
+    ccidHandle->endpointBulkIn      = 0U;
+    ccidHandle->endpointBulkOut     = 0U;
     ccidHandle->endpointInterruptIn = 0U;
-    ccidHandle->slots = 0U;
-    ccidHandle->interruptInBusy = 0U;
-    ccidHandle->slotsChanged = 0U;
+    ccidHandle->slots               = 0U;
+    ccidHandle->interruptInBusy     = 0U;
+    ccidHandle->slotsChanged        = 0U;
 
-    if (ccidHandle->configStruct->classCallback)
+    if (NULL != ccidHandle->configStruct->classCallback)
     {
         /* Get the max slot count of the application.
         classCallback is initialized in classInit of s_UsbDeviceClassInterfaceMap,
         it is from the second parameter of classInit */
-        ccidHandle->configStruct->classCallback((class_handle_t)ccidHandle, kUSB_DeviceCcidEventGetSlotCount,
-                                                &ccidHandle->slots);
+        (void)ccidHandle->configStruct->classCallback((class_handle_t)ccidHandle, kUSB_DeviceCcidEventGetSlotCount,
+                                                      &ccidHandle->slots);
     }
 
     if (ccidHandle->slots > USB_DEVICE_CONFIG_CCID_SLOT_MAX)
     {
-        USB_DeviceCcidFreeHandle(ccidHandle);
+        (void)USB_DeviceCcidFreeHandle(ccidHandle);
         return kStatus_USB_Error;
     }
 
@@ -934,10 +949,10 @@ usb_status_t USB_DeviceCcidInit(uint8_t controllerId, usb_device_class_config_st
     for (uint8_t i = 1U; i < USB_DEVICE_CONFIG_CCID_TRANSFER_COUNT; i++)
     {
         ccidHandle->transferHead->next = &ccidHandle->transfers[i];
-        ccidHandle->transferHead = &ccidHandle->transfers[i];
+        ccidHandle->transferHead       = &ccidHandle->transfers[i];
     }
     ccidHandle->transferHead->next = NULL;
-    ccidHandle->transferHead = NULL;
+    ccidHandle->transferHead       = NULL;
 
     *handle = (class_handle_t)ccidHandle;
     return error;
@@ -955,19 +970,19 @@ usb_status_t USB_DeviceCcidInit(uint8_t controllerId, usb_device_class_config_st
 usb_status_t USB_DeviceCcidDeinit(class_handle_t handle)
 {
     usb_device_ccid_struct_t *ccidHandle;
-    usb_status_t error = kStatus_USB_Error;
+    usb_status_t status;
 
     ccidHandle = (usb_device_ccid_struct_t *)handle;
 
-    if (!ccidHandle)
+    if (NULL == ccidHandle)
     {
         return kStatus_USB_InvalidHandle;
     }
     /* De-initialzie the endpoints. */
-    error = USB_DeviceCcidEndpointsDeinit(ccidHandle);
+    status = USB_DeviceCcidEndpointsDeinit(ccidHandle);
     /* Free the ccid class handle. */
-    USB_DeviceCcidFreeHandle(ccidHandle);
-    return error;
+    (void)USB_DeviceCcidFreeHandle(ccidHandle);
+    return status;
 }
 
 /*!
@@ -992,12 +1007,13 @@ usb_status_t USB_DeviceCcidNotifySlotChange(class_handle_t handle, uint8_t slot,
 {
     usb_device_ccid_struct_t *ccidHandle;
     usb_device_ccid_notify_slot_chnage_notification_t *ccidNotify;
+    void *temp;
     usb_status_t error = kStatus_USB_Error;
-    USB_OSA_SR_ALLOC();
+    OSA_SR_ALLOC();
 
     ccidHandle = (usb_device_ccid_struct_t *)handle;
 
-    if (!ccidHandle)
+    if (NULL == ccidHandle)
     {
         return kStatus_USB_InvalidHandle;
     }
@@ -1007,23 +1023,24 @@ usb_status_t USB_DeviceCcidNotifySlotChange(class_handle_t handle, uint8_t slot,
         return kStatus_USB_InvalidParameter;
     }
 
-    USB_OSA_ENTER_CRITICAL();
-    ccidNotify = (usb_device_ccid_notify_slot_chnage_notification_t *)&ccidHandle->slotsChangeBuffer[0];
+    OSA_ENTER_CRITICAL();
+    temp       = (void *)&ccidHandle->slotsChangeBuffer[0];
+    ccidNotify = (usb_device_ccid_notify_slot_chnage_notification_t *)temp;
 
     ccidNotify->bMessageType = USB_DEVICE_CCID_RDR_TO_PC_NOTIFYSLOTCHANGE;
     ccidNotify->bmSlotICCState[slot >> 2] &= ~(0x03U << ((slot % 4U) << 1U));
     ccidNotify->bmSlotICCState[slot >> 2] |=
         ((0x02U | ((kUSB_DeviceCcidSlotStateNoPresent == state) ? 0x00U : 0x01U)) << ((slot % 4U) << 1U));
 
-    if ((ccidHandle->configuration) && (ccidHandle->endpointInterruptIn))
+    if ((0U != ccidHandle->configuration) && (0U != ccidHandle->endpointInterruptIn))
     {
-        if (!ccidHandle->interruptInBusy)
+        if (0U == ccidHandle->interruptInBusy)
         {
             ccidHandle->slotsSendingChangeBuffer[0] = ccidHandle->slotsChangeBuffer[0];
             for (uint8_t i = 1U; i < sizeof(ccidHandle->slotsChangeBuffer); i++)
             {
                 ccidHandle->slotsSendingChangeBuffer[i] = ccidHandle->slotsChangeBuffer[i];
-                ccidHandle->slotsChangeBuffer[i] &= ~0xAAU;
+                ccidHandle->slotsChangeBuffer[i] &= (uint8_t)(~0xAAU);
             }
             error = USB_DeviceSendRequest(ccidHandle->handle, ccidHandle->endpointInterruptIn,
                                           ccidHandle->slotsSendingChangeBuffer,
@@ -1038,7 +1055,7 @@ usb_status_t USB_DeviceCcidNotifySlotChange(class_handle_t handle, uint8_t slot,
             ccidHandle->slotsChanged = 1U;
         }
     }
-    USB_OSA_EXIT_CRITICAL();
+    OSA_EXIT_CRITICAL();
     return error;
 }
 
@@ -1063,11 +1080,11 @@ usb_status_t USB_DeviceCcidNotifyHardwareError(class_handle_t handle,
 {
     usb_device_ccid_struct_t *ccidHandle;
     usb_status_t error = kStatus_USB_Error;
-    USB_OSA_SR_ALLOC();
+    OSA_SR_ALLOC();
 
     ccidHandle = (usb_device_ccid_struct_t *)handle;
 
-    if (!ccidHandle)
+    if (NULL == ccidHandle)
     {
         return kStatus_USB_InvalidHandle;
     }
@@ -1077,15 +1094,15 @@ usb_status_t USB_DeviceCcidNotifyHardwareError(class_handle_t handle,
         return kStatus_USB_InvalidParameter;
     }
 
-    ccidHandle->hardwareError.bMessageType = USB_DEVICE_CCID_RDR_TO_PC_HARDWAREERROR;
-    ccidHandle->hardwareError.bHardwareErrorCode = errorCode;
-    ccidHandle->hardwareError.bSlot = slot;
-    ccidHandle->hardwareError.bSeq = ccidHandle->slotsSequenceNumber[slot];
+    ccidHandle->hardwareError.bMessageType       = USB_DEVICE_CCID_RDR_TO_PC_HARDWAREERROR;
+    ccidHandle->hardwareError.bHardwareErrorCode = (uint8_t)errorCode;
+    ccidHandle->hardwareError.bSlot              = slot;
+    ccidHandle->hardwareError.bSeq               = ccidHandle->slotsSequenceNumber[slot];
 
-    USB_OSA_ENTER_CRITICAL();
-    if ((ccidHandle->configuration) && (ccidHandle->endpointInterruptIn))
+    OSA_ENTER_CRITICAL();
+    if ((0U != ccidHandle->configuration) && (0U != ccidHandle->endpointInterruptIn))
     {
-        if (!ccidHandle->interruptInBusy)
+        if (0U == ccidHandle->interruptInBusy)
         {
             error = USB_DeviceSendRequest(ccidHandle->handle, ccidHandle->endpointInterruptIn,
                                           (uint8_t *)&ccidHandle->hardwareError, sizeof(ccidHandle->hardwareError));
@@ -1095,7 +1112,7 @@ usb_status_t USB_DeviceCcidNotifyHardwareError(class_handle_t handle,
             }
         }
     }
-    USB_OSA_EXIT_CRITICAL();
+    OSA_EXIT_CRITICAL();
     return error;
 }
 #endif

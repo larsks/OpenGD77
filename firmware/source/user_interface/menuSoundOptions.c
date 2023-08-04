@@ -87,7 +87,7 @@ static void updateScreen(bool isFirstRun)
 	voicePrompt_t rightSideUnitsPrompt;
 	const char * rightSideUnitsStr;
 
-	ucClearBuf();
+	displayClearBuf();
 	bool settingOption = uiShowQuickKeysChoices(buf, SCREEN_LINE_BUFFER_SIZE, currentLanguage->sound_options);
 
 	// Can only display 3 of the options at a time menu at -1, 0 and +1
@@ -251,7 +251,7 @@ static void updateScreen(bool isFirstRun)
 		}
 	}
 
-	ucRender();
+	displayRender();
 }
 
 static void handleEvent(uiEvent_t *ev)
@@ -319,7 +319,7 @@ static void handleEvent(uiEvent_t *ev)
 			// Restore original settings.
 			memcpy(&nonVolatileSettings, &originalNonVolatileSettings, sizeof(settingsStruct_t));
 			soundBeepVolumeDivider = nonVolatileSettings.beepVolumeDivider;
-			setMicGainDMR(nonVolatileSettings.micGainDMR);
+			HRC6000SetMicGainDMR(nonVolatileSettings.micGainDMR);
 			trxSetMicGainFM(nonVolatileSettings.micGainFM);
 			voxSetParameters(nonVolatileSettings.voxThreshold, nonVolatileSettings.voxTailUnits);
 			settingsSaveIfNeeded(true);
@@ -372,7 +372,7 @@ static void handleEvent(uiEvent_t *ev)
 					if (nonVolatileSettings.micGainDMR < 15)
 					{
 						settingsIncrement(nonVolatileSettings.micGainDMR, 1);
-						setMicGainDMR(nonVolatileSettings.micGainDMR);
+						HRC6000SetMicGainDMR(nonVolatileSettings.micGainDMR);
 					}
 					break;
 				case OPTIONS_MIC_GAIN_FM: // FM Mic gain
@@ -449,7 +449,7 @@ static void handleEvent(uiEvent_t *ev)
 					if (nonVolatileSettings.micGainDMR > 0)
 					{
 						settingsDecrement(nonVolatileSettings.micGainDMR, 1);
-						setMicGainDMR(nonVolatileSettings.micGainDMR);
+						HRC6000SetMicGainDMR(nonVolatileSettings.micGainDMR);
 					}
 					break;
 				case OPTIONS_MIC_GAIN_FM: // FM Mic gain

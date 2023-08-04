@@ -132,7 +132,7 @@ static void updateCursor(bool moved)
 		switch (menuDataGlobal.currentItemIndex)
 		{
 		case CH_DETAILS_NAME:
-			menuUpdateCursor(namePos, moved, true);
+			menuUpdateCursor(MIN(namePos,15), moved, true);
 			break;
 		}
 	}
@@ -153,7 +153,7 @@ static void updateScreen(bool isFirstRun, bool allowedToSpeakUpdate)
 	voicePrompt_t rightSideUnitsPrompt;
 	const char * rightSideUnitsStr;
 
-	ucClearBuf();
+	displayClearBuf();
 
 	bool settingOption = uiShowQuickKeysChoices(buf, SCREEN_LINE_BUFFER_SIZE, currentLanguage->channel_details);
 
@@ -161,7 +161,7 @@ static void updateScreen(bool isFirstRun, bool allowedToSpeakUpdate)
 	{
 		snprintf(buf, SCREEN_LINE_BUFFER_SIZE, "%c%c%c%s%c%c%c%c%c%s", uiDataGlobal.FreqEnter.digits[0], uiDataGlobal.FreqEnter.digits[1], uiDataGlobal.FreqEnter.digits[2], (menuDataGlobal.currentItemIndex == CH_DETAILS_DMRID) ? "" : ".",
 				uiDataGlobal.FreqEnter.digits[3], uiDataGlobal.FreqEnter.digits[4], uiDataGlobal.FreqEnter.digits[5], uiDataGlobal.FreqEnter.digits[6], uiDataGlobal.FreqEnter.digits[7], (menuDataGlobal.currentItemIndex == CH_DETAILS_DMRID) ? "" : " MHz");
-		ucPrintCentered(32, buf, FONT_SIZE_3);
+		displayPrintCentered(32, buf, FONT_SIZE_3);
 	}
 	else
 	{
@@ -531,7 +531,7 @@ static void updateScreen(bool isFirstRun, bool allowedToSpeakUpdate)
 			}
 		}
 	}
-	ucRender();
+	displayRender();
 }
 
 static void updateFrequency(int frequency)

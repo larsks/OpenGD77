@@ -88,7 +88,7 @@ static void setMButtonsStateAndClearLong(uint32_t *buttons, MBUTTON_t mbutton, u
 		case MBUTTON_SK1:
 		case MBUTTON_SK2:
 		case MBUTTON_ORANGE:
-			timer_mbuttons[mbutton] = (*buttons & buttonID) ? (nonVolatileSettings.keypadTimerLong * 1000) : 0;
+			timer_mbuttons[mbutton] = (*buttons & buttonID) ? (nonVolatileSettings.keypadTimerLong * 100) : 0;
 			break;
 
 		default:
@@ -183,7 +183,7 @@ static void checkMButtons(uint32_t *buttons, MBUTTON_t mbutton, uint32_t buttonI
 
 			// Reset the timer for extra long down usage
 			taskENTER_CRITICAL();
-			timer_mbuttons[mbutton] = (((nonVolatileSettings.keypadTimerLong * 3) >> 1) * 1000);
+			timer_mbuttons[mbutton] = (((nonVolatileSettings.keypadTimerLong * 3) >> 1) * 100);
 			taskEXIT_CRITICAL();
 		}
 	}

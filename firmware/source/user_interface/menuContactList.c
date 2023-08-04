@@ -73,7 +73,7 @@ static void overrideWithSelectedContact(void)
 	if ((contactListContactData.reserve1 & 0x01) == 0x00)
 	{
 		int ts = ((contactListContactData.reserve1 & 0x02) >> 1);
-		trxSetDMRTimeSlot(ts);
+		trxSetDMRTimeSlot(ts, true);
 		tsSetManualOverride(((menuSystemGetRootMenuNumber() == UI_CHANNEL_MODE) ? CHANNEL_CHANNEL : (CHANNEL_VFO_A + nonVolatileSettings.currentVFONumber)), (ts + 1));
 	}
 }
@@ -201,7 +201,7 @@ static void updateScreen(bool isFirstRun)
 	int idx;
 	const char *calltypeName[] = { currentLanguage->group_call, currentLanguage->private_call, currentLanguage->all_call, "DTMF" };
 
-	ucClearBuf();
+	displayClearBuf();
 
 	switch (contactListDisplayState)
 	{
@@ -210,7 +210,7 @@ static void updateScreen(bool isFirstRun)
 
 			if (menuDataGlobal.endIndex == 0)
 			{
-				ucPrintCentered((DISPLAY_SIZE_Y / 2), currentLanguage->empty_list, FONT_SIZE_3);
+				displayPrintCentered((DISPLAY_SIZE_Y / 2), currentLanguage->empty_list, FONT_SIZE_3);
 
 				voicePromptsAppendLanguageString(&currentLanguage->empty_list);
 			}
@@ -250,24 +250,24 @@ static void updateScreen(bool isFirstRun)
 		case MENU_CONTACT_LIST_CONFIRM:
 			codeplugUtilConvertBufToString(contactListContactData.name, nameBuf, 16);
 			menuDisplayTitle(nameBuf);
-			ucPrintCentered(16, currentLanguage->delete_contact_qm, FONT_SIZE_3);
-			ucDrawChoice(CHOICE_YESNO, false);
+			displayPrintCentered(16, currentLanguage->delete_contact_qm, FONT_SIZE_3);
+			displayDrawChoice(CHOICE_YESNO, false);
 			break;
 		case MENU_CONTACT_LIST_DELETED:
 			codeplugUtilConvertBufToString(contactListContactData.name, nameBuf, 16);
-			ucPrintCentered(16, currentLanguage->contact_deleted, FONT_SIZE_3);
-			ucDrawChoice(CHOICE_DISMISS, false);
+			displayPrintCentered(16, currentLanguage->contact_deleted, FONT_SIZE_3);
+			displayDrawChoice(CHOICE_DISMISS, false);
 			break;
 		case MENU_CONTACT_LIST_TG_IN_RXGROUP:
 			codeplugUtilConvertBufToString(contactListContactData.name, nameBuf, 16);
 			menuDisplayTitle(nameBuf);
-			ucPrintCentered(16, currentLanguage->contact_used, FONT_SIZE_3);
-			ucPrintCentered((DISPLAY_SIZE_Y/2), currentLanguage->in_rx_group, FONT_SIZE_3);
-			ucDrawChoice(CHOICE_DISMISS, false);
+			displayPrintCentered(16, currentLanguage->contact_used, FONT_SIZE_3);
+			displayPrintCentered((DISPLAY_SIZE_Y/2), currentLanguage->in_rx_group, FONT_SIZE_3);
+			displayDrawChoice(CHOICE_DISMISS, false);
 			break;
 	}
 
-	ucRender();
+	displayRender();
 }
 
 static void handleEvent(uiEvent_t *ev)
@@ -452,7 +452,7 @@ static void updateSubMenuScreen(void)
 
 	voicePromptsInit();
 
-	ucClearBuf();
+	displayClearBuf();
 
 	codeplugUtilConvertBufToString((contactListType == MENU_CONTACT_LIST_CONTACT_DIGITAL) ? contactListContactData.name : contactListDTMFContactData.name, buf, 16);
 	menuDisplayTitle(buf);
@@ -493,7 +493,7 @@ static void updateSubMenuScreen(void)
 		menuDisplayEntry(i, mNum, buf);
 	}
 
-	ucRender();
+	displayRender();
 }
 
 static void handleSubMenuEvent(uiEvent_t *ev)

@@ -65,9 +65,16 @@
 #include "hardware/SPI_Flash.h"
 #include "hardware/EEPROM.h"
 
+extern int batteryVoltage;
+extern float averageBatteryVoltage;
+extern bool headerRowIsDirty;
+extern bool isSuspended;
+
+
+extern Task_t mainTask;
 
 void mainTaskInit(void);
-void powerOffFinalStage(void);
+void powerOffFinalStage(bool maintainRTC);
 bool batteryIsLowWarning(void);
 
 #endif /* _OPENGD77_MAIN_H_ */

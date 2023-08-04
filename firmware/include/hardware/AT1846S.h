@@ -43,14 +43,13 @@
 #define AT1846_VOICE_CHANNEL_DTMF   0x30
 #define AT1846_VOICE_CHANNEL_MIC    0x40
 
-void AT1846Init(void);
-void AT1846Postinit(void);
-void AT1846SetBandwidth(void);
-void AT1846SetMode(void);
-void AT1846ReadVoxAndMicStrength(void);
-void AT1846ReadRSSIAndNoise(void);
-int AT1846SetClearReg2byteWithMask(uint8_t reg, uint8_t mask1, uint8_t mask2, uint8_t val1, uint8_t val2);
-status_t AT1846SWriteReg2byte(uint8_t reg, uint8_t val1, uint8_t val2);
-status_t AT1846SReadReg2byte(uint8_t reg, uint8_t *val1, uint8_t *val2);
+void radioInit(void);
+void radioPostinit(void);
+void radioSetMode(void);
+void radioReadVoxAndMicStrength(void);
+void radioReadRSSIAndNoise(void);
+int radioSetClearReg2byteWithMask(uint8_t reg, uint8_t mask1, uint8_t mask2, uint8_t val1, uint8_t val2);
+status_t radioWriteReg2byte(uint8_t reg, uint8_t val1, uint8_t val2);
+status_t radioReadReg2byte(uint8_t reg, uint8_t *val1, uint8_t *val2);
 
 #endif /* _OPENGD77_AT1846S_H_ */

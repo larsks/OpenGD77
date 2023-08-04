@@ -29,9 +29,13 @@
 #include "hardware/AT1846S.h"
 #include "functions/settings.h"
 #include "functions/trx.h"
+#include "functions/rxPowerSaving.h"
 #if defined(USING_EXTERNAL_DEBUGGER)
 #include "SeggerRTT/RTT/SEGGER_RTT.h"
 #endif
+
+
+static void I2C_AT1846S_send_Settings(const uint8_t settings[][AT1846_BYTES_PER_COMMAND], int numSettings);
 
 typedef struct
 {
@@ -179,64 +183,66 @@ const uint8_t AT1846DMRSettings[][AT1846_BYTES_PER_COMMAND] = {
 
 
 
-void I2C_AT1846S_send_Settings(const uint8_t settings[][AT1846_BYTES_PER_COMMAND], int numSettings)
+static void I2C_AT1846S_send_Settings(const uint8_t settings[][AT1846_BYTES_PER_COMMAND], int numSettings)
 {
+	taskENTER_CRITICAL();
 	for(int i = 0; i < numSettings; i++)
 	{
-		AT1846SWriteReg2byte(settings[i][0], settings[i][1], settings[i][2]);
+		radioWriteReg2byte(settings[i][0], settings[i][1], settings[i][2]);
 	}
+	taskEXIT_CRITICAL();
 }
 
-void AT1846Init(void)
+void radioInit(void)
 {
 	// --- start of AT1846_init()
-	AT1846SWriteReg2byte(0x30, 0x00, 0x01); // Soft reset
-	vTaskDelay(portTICK_PERIOD_MS * 50);
+	radioWriteReg2byte(0x30, 0x00, 0x01); // Soft reset
+	vTaskDelay((50 / portTICK_PERIOD_MS));
 
 	I2C_AT1846S_send_Settings(AT1846InitSettings, sizeof(AT1846InitSettings) / AT1846_BYTES_PER_COMMAND);
-	vTaskDelay(portTICK_PERIOD_MS * 50);
+	vTaskDelay((50 / portTICK_PERIOD_MS));
 
-	AT1846SWriteReg2byte(0x30, 0x40, 0xA6); // chip_cal_en Enable calibration
-	vTaskDelay(portTICK_PERIOD_MS * 100);
+	radioWriteReg2byte(0x30, 0x40, 0xA6); // chip_cal_en Enable calibration
+	vTaskDelay((100 / portTICK_PERIOD_MS));
 
-	AT1846SWriteReg2byte(0x30, 0x40, 0x06); // chip_cal_en Disable calibration
-	vTaskDelay(portTICK_PERIOD_MS * 10);
+	radioWriteReg2byte(0x30, 0x40, 0x06); // chip_cal_en Disable calibration
+	vTaskDelay((10 / portTICK_PERIOD_MS));
 	// Calibration end
 	// --- end of AT1846_init()
 
 	I2C_AT1846S_send_Settings(AT1846FM12P5kHzSettings, sizeof(AT1846FM12P5kHzSettings) / AT1846_BYTES_PER_COMMAND);// initially set the bandwidth for 12.5 kHz
 
-	AT1846SetClearReg2byteWithMask(0x4e, 0xff, 0x3f, 0x00, 0x80); // Select cdcss mode for tx
+	radioSetClearReg2byteWithMask(0x4e, 0xff, 0x3f, 0x00, 0x80); // Select cdcss mode for tx
 
-	vTaskDelay(portTICK_PERIOD_MS * 200);
+	vTaskDelay((200 / portTICK_PERIOD_MS));
 }
 
-void AT1846Postinit(void)
+void radioPostinit(void)
 {
 	I2C_AT1846S_send_Settings(AT1846PostinitSettings, sizeof(AT1846PostinitSettings) / AT1846_BYTES_PER_COMMAND);
 }
 
-void AT1846SetBandwidth(void)
+static void radioSetBandwidth(void)
 {
 	if (trxGetBandwidthIs25kHz())
 	{
 		// 25 kHz settings
 		I2C_AT1846S_send_Settings(AT1846FM25kHzSettings, sizeof(AT1846FM25kHzSettings) / AT1846_BYTES_PER_COMMAND);
-		AT1846SetClearReg2byteWithMask(0x30, 0xCF, 0x9F, 0x30, 0x00); // Set the 25Khz Bits and turn off the Rx and Tx
+		radioSetClearReg2byteWithMask(0x30, 0xCF, 0x9F, 0x30, 0x00); // Set the 25Khz Bits and turn off the Rx and Tx
 	}
 	else
 	{
 		// 12.5 kHz settings
 		I2C_AT1846S_send_Settings(AT1846FM12P5kHzSettings, sizeof(AT1846FM12P5kHzSettings) / AT1846_BYTES_PER_COMMAND);
-		AT1846SetClearReg2byteWithMask(0x30, 0xCF, 0x9F, 0x00, 0x00); // Clear the 25Khz Bits and turn off the Rx and Tx
+		radioSetClearReg2byteWithMask(0x30, 0xCF, 0x9F, 0x00, 0x00); // Clear the 25Khz Bits and turn off the Rx and Tx
 	}
 
-	AT1846SetClearReg2byteWithMask(0x30, 0xFF, 0x9F, 0x00, 0x20); // Turn the Rx On
+	radioSetClearReg2byteWithMask(0x30, 0xFF, 0x9F, 0x00, 0x20); // Turn the Rx On
 }
 
-void AT1846SetMode(void)
+void radioSetMode(void) // Called withing trx.c: in task critical sections
 {
-	AT1846SetBandwidth();
+	radioSetBandwidth();
 
 	if (trxGetMode() == RADIO_MODE_ANALOG)
 	{
@@ -248,17 +254,38 @@ void AT1846SetMode(void)
 	}
 }
 
-void AT1846ReadVoxAndMicStrength(void)
+void radioReadVoxAndMicStrength(void)
 {
-	AT1846SReadReg2byte(0x1a, (uint8_t *)&trxTxVox, (uint8_t *)&trxTxMic);
+	uint8_t val1, val2;
+
+	taskENTER_CRITICAL();
+	if (radioReadReg2byte(0x1a, &val1, &val2) == kStatus_Success)
+	{
+		trxTxVox = val1;
+		trxTxMic = val2;
+	}
+	taskEXIT_CRITICAL();
 }
 
-void AT1846ReadRSSIAndNoise(void)
+void radioReadRSSIAndNoise(void)
 {
-	AT1846SReadReg2byte(0x1b, (uint8_t *)&trxRxSignal, (uint8_t *)&trxRxNoise);
+	uint8_t val1, val2;
+
+	if (rxPowerSavingIsRxOn())
+	{
+
+		taskENTER_CRITICAL();
+		if (radioReadReg2byte(0x1b, &val1, &val2) == kStatus_Success)
+		{
+			trxRxSignal = val1;
+			trxRxNoise = val2;
+		}
+		trxDMRSynchronisedRSSIReadPending = false;
+		taskEXIT_CRITICAL();
+	}
 }
 
-int AT1846SetClearReg2byteWithMask(uint8_t reg, uint8_t mask1, uint8_t mask2, uint8_t val1, uint8_t val2)
+int radioSetClearReg2byteWithMask(uint8_t reg, uint8_t mask1, uint8_t mask2, uint8_t val1, uint8_t val2)
 {
     status_t status;
 	uint8_t tmp_val1, tmp_val2;
@@ -270,7 +297,7 @@ int AT1846SetClearReg2byteWithMask(uint8_t reg, uint8_t mask1, uint8_t mask2, ui
 	}
 	else
 	{
-		status = AT1846SReadReg2byte(reg, &tmp_val1, &tmp_val2);
+		status = radioReadReg2byte(reg, &tmp_val1, &tmp_val2);
 	    if (status != kStatus_Success)
 	    {
 	    	return status;
@@ -279,12 +306,12 @@ int AT1846SetClearReg2byteWithMask(uint8_t reg, uint8_t mask1, uint8_t mask2, ui
 
 	tmp_val1 = val1 | (tmp_val1 & mask1);
 	tmp_val2 = val2 | (tmp_val2 & mask2);
-	status = AT1846SWriteReg2byte(reg, tmp_val1, tmp_val2);
+	status = radioWriteReg2byte(reg, tmp_val1, tmp_val2);
 
 	return status;
 }
 
-status_t AT1846SReadReg2byte(uint8_t reg, uint8_t *val1, uint8_t *val2)
+status_t radioReadReg2byte(uint8_t reg, uint8_t *val1, uint8_t *val2)
 {
     i2c_master_transfer_t masterXfer;
     status_t status;
@@ -339,7 +366,7 @@ status_t AT1846SReadReg2byte(uint8_t reg, uint8_t *val1, uint8_t *val2)
 	return status;
 }
 
-status_t AT1846SWriteReg2byte(uint8_t reg, uint8_t val1, uint8_t val2)
+status_t radioWriteReg2byte(uint8_t reg, uint8_t val1, uint8_t val2)
 {
     i2c_master_transfer_t masterXfer;
     status_t status;

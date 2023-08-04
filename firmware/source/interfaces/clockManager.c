@@ -33,16 +33,18 @@
 
 #include "clock_config.h"
 #include "interfaces/pit.h"
-#include "fsl_tickless_generic.h"
+//#include "fsl_tickless_generic.h"
 #include "interfaces/hr-c6000_spi.h"
 #include "interfaces/i2c.h"
+
+#include "usb/virtual_com.h"
 
 #if defined(USING_EXTERNAL_DEBUGGER)
 #include "SeggerRTT/RTT/SEGGER_RTT.h"
 #endif
 
-static void APP_SetClockHsrun(void);
-static void APP_SetClockRunFromHsrun(void);
+static void APP_SetClockHsrun(const mcg_pll_config_t *pllConfig);
+static void APP_SetClockRunFromHsrun(const mcg_pll_config_t *pllConfig);
 
 status_t beforeChangeCallback(notifier_notification_block_t *notify, void *dataPtr);
 
@@ -53,17 +55,19 @@ status_t beforeChangeCallback(notifier_notification_block_t *notify, void *dataP
 
 /*Power mode configurations*/
 static power_user_config_t vlprConfig = {
-    kAPP_PowerModeVlpr,
-    true
+		kAPP_PowerModeVlpr,
+		true
 };
+
 static power_user_config_t runConfig   = {
 		kAPP_PowerModeRun,
-        true
-    };
+		true
+};
+
 static power_user_config_t hsrunConfig = {
 		kAPP_PowerModeHsrun,
-        true
-    };
+		true
+};
 
 static notifier_user_config_t *powerConfigs[] = {
 	&vlprConfig,
@@ -78,19 +82,33 @@ static notifier_callback_config_t callbacks[1];
 
 app_power_mode_t clockManagerCurrentRunMode;
 
+volatile static uint32_t hsClockSpeed = CLOCK_MANAGER_SPEED_HS_RUN;
+volatile uint8_t currentTargetConfigIndex = 0x00;
+volatile uint32_t currentClockSpeedSetting = 0x00;
+
+struct pllData
+{
+	uint32_t pllMult;
+	uint32_t pllDiv;
+}  thePLLData =
+{
+		.pllMult = 2,
+		.pllDiv  = 3
+};
+
+
 static void updateRTOSAndPitTimings(void)
 {
     SystemCoreClock = CLOCK_GetFreq(kCLOCK_CoreSysClk);
 	vPortSetupTimerInterrupt();
 	PIT_DisableInterrupts(PIT, kPIT_Chnl_0, kPIT_TimerInterruptEnable);
-	PIT_SetTimerPeriod(PIT, kPIT_Chnl_0, USEC_TO_COUNT(100U, CLOCK_GetFreq(kCLOCK_BusClk)));
+	PIT_SetTimerPeriod(PIT, kPIT_Chnl_0, USEC_TO_COUNT(1000U, CLOCK_GetFreq(kCLOCK_BusClk)));
 	PIT_EnableInterrupts(PIT, kPIT_Chnl_0, kPIT_TimerInterruptEnable);
 
     SPI0Setup();
     SPI1Setup();
     I2C0Setup();
 }
-
 
 void APP_SetClockVlpr(void)
 {
@@ -112,10 +130,8 @@ void APP_SetClockVlpr(void)
 	updateRTOSAndPitTimings();
 }
 
-
 void APP_SetClockRunFromVlpr(void)
 {
-
 	CLOCK_SetSimSafeDivs();
 
 	/* Currently in BLPI mode, will switch to PEE mode. */
@@ -131,23 +147,23 @@ void APP_SetClockRunFromVlpr(void)
 	CLOCK_SetSimConfig(&simConfig_BOARD_BootClockRUN);
 	updateRTOSAndPitTimings();
 }
-void APP_SetClockHsrun(void)
+
+void APP_SetClockHsrun(const mcg_pll_config_t *pllConfig)
 {
-	CLOCK_SetPbeMode(kMCG_PllClkSelPll0, &mcgConfig_BOARD_BootClockHSRUN.pll0Config);
+	CLOCK_SetPbeMode(kMCG_PllClkSelPll0, pllConfig);//&mcgConfig_BOARD_BootClockHSRUN.pll0Config);
 	CLOCK_SetPeeMode();
 	CLOCK_SetSimConfig(&simConfig_BOARD_BootClockHSRUN);
 
 	updateRTOSAndPitTimings();
 }
 
-void APP_SetClockRunFromHsrun(void)
+void APP_SetClockRunFromHsrun(const mcg_pll_config_t *pllConfig)
 {
-	CLOCK_SetPbeMode(kMCG_PllClkSelPll0, &mcgConfig_BOARD_BootClockRUN.pll0Config);
+	CLOCK_SetPbeMode(kMCG_PllClkSelPll0, pllConfig);
 	CLOCK_SetPeeMode();
 	CLOCK_SetSimConfig(&simConfig_BOARD_BootClockRUN);
 	updateRTOSAndPitTimings();
 }
-
 
 status_t beforeChangeCallback(notifier_notification_block_t *notify, void *dataPtr)
 {
@@ -202,7 +218,6 @@ status_t beforeChangeCallback(notifier_notification_block_t *notify, void *dataP
 	}
 	return ret;
 }
-
 
 bool APP_CheckPowerMode(smc_power_state_t currentPowerState, app_power_mode_t targetPowerMode)
 {
@@ -266,6 +281,7 @@ bool APP_CheckPowerMode(smc_power_state_t currentPowerState, app_power_mode_t ta
 
 	return true;
 }
+
 status_t APP_PowerModeSwitch(notifier_user_config_t *targetConfig, void *userData)
 {
 	smc_power_state_t currentPowerMode;
@@ -276,8 +292,31 @@ status_t APP_PowerModeSwitch(notifier_user_config_t *targetConfig, void *userDat
 	currentPowerMode      = SMC_GetPowerModeState(SMC);
 	targetPowerMode       = targetPowerModeConfig->mode;
 
+	uint32_t *clockPllSettings = (uint32_t *)userData;
+
+	mcg_pll_config_t pll0Config =
+	{
+		.enableMode = 0U,            		// MCG_PLL_DISABLE     /*!< MCGPLLCLK disabled  MCG_PLL_DISABLE, /* MCGPLLCLK disabled */
+		.prdiv	= ((*clockPllSettings >> 8) & 0xFF), // PLL Reference divider: divided by ( 1 + prdiv )
+		.vdiv 	= (*clockPllSettings & 0xFF) 	// VCO divider: multiplied by ( 24 +  vdiv)
+	};
+
 	switch (targetPowerMode)
 	{
+/*
+    	case kAPP_PowerModeWait:
+			SMC_PreEnterWaitModes();
+			SMC_SetPowerModeWait(SMC);
+			SMC_PostExitWaitModes();
+			break;
+
+		case kAPP_PowerModeStop:
+			SMC_PreEnterStopModes();
+			SMC_SetPowerModeStop(SMC, kSMC_PartialStop);
+			SMC_PostExitStopModes();
+			break;
+*/
+
 		case kAPP_PowerModeVlpr:
 			APP_SetClockVlpr();
 			SMC_SetPowerModeVlpr(SMC);
@@ -289,15 +328,18 @@ status_t APP_PowerModeSwitch(notifier_user_config_t *targetConfig, void *userDat
 
 		case kAPP_PowerModeRun:
 			/* If enter RUN from HSRUN, fisrt change clock. */
-			if (kSMC_PowerStateHsrun == currentPowerMode)
+			//if (kSMC_PowerStateHsrun == currentPowerMode)
 			{
-				APP_SetClockRunFromHsrun();
+				APP_SetClockRunFromHsrun(&pll0Config);
 			}
 
-			/* Power mode change. */
-			SMC_SetPowerModeRun(SMC);
-			while (kSMC_PowerStateRun != SMC_GetPowerModeState(SMC))
+//			if (clockManagerCurrentRunMode != targetPowerMode)
 			{
+				/* Power mode change. */
+				SMC_SetPowerModeRun(SMC);
+				while (kSMC_PowerStateRun != SMC_GetPowerModeState(SMC))
+				{
+				}
 			}
 
 			/* If enter RUN from VLPR, change clock after the power mode change. */
@@ -315,9 +357,11 @@ status_t APP_PowerModeSwitch(notifier_user_config_t *targetConfig, void *userDat
 			{
 			}
 
-			APP_SetClockHsrun(); /* Change clock setting after power mode change. */
+			APP_SetClockHsrun(&pll0Config); /* Change clock setting after power mode change. */
+
 			clockManagerCurrentRunMode = kAPP_PowerModeHsrun;
 			break;
+
 		default:
 			break;
 	}
@@ -325,12 +369,43 @@ status_t APP_PowerModeSwitch(notifier_user_config_t *targetConfig, void *userDat
 	return kStatus_Success;
 }
 
-void clockManagerSetRunMode(uint8_t targetConfigIndex)
+uint32_t clockManagerGetRunMode(void)
 {
+	return currentClockSpeedSetting;
+}
+
+void clockManagerSetRunMode(uint8_t targetConfigIndex, uint32_t clockSpeedSetting)
+{
+	if ((targetConfigIndex == currentTargetConfigIndex) && (clockSpeedSetting == currentClockSpeedSetting))
+	{
+		return;
+	}
+
+	if (clockSpeedSetting == CLOCK_MANAGER_RUN_SUSPEND_MODE)
+	{
+		// If USB is connected, don't go to suspend mode clock, as it kills the USB
+		if (USB_DeviceIsConnected())
+		{
+			return;
+		}
+	}
+	else if ((clockSpeedSetting == CLOCK_MANAGER_SPEED_HS_RUN) && (USB_DeviceIsConnected() || USB_DeviceIsResetting()))
+	{
+		targetConfigIndex = kAPP_PowerModeRun;
+		clockSpeedSetting = CLOCK_MANAGER_SPEED_RUN;
+	}
+
+	currentTargetConfigIndex = targetConfigIndex;
+	currentClockSpeedSetting = clockSpeedSetting;
+
 	taskENTER_CRITICAL();
+	hsClockSpeed = clockSpeedSetting;
 	callbackData0.originPowerState = SMC_GetPowerModeState(SMC);
 	NOTIFIER_SwitchConfig(&powerModeHandle, targetConfigIndex - kAPP_PowerModeMin - 1, kNOTIFIER_PolicyAgreement);
 	taskEXIT_CRITICAL();
+#if defined(USING_EXTERNAL_DEBUGGER)
+	SEGGER_RTT_printf(0,"Core Clock = %dHz \n", CLOCK_GetFreq(kCLOCK_CoreSysClk));
+#endif
 }
 
 void clockManagerInit(void)
@@ -339,7 +414,7 @@ void clockManagerInit(void)
 
 	clockManagerCurrentRunMode = kAPP_PowerModeMin;
 	memset(&callbackData0, 0, sizeof(user_callback_data_t));
-	NOTIFIER_CreateHandle(&powerModeHandle, powerConfigs, ARRAY_SIZE(powerConfigs), callbacks, 1U, APP_PowerModeSwitch, NULL);
+	NOTIFIER_CreateHandle(&powerModeHandle, powerConfigs, ARRAY_SIZE(powerConfigs), callbacks, 1U, APP_PowerModeSwitch, (void *)&hsClockSpeed);
 
 	SMC_SetPowerModeProtection(SMC, kSMC_AllowPowerModeAll);
 }

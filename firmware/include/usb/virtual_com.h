@@ -16,17 +16,20 @@
 #include "usb_device_cdc_acm.h"
 #include "usb_device_ch9.h"
 
-#include "usb_device_descriptor.h"
-
-#include <FreeRTOS.h>
+#include "FreeRTOS.h"
 #include "semphr.h"
 #include "event_groups.h"
+#include "usb/usb_device_descriptor.h"
 
 void USB_DeviceApplicationInit(void);
+void USB_DeviceStartStop(bool start);
+bool USB_DeviceIsConnected(void);
+bool USB_DeviceIsResetting(void);
+
 
 /*******************************************************************************
-* Definitions
-******************************************************************************/
+ * Definitions
+ ******************************************************************************/
 #if defined(USB_DEVICE_CONFIG_EHCI) && (USB_DEVICE_CONFIG_EHCI > 0)
 #define CONTROLLER_ID kUSB_ControllerEhci0
 #define DATA_BUFF_SIZE HS_CDC_VCOM_BULK_OUT_PACKET_SIZE
@@ -49,6 +52,8 @@ void USB_DeviceApplicationInit(void);
 
 #if defined(__GIC_PRIO_BITS)
 #define USB_DEVICE_INTERRUPT_PRIORITY (25U)
+#elif defined(__NVIC_PRIO_BITS) && (__NVIC_PRIO_BITS >= 3)
+#define USB_DEVICE_INTERRUPT_PRIORITY (6U)
 #else
 #define USB_DEVICE_INTERRUPT_PRIORITY (3U)
 #endif
@@ -76,9 +81,15 @@ typedef struct _usb_cdc_vcom_struct
     usb_device_handle deviceHandle; /* USB device handle. */
     class_handle_t cdcAcmHandle; /* USB CDC ACM class handle.                                                         */
     volatile uint8_t attach;     /* A flag to indicate whether a usb device is attached. 1: attached, 0: not attached */
+    TaskHandle_t deviceTaskHandle;      /* USB device task handle. */
+    TaskHandle_t applicationTaskHandle; /* Application task handle. */
     uint8_t speed; /* Speed of USB device. USB_SPEED_FULL/USB_SPEED_LOW/USB_SPEED_HIGH.                 */
-    uint8_t currentConfiguration; /* Current configuration value. */
-    uint8_t currentInterfaceAlternateSetting[USB_CDC_VCOM_INTERFACE_COUNT]; /* Current alternate setting value for each interface. */
+    volatile uint8_t
+        startTransactions; /* A flag to indicate whether a CDC device is ready to transmit and receive data.    */
+    uint8_t currentConfiguration;                                           /* Current configuration value. */
+    uint8_t currentInterfaceAlternateSetting[USB_CDC_VCOM_INTERFACE_COUNT]; /* Current alternate setting value for each
+                                                                               interface. */
+    volatile uint8_t resetting;
 } usb_cdc_vcom_struct_t;
 
 /* Define the information relates to abstract control model */
@@ -92,7 +103,6 @@ typedef struct _usb_cdc_acm_info
     uint8_t currentInterface; /* Current interface index.                           */
     uint16_t uartState;       /* UART state of the CDC device.                      */
 } usb_cdc_acm_info_t;
-
 
 extern usb_cdc_vcom_struct_t s_cdcVcom;
 

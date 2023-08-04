@@ -37,25 +37,26 @@ static void updateScreen(bool isFirstRun);
 static void handleEvent(uiEvent_t *ev);
 
 static menuStatus_t menuOptionsExitCode = MENU_STATUS_SUCCESS;
-enum OPTIONS_MENU_LIST { OPTIONS_MENU_TX_FREQ_LIMITS = 0U,
-							OPTIONS_MENU_KEYPAD_TIMER_LONG, OPTIONS_MENU_KEYPAD_TIMER_REPEAT, OPTIONS_MENU_DMR_MONITOR_CAPTURE_TIMEOUT,
-							OPTIONS_MENU_SCAN_DELAY, OPTIONS_MENU_SCAN_STEP_TIME, OPTIONS_MENU_SCAN_MODE, OPTIONS_MENU_SCAN_ON_BOOT,
-							OPTIONS_MENU_SQUELCH_DEFAULT_VHF, OPTIONS_MENU_SQUELCH_DEFAULT_220MHz, OPTIONS_MENU_SQUELCH_DEFAULT_UHF,
-							OPTIONS_MENU_PTT_TOGGLE, OPTIONS_MENU_HOTSPOT_TYPE, OPTIONS_MENU_TALKER_ALIAS_TX,
-							OPTIONS_MENU_PRIVATE_CALLS,
-							OPTIONS_MENU_USER_POWER,
-							OPTIONS_MENU_TEMPERATURE_CALIBRATON, OPTIONS_MENU_BATTERY_CALIBRATON,
-							OPTIONS_MENU_ECO_LEVEL,
-							NUM_OPTIONS_MENU_ITEMS};
+enum GENERAL_OPTIONS_MENU_LIST {	GENERAL_OPTIONS_MENU_KEYPAD_TIMER_LONG = 0U,
+									GENERAL_OPTIONS_MENU_KEYPAD_TIMER_REPEAT,
+									GENERAL_OPTIONS_MENU_HOTSPOT_TYPE,
+									GENERAL_OPTIONS_MENU_TEMPERATURE_CALIBRATON,
+									GENERAL_OPTIONS_MENU_BATTERY_CALIBRATON,
+									GENERAL_OPTIONS_MENU_ECO_LEVEL,
+#if !defined(PLATFORM_RD5R) && !defined(PLATFORM_GD77S)
+									GENERAL_OPTIONS_MENU_POWEROFF_SUSPEND,
+#endif
+									GENERAL_OPTIONS_MENU_SATELLITE_MANUAL_AUTO,
+									NUM_GENERAL_OPTIONS_MENU_ITEMS};
 
-menuStatus_t menuOptions(uiEvent_t *ev, bool isFirstRun)
+menuStatus_t menuGeneralOptions(uiEvent_t *ev, bool isFirstRun)
 {
 	if (isFirstRun)
 	{
 		menuDataGlobal.menuOptionsSetQuickkey = 0;
 		menuDataGlobal.menuOptionsTimeout = 0;
 		menuDataGlobal.newOptionSelected = true;
-		menuDataGlobal.endIndex = NUM_OPTIONS_MENU_ITEMS;
+		menuDataGlobal.endIndex = NUM_GENERAL_OPTIONS_MENU_ITEMS;
 
 		if (originalNonVolatileSettings.magicNumber == 0xDEADBEEF)
 		{
@@ -65,7 +66,7 @@ menuStatus_t menuOptions(uiEvent_t *ev, bool isFirstRun)
 
 		voicePromptsInit();
 		voicePromptsAppendPrompt(PROMPT_SILENCE);
-		voicePromptsAppendLanguageString(&currentLanguage->options);
+		voicePromptsAppendLanguageString(&currentLanguage->general_options);
 		voicePromptsAppendLanguageString(&currentLanguage->menu);
 		voicePromptsAppendPrompt(PROMPT_SILENCE);
 
@@ -95,15 +96,15 @@ static void updateScreen(bool isFirstRun)
 	voicePrompt_t rightSideUnitsPrompt;
 	const char * rightSideUnitsStr;
 
-	ucClearBuf();
-	bool settingOption = uiShowQuickKeysChoices(buf, SCREEN_LINE_BUFFER_SIZE, currentLanguage->options);
+	displayClearBuf();
+	bool settingOption = uiShowQuickKeysChoices(buf, SCREEN_LINE_BUFFER_SIZE, currentLanguage->general_options);
 
 	// Can only display 3 of the options at a time menu at -1, 0 and +1
 	for(int i = -1; i <= 1; i++)
 	{
 		if ((settingOption == false) || (i == 0))
 		{
-			mNum = menuGetMenuOffset(NUM_OPTIONS_MENU_ITEMS, i);
+			mNum = menuGetMenuOffset(NUM_GENERAL_OPTIONS_MENU_ITEMS, i);
 			buf[0] = 0;
 			buf[2] = 0;
 			leftSide = NULL;
@@ -114,81 +115,19 @@ static void updateScreen(bool isFirstRun)
 
 			switch(mNum)
 			{
-				case OPTIONS_MENU_TX_FREQ_LIMITS:// Tx Freq limits
-					leftSide = (char * const *)&currentLanguage->band_limits;
-					switch(nonVolatileSettings.txFreqLimited)
-					{
-						case BAND_LIMITS_NONE:
-							rightSideConst = (char * const *)(&currentLanguage->off);
-							break;
-						case BAND_LIMITS_ON_LEGACY_DEFAULT:
-							rightSideConst = (char * const *)(&currentLanguage->on);
-							break;
-						case BAND_LIMITS_FROM_CPS:
-							strcpy(rightSideVar,"CPS");
-							break;
-					}
-
-					break;
-				case OPTIONS_MENU_KEYPAD_TIMER_LONG:// Timer longpress
+				case GENERAL_OPTIONS_MENU_KEYPAD_TIMER_LONG:// Timer longpress
 					leftSide = (char * const *)&currentLanguage->key_long;
 					snprintf(rightSideVar, SCREEN_LINE_BUFFER_SIZE, "%1d.%1d", nonVolatileSettings.keypadTimerLong / 10, nonVolatileSettings.keypadTimerLong % 10);
 					rightSideUnitsPrompt = PROMPT_SECONDS;
 					rightSideUnitsStr = "s";
 					break;
-				case OPTIONS_MENU_KEYPAD_TIMER_REPEAT:// Timer repeat
+				case GENERAL_OPTIONS_MENU_KEYPAD_TIMER_REPEAT:// Timer repeat
 					leftSide = (char * const *)&currentLanguage->key_repeat;
 					snprintf(rightSideVar, SCREEN_LINE_BUFFER_SIZE, "%1d.%1d", nonVolatileSettings.keypadTimerRepeat/10, nonVolatileSettings.keypadTimerRepeat % 10);
 					rightSideUnitsPrompt = PROMPT_SECONDS;
 					rightSideUnitsStr = "s";
 					break;
-				case OPTIONS_MENU_DMR_MONITOR_CAPTURE_TIMEOUT:// DMR filtr timeout repeat
-					leftSide = (char * const *)&currentLanguage->dmr_filter_timeout;
-					snprintf(rightSideVar, SCREEN_LINE_BUFFER_SIZE, "%d", nonVolatileSettings.dmrCaptureTimeout);
-					rightSideUnitsPrompt = PROMPT_SECONDS;
-					rightSideUnitsStr = "s";
-					break;
-				case OPTIONS_MENU_SCAN_DELAY:// Scan hold and pause time
-					leftSide = (char * const *)&currentLanguage->scan_delay;
-					snprintf(rightSideVar, SCREEN_LINE_BUFFER_SIZE, "%d", nonVolatileSettings.scanDelay);
-					rightSideUnitsPrompt = PROMPT_SECONDS;
-					rightSideUnitsStr = "s";
-					break;
-				case OPTIONS_MENU_SCAN_STEP_TIME:// Scan step time
-					leftSide = (char * const *)&currentLanguage->scan_dwell_time;
-					snprintf(rightSideVar, SCREEN_LINE_BUFFER_SIZE, "%d", settingsGetScanStepTimeMilliseconds());
-					rightSideUnitsPrompt = PROMPT_MILLISECONDS;
-					rightSideUnitsStr = "ms";
-					break;
-
-				case OPTIONS_MENU_SCAN_MODE:// scanning mode
-					leftSide = (char * const *)&currentLanguage->scan_mode;
-					{
-						const char * const *scanModes[] = { &currentLanguage->hold, &currentLanguage->pause, &currentLanguage->stop };
-						rightSideConst = (char * const *)scanModes[nonVolatileSettings.scanModePause];
-					}
-					break;
-				case OPTIONS_MENU_SCAN_ON_BOOT:
-					leftSide = (char * const *)&currentLanguage->scan_on_boot;
-					rightSideConst = settingsIsOptionBitSet(BIT_SCAN_ON_BOOT_ENABLED) ? (char * const *)&currentLanguage->on : (char * const *)&currentLanguage->off;
-					break;
-				case OPTIONS_MENU_SQUELCH_DEFAULT_VHF:
-					leftSide = (char * const *)&currentLanguage->squelch_VHF;
-					snprintf(rightSideVar, SCREEN_LINE_BUFFER_SIZE, "%d%%", (nonVolatileSettings.squelchDefaults[RADIO_BAND_VHF] - 1) * 5);// 5% steps
-					break;
-				case OPTIONS_MENU_SQUELCH_DEFAULT_220MHz:
-					leftSide = (char * const *)&currentLanguage->squelch_220;
-					snprintf(rightSideVar, SCREEN_LINE_BUFFER_SIZE, "%d%%", (nonVolatileSettings.squelchDefaults[RADIO_BAND_220MHz] - 1) * 5);// 5% steps
-					break;
-				case OPTIONS_MENU_SQUELCH_DEFAULT_UHF:
-					leftSide = (char * const *)&currentLanguage->squelch_UHF;
-					snprintf(rightSideVar, SCREEN_LINE_BUFFER_SIZE, "%d%%", (nonVolatileSettings.squelchDefaults[RADIO_BAND_UHF] - 1) * 5);// 5% steps
-					break;
-				case OPTIONS_MENU_PTT_TOGGLE:
-					leftSide = (char * const *)&currentLanguage->ptt_toggle;
-					rightSideConst = (char * const *)(settingsIsOptionBitSet(BIT_PTT_LATCH) ? &currentLanguage->on : &currentLanguage->off);
-					break;
-				case OPTIONS_MENU_HOTSPOT_TYPE:
+				case GENERAL_OPTIONS_MENU_HOTSPOT_TYPE:
 					leftSide = (char * const *)&currentLanguage->hotspot_mode;
 #if defined(PLATFORM_RD5R)
 					rightSideConst = (char * const *)&currentLanguage->n_a;
@@ -212,20 +151,7 @@ static void updateScreen(bool isFirstRun)
 					}
 #endif
 					break;
-				case OPTIONS_MENU_TALKER_ALIAS_TX:
-					leftSide = (char * const *)&currentLanguage->transmitTalkerAlias;
-					rightSideConst = (char * const *)(settingsIsOptionBitSet(BIT_TRANSMIT_TALKER_ALIAS) ? &currentLanguage->on : &currentLanguage->off);
-					break;
-				case OPTIONS_MENU_PRIVATE_CALLS:
-					leftSide = (char * const *)&currentLanguage->private_call_handling;
-					const char * const *allowPCOptions[] = { &currentLanguage->off, &currentLanguage->on, &currentLanguage->ptt, &currentLanguage->Auto};
-					rightSideConst = (char * const *)allowPCOptions[nonVolatileSettings.privateCalls];
-					break;
-				case OPTIONS_MENU_USER_POWER:
-					leftSide = (char * const *)&currentLanguage->user_power;
-					snprintf(rightSideVar, SCREEN_LINE_BUFFER_SIZE, "%d", (nonVolatileSettings.userPower));
-					break;
-				case OPTIONS_MENU_TEMPERATURE_CALIBRATON:
+				case GENERAL_OPTIONS_MENU_TEMPERATURE_CALIBRATON:
 					{
 						int absValue = abs(nonVolatileSettings.temperatureCalibration);
 						leftSide = (char * const *)&currentLanguage->temperature_calibration;
@@ -234,17 +160,27 @@ static void updateScreen(bool isFirstRun)
 						snprintf(rightSideVar, SCREEN_LINE_BUFFER_SIZE, "%s%s", buf2, currentLanguage->celcius);
 					}
 					break;
-				case OPTIONS_MENU_BATTERY_CALIBRATON:
+				case GENERAL_OPTIONS_MENU_BATTERY_CALIBRATON:
 					{
-						int batCal = nonVolatileSettings.batteryCalibration - 5;
+						int batCal = (nonVolatileSettings.batteryCalibration & 0x0F) - 5;
 						leftSide = (char * const *)&currentLanguage->battery_calibration;
 						snprintf(buf2, SCREEN_LINE_BUFFER_SIZE, "%c0.%d", (batCal == 0 ? ' ' : (batCal > 0 ? '+' : '-')), abs(batCal));
 						snprintf(rightSideVar, SCREEN_LINE_BUFFER_SIZE, "%sV", buf2);
 					}
 					break;
-				case OPTIONS_MENU_ECO_LEVEL:
+				case GENERAL_OPTIONS_MENU_ECO_LEVEL:
 					leftSide = (char * const *)&currentLanguage->eco_level;
 					snprintf(rightSideVar, SCREEN_LINE_BUFFER_SIZE, "%d", (nonVolatileSettings.ecoLevel));
+					break;
+#if !defined(PLATFORM_RD5R) && !defined(PLATFORM_GD77S)
+				case GENERAL_OPTIONS_MENU_POWEROFF_SUSPEND:
+					leftSide = (char * const *)&currentLanguage->suspend;
+					rightSideConst = (char * const *)(settingsIsOptionBitSet(BIT_POWEROFF_SUSPEND) ? &currentLanguage->on : &currentLanguage->off);
+					break;
+#endif
+				case GENERAL_OPTIONS_MENU_SATELLITE_MANUAL_AUTO:
+					leftSide = (char * const *)&currentLanguage->satellite_short;
+					rightSideConst = (char * const *)(settingsIsOptionBitSet(BIT_SATELLITE_MANUAL_AUTO) ? &currentLanguage->Auto : &currentLanguage->manual);
 					break;
 			}
 
@@ -266,12 +202,12 @@ static void updateScreen(bool isFirstRun)
 
 				if ((rightSideVar[0] != 0) || ((rightSideVar[0] == 0) && (rightSideConst == NULL)))
 				{
-					if (mNum == OPTIONS_MENU_TEMPERATURE_CALIBRATON)
+					if (mNum == GENERAL_OPTIONS_MENU_TEMPERATURE_CALIBRATON)
 					{
 						voicePromptsAppendString(buf2);
 						voicePromptsAppendLanguageString(&currentLanguage->celcius);
 					}
-					else if (mNum == OPTIONS_MENU_BATTERY_CALIBRATON)
+					else if (mNum == GENERAL_OPTIONS_MENU_BATTERY_CALIBRATON)
 					{
 						voicePromptsAppendString(buf2);
 						voicePromptsAppendPrompt(PROMPT_VOLTS);
@@ -323,7 +259,7 @@ static void updateScreen(bool isFirstRun)
 		}
 	}
 
-	ucRender();
+	displayRender();
 }
 
 static void handleEvent(uiEvent_t *ev)
@@ -351,7 +287,7 @@ static void handleEvent(uiEvent_t *ev)
 	if (ev->events & FUNCTION_EVENT)
 	{
 		isDirty = true;
-		if ((QUICKKEY_TYPE(ev->function) == QUICKKEY_MENU) && (QUICKKEY_ENTRYID(ev->function) < NUM_OPTIONS_MENU_ITEMS))
+		if ((QUICKKEY_TYPE(ev->function) == QUICKKEY_MENU) && (QUICKKEY_ENTRYID(ev->function) < NUM_GENERAL_OPTIONS_MENU_ITEMS))
 		{
 			menuDataGlobal.currentItemIndex = QUICKKEY_ENTRYID(ev->function);
 		}
@@ -366,14 +302,14 @@ static void handleEvent(uiEvent_t *ev)
 		if (KEYCHECK_PRESS(ev->keys, KEY_DOWN) && (menuDataGlobal.endIndex != 0))
 		{
 			isDirty = true;
-			menuSystemMenuIncrement(&menuDataGlobal.currentItemIndex, NUM_OPTIONS_MENU_ITEMS);
+			menuSystemMenuIncrement(&menuDataGlobal.currentItemIndex, NUM_GENERAL_OPTIONS_MENU_ITEMS);
 			menuDataGlobal.newOptionSelected = true;
 			menuOptionsExitCode |= MENU_STATUS_LIST_TYPE;
 		}
 		else if (KEYCHECK_PRESS(ev->keys, KEY_UP))
 		{
 			isDirty = true;
-			menuSystemMenuDecrement(&menuDataGlobal.currentItemIndex, NUM_OPTIONS_MENU_ITEMS);
+			menuSystemMenuDecrement(&menuDataGlobal.currentItemIndex, NUM_GENERAL_OPTIONS_MENU_ITEMS);
 			menuDataGlobal.newOptionSelected = true;
 			menuOptionsExitCode |= MENU_STATUS_LIST_TYPE;
 		}
@@ -391,6 +327,7 @@ static void handleEvent(uiEvent_t *ev)
 			memcpy(&nonVolatileSettings, &originalNonVolatileSettings, sizeof(settingsStruct_t));
 			settingsSaveIfNeeded(true);
 			trxUpdate_PA_DAC_Drive();
+
 			resetOriginalSettingsData();
 			menuSystemPopPreviousMenu();
 			return;
@@ -410,79 +347,19 @@ static void handleEvent(uiEvent_t *ev)
 			menuDataGlobal.newOptionSelected = false;
 			switch(menuDataGlobal.currentItemIndex)
 			{
-				case OPTIONS_MENU_TX_FREQ_LIMITS:
-					if (nonVolatileSettings.txFreqLimited < BAND_LIMITS_FROM_CPS)
-					{
-						settingsIncrement(nonVolatileSettings.txFreqLimited, 1);
-					}
-					break;
-				case OPTIONS_MENU_KEYPAD_TIMER_LONG:
+				case GENERAL_OPTIONS_MENU_KEYPAD_TIMER_LONG:
 					if (nonVolatileSettings.keypadTimerLong < 90)
 					{
 						settingsIncrement(nonVolatileSettings.keypadTimerLong, 1);
 					}
 					break;
-				case OPTIONS_MENU_KEYPAD_TIMER_REPEAT:
+				case GENERAL_OPTIONS_MENU_KEYPAD_TIMER_REPEAT:
 					if (nonVolatileSettings.keypadTimerRepeat < 90)
 					{
 						settingsIncrement(nonVolatileSettings.keypadTimerRepeat, 1);
 					}
 					break;
-				case OPTIONS_MENU_DMR_MONITOR_CAPTURE_TIMEOUT:
-					if (nonVolatileSettings.dmrCaptureTimeout < 90)
-					{
-						settingsIncrement(nonVolatileSettings.dmrCaptureTimeout, 1);
-					}
-					break;
-				case OPTIONS_MENU_SCAN_DELAY:
-					if (nonVolatileSettings.scanDelay < 30)
-					{
-						settingsIncrement(nonVolatileSettings.scanDelay, 1);
-					}
-					break;
-				case OPTIONS_MENU_SCAN_STEP_TIME:
-					if (nonVolatileSettings.scanStepTime < 15)  // <30> + (15 * 30ms) MAX
-					{
-						settingsIncrement(nonVolatileSettings.scanStepTime, 1);
-					}
-					break;
-				case OPTIONS_MENU_SCAN_MODE:
-					if (nonVolatileSettings.scanModePause < SCAN_MODE_STOP)
-					{
-						settingsIncrement(nonVolatileSettings.scanModePause, 1);
-					}
-					break;
-				case OPTIONS_MENU_SCAN_ON_BOOT:
-					if (settingsIsOptionBitSet(BIT_SCAN_ON_BOOT_ENABLED) == false)
-					{
-						settingsSetOptionBit(BIT_SCAN_ON_BOOT_ENABLED, true);
-					}
-					break;
-				case OPTIONS_MENU_SQUELCH_DEFAULT_VHF:
-					if (nonVolatileSettings.squelchDefaults[RADIO_BAND_VHF] < CODEPLUG_MAX_VARIABLE_SQUELCH)
-					{
-						settingsIncrement(nonVolatileSettings.squelchDefaults[RADIO_BAND_VHF], 1);
-					}
-					break;
-				case OPTIONS_MENU_SQUELCH_DEFAULT_220MHz:
-					if (nonVolatileSettings.squelchDefaults[RADIO_BAND_220MHz] < CODEPLUG_MAX_VARIABLE_SQUELCH)
-					{
-						settingsIncrement(nonVolatileSettings.squelchDefaults[RADIO_BAND_220MHz], 1);
-					}
-					break;
-				case OPTIONS_MENU_SQUELCH_DEFAULT_UHF:
-					if (nonVolatileSettings.squelchDefaults[RADIO_BAND_UHF] < CODEPLUG_MAX_VARIABLE_SQUELCH)
-					{
-						settingsIncrement(nonVolatileSettings.squelchDefaults[RADIO_BAND_UHF], 1);
-					}
-					break;
-				case OPTIONS_MENU_PTT_TOGGLE:
-					if (settingsIsOptionBitSet(BIT_PTT_LATCH) == false)
-					{
-						settingsSetOptionBit(BIT_PTT_LATCH, true);
-					}
-					break;
-				case OPTIONS_MENU_HOTSPOT_TYPE:
+				case GENERAL_OPTIONS_MENU_HOTSPOT_TYPE:
 #if !defined(PLATFORM_RD5R)
 					if ((uiDataGlobal.dmrDisabled == false) && (nonVolatileSettings.hotspotType < HOTSPOT_TYPE_BLUEDV))
 					{
@@ -490,47 +367,39 @@ static void handleEvent(uiEvent_t *ev)
 					}
 #endif
 					break;
-				case OPTIONS_MENU_TALKER_ALIAS_TX:
-					if (settingsIsOptionBitSet(BIT_TRANSMIT_TALKER_ALIAS) == false)
-					{
-						settingsSetOptionBit(BIT_TRANSMIT_TALKER_ALIAS, true);
-					}
-					break;
-				case OPTIONS_MENU_PRIVATE_CALLS:
-					// Note. Currently the "AUTO" option is not available
-					if (nonVolatileSettings.privateCalls < ALLOW_PRIVATE_CALLS_PTT)
-					{
-						settingsIncrement(nonVolatileSettings.privateCalls, 1);
-					}
-					break;
-				case OPTIONS_MENU_USER_POWER:
-					{
-						int newVal = (int)nonVolatileSettings.userPower;
-
-						// Not the real max value of 4096, but trxUpdate_PA_DAC_Drive() will auto limit it to 4096
-						// and it makes the logic easier and there is no functional difference
-						newVal = SAFE_MIN((newVal + (BUTTONCHECK_DOWN(ev, BUTTON_SK2) ? 10 : 100)), 4100);
-
-						settingsSet(nonVolatileSettings.userPower, newVal);
-						trxUpdate_PA_DAC_Drive();
-					}
-					break;
-				case OPTIONS_MENU_TEMPERATURE_CALIBRATON:
+				case GENERAL_OPTIONS_MENU_TEMPERATURE_CALIBRATON:
 					if (nonVolatileSettings.temperatureCalibration < 20)
 					{
 						settingsIncrement(nonVolatileSettings.temperatureCalibration, 1);
 					}
 					break;
-				case OPTIONS_MENU_BATTERY_CALIBRATON:
-					if (nonVolatileSettings.batteryCalibration < 10) // = +0.5V as val is (batteryCalibration -5 ) /10
+				case GENERAL_OPTIONS_MENU_BATTERY_CALIBRATON:
 					{
-						settingsIncrement(nonVolatileSettings.batteryCalibration,1);
+						uint32_t batVal = nonVolatileSettings.batteryCalibration & 0x0F;// lower 4 bits
+						if (batVal < 10) // = +0.5V as val is (batteryCalibration -5 ) /10
+						{
+							settingsSet(nonVolatileSettings.batteryCalibration, (nonVolatileSettings.batteryCalibration & 0xF0) + (batVal + 1));
+						}
 					}
 					break;
-				case OPTIONS_MENU_ECO_LEVEL:
+				case GENERAL_OPTIONS_MENU_ECO_LEVEL:
 					if (nonVolatileSettings.ecoLevel < ECO_LEVEL_MAX)
 					{
 						settingsIncrement(nonVolatileSettings.ecoLevel, 1);
+					}
+					break;
+#if !defined(PLATFORM_RD5R) && !defined(PLATFORM_GD77S)
+				case GENERAL_OPTIONS_MENU_POWEROFF_SUSPEND:
+					if (settingsIsOptionBitSet(BIT_POWEROFF_SUSPEND) == false)
+					{
+						settingsSetOptionBit(BIT_POWEROFF_SUSPEND, true);
+					}
+					break;
+#endif
+				case GENERAL_OPTIONS_MENU_SATELLITE_MANUAL_AUTO:
+					if (settingsIsOptionBitSet(BIT_SATELLITE_MANUAL_AUTO) == false)
+					{
+						settingsSetOptionBit(BIT_SATELLITE_MANUAL_AUTO, true);
 					}
 					break;
 			}
@@ -541,79 +410,19 @@ static void handleEvent(uiEvent_t *ev)
 			menuDataGlobal.newOptionSelected = false;
 			switch(menuDataGlobal.currentItemIndex)
 			{
-				case OPTIONS_MENU_TX_FREQ_LIMITS:
-					if (nonVolatileSettings.txFreqLimited > BAND_LIMITS_NONE)
-					{
-						settingsDecrement(nonVolatileSettings.txFreqLimited, 1);
-					}
-					break;
-				case OPTIONS_MENU_KEYPAD_TIMER_LONG:
+				case GENERAL_OPTIONS_MENU_KEYPAD_TIMER_LONG:
 					if (nonVolatileSettings.keypadTimerLong > 1)
 					{
 						settingsDecrement(nonVolatileSettings.keypadTimerLong, 1);
 					}
 					break;
-				case OPTIONS_MENU_KEYPAD_TIMER_REPEAT:
+				case GENERAL_OPTIONS_MENU_KEYPAD_TIMER_REPEAT:
 					if (nonVolatileSettings.keypadTimerRepeat > 1) // Don't set it to zero, otherwise watchdog may kicks in.
 					{
 						settingsDecrement(nonVolatileSettings.keypadTimerRepeat, 1);
 					}
 					break;
-				case OPTIONS_MENU_DMR_MONITOR_CAPTURE_TIMEOUT:
-					if (nonVolatileSettings.dmrCaptureTimeout > 1)
-					{
-						settingsDecrement(nonVolatileSettings.dmrCaptureTimeout, 1);
-					}
-					break;
-				case OPTIONS_MENU_SCAN_DELAY:
-					if (nonVolatileSettings.scanDelay > 1)
-					{
-						settingsDecrement(nonVolatileSettings.scanDelay, 1);
-					}
-					break;
-				case OPTIONS_MENU_SCAN_STEP_TIME:
-					if (nonVolatileSettings.scanStepTime > 0)
-					{
-						settingsDecrement(nonVolatileSettings.scanStepTime, 1);
-					}
-					break;
-				case OPTIONS_MENU_SCAN_MODE:
-					if (nonVolatileSettings.scanModePause > SCAN_MODE_HOLD)
-					{
-						settingsDecrement(nonVolatileSettings.scanModePause, 1);
-					}
-					break;
-				case OPTIONS_MENU_SCAN_ON_BOOT:
-					if (settingsIsOptionBitSet(BIT_SCAN_ON_BOOT_ENABLED))
-					{
-						settingsSetOptionBit(BIT_SCAN_ON_BOOT_ENABLED, false);
-					}
-					break;
-				case OPTIONS_MENU_SQUELCH_DEFAULT_VHF:
-					if (nonVolatileSettings.squelchDefaults[RADIO_BAND_VHF] > 1)
-					{
-						settingsDecrement(nonVolatileSettings.squelchDefaults[RADIO_BAND_VHF], 1);
-					}
-					break;
-				case OPTIONS_MENU_SQUELCH_DEFAULT_220MHz:
-					if (nonVolatileSettings.squelchDefaults[RADIO_BAND_220MHz] > 1)
-					{
-						settingsDecrement(nonVolatileSettings.squelchDefaults[RADIO_BAND_220MHz], 1);
-					}
-					break;
-				case OPTIONS_MENU_SQUELCH_DEFAULT_UHF:
-					if (nonVolatileSettings.squelchDefaults[RADIO_BAND_UHF] > 1)
-					{
-						settingsDecrement(nonVolatileSettings.squelchDefaults[RADIO_BAND_UHF], 1);
-					}
-					break;
-				case OPTIONS_MENU_PTT_TOGGLE:
-					if (settingsIsOptionBitSet(BIT_PTT_LATCH))
-					{
-						settingsSetOptionBit(BIT_PTT_LATCH, false);
-					}
-					break;
-				case OPTIONS_MENU_HOTSPOT_TYPE:
+				case GENERAL_OPTIONS_MENU_HOTSPOT_TYPE:
 #if !defined(PLATFORM_RD5R)
 					if ((uiDataGlobal.dmrDisabled == false) && (nonVolatileSettings.hotspotType > HOTSPOT_TYPE_OFF))
 					{
@@ -621,46 +430,39 @@ static void handleEvent(uiEvent_t *ev)
 					}
 #endif
 					break;
-				case OPTIONS_MENU_TALKER_ALIAS_TX:
-					if (settingsIsOptionBitSet(BIT_TRANSMIT_TALKER_ALIAS))
-					{
-						settingsSetOptionBit(BIT_TRANSMIT_TALKER_ALIAS, false);
-					}
-					break;
-				case OPTIONS_MENU_PRIVATE_CALLS:
-					if (nonVolatileSettings.privateCalls > 0)
-					{
-						settingsDecrement(nonVolatileSettings.privateCalls, 1);
-					}
-					break;
-				case OPTIONS_MENU_USER_POWER:
-					{
-						int newVal = (int)nonVolatileSettings.userPower;
-
-						// Not the real max value of 4096, but trxUpdate_PA_DAC_Drive() will auto limit it to 4096
-						// and it makes the logic easier and there is no functional difference
-						newVal = SAFE_MAX((newVal - (BUTTONCHECK_DOWN(ev, BUTTON_SK2) ? 10 : 100)), 0);
-
-						settingsSet(nonVolatileSettings.userPower, newVal);
-						trxUpdate_PA_DAC_Drive();
-					}
-					break;
-				case OPTIONS_MENU_TEMPERATURE_CALIBRATON:
+				case GENERAL_OPTIONS_MENU_TEMPERATURE_CALIBRATON:
 					if (nonVolatileSettings.temperatureCalibration > -20)
 					{
 						settingsDecrement(nonVolatileSettings.temperatureCalibration, 1);
 					}
 					break;
-				case OPTIONS_MENU_BATTERY_CALIBRATON:
-					if (nonVolatileSettings.batteryCalibration > 0)
+				case GENERAL_OPTIONS_MENU_BATTERY_CALIBRATON:
 					{
-						settingsDecrement(nonVolatileSettings.batteryCalibration, 1);
+						uint32_t batVal = nonVolatileSettings.batteryCalibration & 0x0F;// lower 4 bits
+						if (batVal > 0)
+						{
+							settingsSet(nonVolatileSettings.batteryCalibration, (nonVolatileSettings.batteryCalibration & 0xF0) + (batVal - 1));
+						}
 					}
 					break;
-				case OPTIONS_MENU_ECO_LEVEL:
+				case GENERAL_OPTIONS_MENU_ECO_LEVEL:
 					if (nonVolatileSettings.ecoLevel > 0)
 					{
 						settingsDecrement(nonVolatileSettings.ecoLevel, 1);
+					}
+					break;
+#if !defined(PLATFORM_RD5R) && !defined(PLATFORM_GD77S)
+				case GENERAL_OPTIONS_MENU_POWEROFF_SUSPEND:
+					if (settingsIsOptionBitSet(BIT_POWEROFF_SUSPEND))
+					{
+						settingsSetOptionBit(BIT_POWEROFF_SUSPEND, false);
+					}
+					break;
+#endif
+				case GENERAL_OPTIONS_MENU_SATELLITE_MANUAL_AUTO:
+					if (settingsIsOptionBitSet(BIT_SATELLITE_MANUAL_AUTO))
+					{
+						settingsSetOptionBit(BIT_SATELLITE_MANUAL_AUTO, false);
 					}
 					break;
 			}

@@ -109,7 +109,7 @@ void ADC0_IRQHandler(void)
     switch (adc_channel)
     {
     case 1:
-    	adcBatteryVoltage = result + ((int)(((nonVolatileSettings.batteryCalibration - 5) * 0.1) * 416));
+    	adcBatteryVoltage = result + ((int)((((nonVolatileSettings.batteryCalibration & 0x0F) - 5) * 0.1) * 416));
     	adc_channel = 3;// get channel 3 next
     	break;
     case 3:

@@ -29,83 +29,64 @@
 #include "user_interface/uiLocalisation.h"
 #include "user_interface/uiUtilities.h"
 
-static void updateScreen(void);
+
+enum { FIRMWARE_INFO_BUILD_DETAILS = 0 /* then all credits pages */ };
+
+#if defined(PLATFORM_RD5R)
+#define maxDisplayedCreditsLines  3
+#else
+#define maxDisplayedCreditsLines  5
+#endif
+
+static const char *creditTexts[] = { "Roger VK3KYY", "Daniel F1RMB", "Kai DG4KLU", "Colin G4EML", "Alex DL4LEX", "Dzmitry EW1ADG", "Jason VK7ZJA" };
+static const int maxCredits = (sizeof(creditTexts) / sizeof(creditTexts[0]));
+static const int maxCreditsPages = (maxCredits / maxDisplayedCreditsLines) + ((maxCredits % maxDisplayedCreditsLines) == 0 ? 0 : 1);
+
+static void displayCredits(bool playVP, uint32_t pageNumber);
+static void displayBuildDetails(bool playVP);
+static void updateScreen(bool playVP);
 static void handleEvent(uiEvent_t *ev);
-static menuStatus_t menuFirmwareInfoExitCode = MENU_STATUS_SUCCESS;
+static int displayMode = FIRMWARE_INFO_BUILD_DETAILS;
+static uint32_t menuFirmwareInfoNextUpdateTime;
+static bool blink = false;
 
 menuStatus_t menuFirmwareInfoScreen(uiEvent_t *ev, bool isFirstRun)
 {
 	if (isFirstRun)
 	{
 		menuDataGlobal.endIndex = 0;
-		updateScreen();
+		updateScreen(isFirstRun);
 	}
 	else
 	{
-		menuFirmwareInfoExitCode = MENU_STATUS_SUCCESS;
+		if (ev->time > menuFirmwareInfoNextUpdateTime)
+		{
+			menuFirmwareInfoNextUpdateTime = ev->time + 500;
+			updateScreen(false);
+		}
+
 		if (ev->hasEvent)
 		{
 			handleEvent(ev);
 		}
 	}
-	return menuFirmwareInfoExitCode;
+	return MENU_STATUS_SUCCESS;
 }
 
-static void updateScreen(void)
+static void updateScreen(bool playVP)
 {
-#if !defined(PLATFORM_GD77S)
-	char buf[SCREEN_LINE_BUFFER_SIZE];
-	char * const *radioModel;
+	switch(displayMode)
+	{
+		case FIRMWARE_INFO_BUILD_DETAILS:
+			displayBuildDetails(playVP);
+			break;
 
-	snprintf(buf, SCREEN_LINE_BUFFER_SIZE, "[ %s", GITVERSION);
-	buf[9] = 0; // git hash id 7 char long;
-	strcat(buf, (uiDataGlobal.dmrDisabled ? " F ]" : " D ]"));
+		default:
+			displayCredits(playVP, displayMode);
+			break;
+	}
 
-	ucClearBuf();
-
-#if defined(PLATFORM_GD77)
-	radioModel = (char * const *)&currentLanguage->openGD77;
-#elif defined(PLATFORM_DM1801)
-	radioModel = (char * const *)&currentLanguage->openDM1801;
-#elif defined(PLATFORM_DM1801A)
-	radioModel = (char * const *)&currentLanguage->openDM1801A;
-#elif defined(PLATFORM_RD5R)
-	radioModel = (char * const *)&currentLanguage->openRD5R;
-#endif
-
-#if defined(PLATFORM_RD5R)
-	ucPrintCentered(2, *radioModel, FONT_SIZE_3);
-#else
-	ucPrintCentered(5, *radioModel, FONT_SIZE_3);
-#endif
-
-
-
-#if defined(PLATFORM_RD5R)
-	ucPrintCentered(14, currentLanguage->built, FONT_SIZE_2);
-	ucPrintCentered(24,__TIME__, FONT_SIZE_2);
-	ucPrintCentered(32,__DATE__, FONT_SIZE_2);
-	ucPrintCentered(40, buf, FONT_SIZE_2);
-#else
-	ucPrintCentered(24, currentLanguage->built, FONT_SIZE_2);
-	ucPrintCentered(34,__TIME__, FONT_SIZE_2);
-	ucPrintCentered(44,__DATE__, FONT_SIZE_2);
-	ucPrintCentered(54, buf, FONT_SIZE_2);
-
-#endif
-
-	voicePromptsInit();
-	voicePromptsAppendPrompt(PROMPT_SILENCE);
-	voicePromptsAppendLanguageString((const char * const *)radioModel);
-	voicePromptsAppendLanguageString(&currentLanguage->built);
-	voicePromptsAppendString(__TIME__);
-	voicePromptsAppendString(__DATE__);
-	voicePromptsAppendLanguageString(&currentLanguage->gitCommit);
-	voicePromptsAppendString(buf);
-	promptsPlayNotAfterTx();
-
-	ucRender();
-#endif
+	blink = !blink;
 }
 
 
@@ -119,15 +100,120 @@ static void handleEvent(uiEvent_t *ev)
 		}
 	}
 
-	if (KEYCHECK_SHORTUP(ev->keys, KEY_RED) || KEYCHECK_SHORTUP(ev->keys, KEY_GREEN))
+	if (EVENTCHECK_SHORTUP(ev->keys))
 	{
-		menuSystemPopPreviousMenu();
-		return;
+		switch(ev->keys.key)
+		{
+			case KEY_RED:
+				menuSystemPopPreviousMenu();
+				return;
+				break;
+
+			case KEY_UP:
+				if (displayMode > FIRMWARE_INFO_BUILD_DETAILS)
+				{
+					displayMode--;
+					updateScreen(true);
+				}
+				break;
+
+			case KEY_DOWN:
+				if (displayMode < maxCreditsPages)
+				{
+					displayMode++;
+					updateScreen(true);
+				}
+				break;
+		}
+	}
+}
+
+static void displayBuildDetails(bool playVP)
+{
+#if !defined(PLATFORM_GD77S)
+	char buf[SCREEN_LINE_BUFFER_SIZE];
+	char * const *radioModel;
+
+	snprintf(buf, SCREEN_LINE_BUFFER_SIZE, "[ %s", GITVERSION);
+	buf[9] = 0; // git hash id 7 char long;
+	strcat(buf, (uiDataGlobal.dmrDisabled ? " F ]" : " D ]"));
+
+	displayClearBuf();
+
+#if defined(PLATFORM_GD77)
+	radioModel = (char * const *)&currentLanguage->openGD77;
+#elif defined(PLATFORM_DM1801)
+	radioModel = (char * const *)&currentLanguage->openDM1801;
+#elif defined(PLATFORM_DM1801A)
+	radioModel = (char * const *)&currentLanguage->openDM1801A;
+#elif defined(PLATFORM_RD5R)
+	radioModel = (char * const *)&currentLanguage->openRD5R;
+#endif
+
+#if defined(PLATFORM_RD5R)
+	displayPrintCentered(0, *radioModel, FONT_SIZE_3);
+#else
+	displayPrintCentered(5, *radioModel, FONT_SIZE_3);
+#endif
+
+
+#if defined(PLATFORM_RD5R)
+	displayPrintCentered(10, currentLanguage->built, FONT_SIZE_2);
+	displayPrintCentered(20,__TIME__, FONT_SIZE_2);
+	displayPrintCentered(28,__DATE__, FONT_SIZE_2);
+	displayPrintCentered(36, buf, FONT_SIZE_2);
+#else
+	displayPrintCentered(20, currentLanguage->built, FONT_SIZE_2);
+	displayPrintCentered(30,__TIME__, FONT_SIZE_2);
+	displayPrintCentered(40,__DATE__, FONT_SIZE_2);
+	displayPrintCentered(50, buf, FONT_SIZE_2);
+#endif
+
+	if (playVP && (nonVolatileSettings.audioPromptMode >= AUDIO_PROMPT_MODE_VOICE_LEVEL_1))
+	{
+		voicePromptsInit();
+		voicePromptsAppendPrompt(PROMPT_SILENCE);
+		voicePromptsAppendLanguageString((const char * const *)radioModel);
+		voicePromptsAppendLanguageString(&currentLanguage->built);
+		voicePromptsAppendString(__TIME__);
+		voicePromptsAppendString(__DATE__);
+		voicePromptsAppendLanguageString(&currentLanguage->gitCommit);
+		voicePromptsAppendString(buf);
+		promptsPlayNotAfterTx();
+	}
+	displayFillTriangle(63, (DISPLAY_SIZE_Y - 1), 59, (DISPLAY_SIZE_Y - 3), 67, (DISPLAY_SIZE_Y - 3), blink);
+	displayRender();
+#endif
+}
+
+static void displayCredits(bool playVP, uint32_t pageNumber)
+{
+	if (playVP && (nonVolatileSettings.audioPromptMode >= AUDIO_PROMPT_MODE_VOICE_LEVEL_1))
+	{
+		voicePromptsInit();
+		voicePromptsAppendPrompt(PROMPT_SILENCE);
+		voicePromptsAppendLanguageString(&currentLanguage->credits);
+		voicePromptsAppendLanguageString(&currentLanguage->menu);
+		voicePromptsAppendPrompt(PROMPT_SILENCE);
+		promptsPlayNotAfterTx();
 	}
 
-	if (KEYCHECK_SHORTUP_NUMBER(ev->keys)  && (BUTTONCHECK_DOWN(ev, BUTTON_SK2)))
+	displayClearBuf();
+	menuDisplayTitle(currentLanguage->credits);
+
+	pageNumber = (pageNumber - 1) * maxDisplayedCreditsLines;
+
+	for(int i = pageNumber, y = 0; (i < (pageNumber + maxDisplayedCreditsLines)) && (i < maxCredits); i++, y++)
 	{
-		saveQuickkeyMenuIndex(ev->keys.key, menuSystemGetCurrentMenuNumber(), 0, 0);
-		return;
+		displayPrintCentered(y * 8 + 16, (char *)creditTexts[i], FONT_SIZE_1);
 	}
+
+	if (pageNumber <= maxCreditsPages)
+	{
+		displayFillTriangle(63, (DISPLAY_SIZE_Y - 1), 59, (DISPLAY_SIZE_Y - 3), 67, (DISPLAY_SIZE_Y - 3), blink);
+	}
+
+	displayFillTriangle(63, (DISPLAY_SIZE_Y - 5), 59, (DISPLAY_SIZE_Y - 3), 67, (DISPLAY_SIZE_Y - 3), blink);
+
+	displayRender();
 }

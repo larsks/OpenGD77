@@ -10,8 +10,8 @@
 #define _OPENGD77_USB_DEVICE_CONFIG_H_
 
 /*******************************************************************************
-* Definitions
-******************************************************************************/
+ * Definitions
+ ******************************************************************************/
 /*!
  * @addtogroup usb_device_configuration
  * @{
@@ -73,6 +73,10 @@
 #define USB_DEVICE_CONFIG_DFU (0U)
 
 /* @} */
+/*! @brief Whether disable the endpoint of communitcation interface class. 1U disable, 0U not disable.
+    Note that this feature only can work on windows 10 currently.
+*/
+#define USB_DEVICE_CONFIG_CDC_CIC_EP_DISABLE (0U)
 
 /*! @brief Whether device is self power. 1U supported, 0U not supported */
 #define USB_DEVICE_CONFIG_SELF_POWER (1U)

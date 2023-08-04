@@ -149,7 +149,7 @@ static void updateScreen(bool isFirstRun, bool allowedToSpeakUpdate)
 	char rightSideVar[SCREEN_LINE_BUFFER_SIZE];
 	voicePrompt_t rightSidePrompt;
 
-	ucClearBuf();
+	displayClearBuf();
 
 	if (tmpContact.name[0] == 0x00)
 	{
@@ -256,7 +256,6 @@ static void updateScreen(bool isFirstRun, bool allowedToSpeakUpdate)
 							break;
 						case CONTACT_DETAILS_TS:
 							leftSide = (char * const *)&currentLanguage->timeSlot;
-							leftSidePrompt = PROMPT_TIMESLOT;
 
 							switch (tmpContact.reserve1 & 0x3)
 							{
@@ -327,21 +326,21 @@ static void updateScreen(bool isFirstRun, bool allowedToSpeakUpdate)
 			}
 			break;
 		case MENU_CONTACT_DETAILS_SAVED:
-			ucPrintCentered(16, currentLanguage->contact_saved, FONT_SIZE_3);
-			ucDrawChoice(CHOICE_OK, false);
+			displayPrintCentered(16, currentLanguage->contact_saved, FONT_SIZE_3);
+			displayDrawChoice(CHOICE_OK, false);
 			break;
 		case MENU_CONTACT_DETAILS_EXISTS:
-			ucPrintCentered(16, currentLanguage->duplicate, FONT_SIZE_3);
-			ucPrintCentered(32, currentLanguage->contact, FONT_SIZE_3);
-			ucDrawChoice(CHOICE_OK, false);
+			displayPrintCentered(16, currentLanguage->duplicate, FONT_SIZE_3);
+			displayPrintCentered(32, currentLanguage->contact, FONT_SIZE_3);
+			displayDrawChoice(CHOICE_OK, false);
 			break;
 		case MENU_CONTACT_DETAILS_FULL:
-			ucPrintCentered(16, currentLanguage->list_full, FONT_SIZE_3);
-			ucDrawChoice(CHOICE_OK, false);
+			displayPrintCentered(16, currentLanguage->list_full, FONT_SIZE_3);
+			displayDrawChoice(CHOICE_OK, false);
 			promptsPlayNotAfterTx();
 			break;
 	}
-	ucRender();
+	displayRender();
 }
 
 static void handleEvent(uiEvent_t *ev)

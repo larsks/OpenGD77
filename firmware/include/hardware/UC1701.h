@@ -60,8 +60,6 @@ typedef enum
 	CHOICES_NUM
 } ucChoice_t;
 
-extern uint8_t screenBuf[];
-
 #if defined(PLATFORM_RD5R)
 #define FONT_SIZE_3_HEIGHT                        8
 #define DISPLAY_SIZE_Y                           48
@@ -75,50 +73,55 @@ extern uint8_t screenBuf[];
 
 
 
-void ucBegin(bool isInverted);
-void ucClearBuf(void);
-void ucClearRows(int16_t startRow, int16_t endRow, bool isInverted);
-void ucRender(void);
-void ucRenderRows(int16_t startRow, int16_t endRow);
-void ucPrintCentered(uint8_t y,const  char *text, ucFont_t fontSize);
-void ucPrintAt(uint8_t x, uint8_t y,const  char *text, ucFont_t fontSize);
-int ucPrintCore(int16_t x, int16_t y,const char *szMsg, ucFont_t fontSize, ucTextAlign_t alignment, bool isInverted);
+void displayBegin(bool isInverted);
+void displayClearBuf(void);
+void displayClearRows(int16_t startRow, int16_t endRow, bool isInverted);
+void displayRenderWithoutNotification(void);
+void displayRender(void);
+void displayRenderRows(int16_t startRow, int16_t endRow);
+void displayPrintCentered(uint8_t y,const  char *text, ucFont_t fontSize);
+void displayPrintAt(uint8_t x, uint8_t y,const  char *text, ucFont_t fontSize);
+int displayPrintCore(int16_t x, int16_t y,const char *szMsg, ucFont_t fontSize, ucTextAlign_t alignment, bool isInverted);
 
-int16_t ucSetPixel(int16_t x, int16_t y, bool color);
+int16_t displaySetPixel(int16_t x, int16_t y, bool color);
 
-void ucDrawLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1, bool color);
-void ucDrawFastVLine(int16_t x, int16_t y, int16_t h, bool color);
-void ucDrawFastHLine(int16_t x, int16_t y, int16_t w, bool color);
+void displayDrawLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1, bool color);
+void displayDrawFastVLine(int16_t x, int16_t y, int16_t h, bool color);
+void displayDrawFastHLine(int16_t x, int16_t y, int16_t w, bool color);
 
-void ucDrawCircleHelper(int16_t x0, int16_t y0, int16_t r, uint8_t cornername, bool color);
-void ucDrawCircle(int16_t x0, int16_t y0, int16_t r, bool color);
-void ucFillCircleHelper(int16_t x0, int16_t y0, int16_t r, uint8_t cornername, int16_t delta, bool color);
-void ucFillCircle(int16_t x0, int16_t y0, int16_t r, bool color);
+void displayDrawCircleHelper(int16_t x0, int16_t y0, int16_t r, uint8_t cornername, bool color);
+void displayDrawCircle(int16_t x0, int16_t y0, int16_t r, bool color);
+void displayFillCircleHelper(int16_t x0, int16_t y0, int16_t r, uint8_t cornername, int16_t delta, bool color);
+void displayFillCircle(int16_t x0, int16_t y0, int16_t r, bool color);
 
-void ucDrawEllipse(int16_t x0, int16_t y0, int16_t x1, int16_t y1, bool color);
+void displayDrawEllipse(int16_t x0, int16_t y0, int16_t x1, int16_t y1, bool color);
 
-void ucDrawTriangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, bool color);
-void ucFillTriangle ( int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, bool color);
+void displayDrawTriangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, bool color);
+void displayFillTriangle ( int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, bool color);
 
-void ucFillArc(uint16_t x, uint16_t y, uint16_t radius, uint16_t thickness, float start, float end, bool color);
+void displayFillArc(uint16_t x, uint16_t y, uint16_t radius, uint16_t thickness, float start, float end, bool color);
 
-void ucDrawRoundRect(int16_t x, int16_t y, int16_t w, int16_t h, int16_t r, bool color);
-void ucFillRoundRect(int16_t x, int16_t y, int16_t w, int16_t h, int16_t r, bool color);
-void ucDrawRoundRectWithDropShadow(int16_t x, int16_t y, int16_t w, int16_t h, int16_t r, bool color);
+void displayDrawRoundRect(int16_t x, int16_t y, int16_t w, int16_t h, int16_t r, bool color);
+void displayFillRoundRect(int16_t x, int16_t y, int16_t w, int16_t h, int16_t r, bool color);
+void displayDrawRoundRectWithDropShadow(int16_t x, int16_t y, int16_t w, int16_t h, int16_t r, bool color);
 
-void ucDrawRect(int16_t x, int16_t y, int16_t w, int16_t h, bool color);
-void ucFillRect(int16_t x, int16_t y, int16_t width, int16_t height, bool isInverted);
-void ucDrawRectWithDropShadow(int16_t x, int16_t y, int16_t w, int16_t h, bool color);
+void displayDrawRect(int16_t x, int16_t y, int16_t w, int16_t h, bool color);
+void displayFillRect(int16_t x, int16_t y, int16_t width, int16_t height, bool isInverted);
+void displayDrawRectWithDropShadow(int16_t x, int16_t y, int16_t w, int16_t h, bool color);
 
-void ucDrawBitmap(int16_t x, int16_t y, uint8_t *bitmap, int16_t w, int16_t h, bool color);
-void ucDrawXBitmap(int16_t x, int16_t y, const uint8_t *bitmap, int16_t w, int16_t h, bool color);
+void displayDrawBitmap(int16_t x, int16_t y, uint8_t *bitmap, int16_t w, int16_t h, bool color);
+void displayDrawXBitmap(int16_t x, int16_t y, const uint8_t *bitmap, int16_t w, int16_t h, bool color);
 
-void ucSetContrast(uint8_t contrast);
-void ucSetInverseVideo(bool isInverted);
-void ucSetDisplayPowerMode(bool wake);
+void displaySetContrast(uint8_t contrast);
+void displaySetInverseVideo(bool isInverted);
+void displaySetDisplayPowerMode(bool wake);
 
-void ucDrawChoice(ucChoice_t choice, bool clearRegion);
+void displayDrawChoice(ucChoice_t choice, bool clearRegion);
 
-uint8_t * ucGetDisplayBuffer(void);
+uint8_t *displayGetScreenBuffer(void);
+void displayRestorePrimaryScreenBuffer(void);
+uint8_t *displayGetPrimaryScreenBuffer(void);
+void displayOverrideScreenBuffer(uint8_t *buffer);
+
 
 #endif /* _OPENGD77_UC1701_H_ */

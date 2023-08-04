@@ -46,7 +46,7 @@ bool I2STransferTransmit(uint8_t *buff, size_t bufferLen)
 			.dataSize = bufferLen
 	};
 
-	return  (SAI_TransferSendEDMA(I2S0, &g_SAI_TX_Handle, &xfer) == kStatus_Success);
+	return (SAI_TransferSendEDMA(I2S0, &g_SAI_TX_Handle, &xfer) == kStatus_Success);
 }
 
 void I2STransferReceive(uint8_t *buff, size_t bufferLen)

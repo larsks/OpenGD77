@@ -42,7 +42,7 @@ typedef enum
 	PROMPT_MEGAHERTZ,
 	PROMPT_KILOHERTZ,
 	PROMPT_TALKGROUP,
-	PROMPT_TIMESLOT,
+	PROMPT_DEGREES,
 	PROMPT_VFO,
 	PROMPT_SECONDS,
 	PROMPT_MINUTES,
@@ -76,7 +76,7 @@ typedef enum
 	PROMPT_VOX,
 	PROMPT_SWEEP_SCAN_MODE,
 	PROMPT_ECO_MODE,
-	PROMPT_UNUSED_3,
+	PROMPT_DURATION,
 	PROMPT_UNUSED_4,
 	PROMPT_UNUSED_5,
 	PROMPT_UNUSED_6,
@@ -84,7 +84,8 @@ typedef enum
 	PROMPT_UNUSED_8,
 	PROMPT_UNUSED_9,
 	PROMPT_UNUSED_10,
-	NUM_VOICE_PROMPTS
+	NUM_VOICE_PROMPTS,
+	__MAKE_ENUM_16BITS = INT16_MAX
 } voicePrompt_t;
 
 
@@ -105,6 +106,9 @@ extern bool voicePromptsIsPlaying(void);
 bool voicePromptsHasDataToPlay(void);
 bool voicePromptsDoesItContainPrompt(voicePrompt_t prompt);
 void voicePromptsTerminate(void);
+void voicePromptsTerminateNoTail(void);
 bool voicePromptsCheckMagicAndVersion(uint32_t *bufferAddress);
+
+void voicePromptsInitWithOverride(void);
 
 #endif

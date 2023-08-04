@@ -30,11 +30,11 @@
 #include "interfaces/adc.h"
 #include "functions/sound.h"
 #include "functions/settings.h"
-#include "interfaces/pit.h"
+#include "functions/ticks.h"
 #include "utils.h"
 
 
-#define PIT_COUNTS_PER_MS  10U
+#define PIT_COUNTS_PER_MS  1U
 
 
 static const uint32_t VOX_TAIL_TIME_UNIT = (PIT_COUNTS_PER_MS * 500); // 500ms tail unit
@@ -90,7 +90,7 @@ void voxReset(void)
 	vox.triggered = false;
 	vox.sampled = 0;
 	vox.averaged = 0;
-	vox.nextTimeSampling = PITCounter + PIT_COUNTS_PER_MS; // now + 1ms
+	vox.nextTimeSampling = ticksGetMillis() + PIT_COUNTS_PER_MS; // now + 1ms
 	vox.tailTime = 0;
 	vox.settleCount = VOX_SETTLE_TIME >> 1;
 	vox.preTrigger = 0;
@@ -102,7 +102,7 @@ void voxTick(void)
 
 	if (voxIsEnabled())
 	{
-		if (PITCounter >= vox.nextTimeSampling)
+		if (ticksGetMillis() >= vox.nextTimeSampling)
 		{
 			if ((getAudioAmpStatus() & (AUDIO_AMP_MODE_RF | AUDIO_AMP_MODE_BEEP)))
 			{
@@ -130,7 +130,7 @@ void voxTick(void)
 					if (vox.preTrigger >= 100)
 					{
 						vox.triggered = true;
-						vox.tailTime = PITCounter + (vox.tailUnits * VOX_TAIL_TIME_UNIT);
+						vox.tailTime = ticksGetMillis() + (vox.tailUnits * VOX_TAIL_TIME_UNIT);
 					}
 				}
 				else
@@ -146,10 +146,10 @@ void voxTick(void)
 				}
 			}
 
-			vox.nextTimeSampling = PITCounter + PIT_COUNTS_PER_MS; // now + 1ms
+			vox.nextTimeSampling = ticksGetMillis() + PIT_COUNTS_PER_MS; // now + 1ms
 		}
 
-		if ((vox.tailTime != 0) && (PITCounter >= vox.tailTime))
+		if ((vox.tailTime != 0) && (ticksGetMillis() >= vox.tailTime))
 		{
 			vox.triggered = false;
 			vox.tailTime = 0;

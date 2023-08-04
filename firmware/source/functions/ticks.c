@@ -30,9 +30,10 @@
 #include "functions/ticks.h"
 #include "user_interface/menuSystem.h"
 
-#define PIT_COUNTS_PER_MS  10U
+#define PIT_COUNTS_PER_MS  1U
 
-extern volatile uint32_t PITCounter;
+extern volatile uint32_t PITCounter; // 1ms granularity
+
 typedef struct
 {
 	timerCallback_t  funPtr;
@@ -43,9 +44,9 @@ typedef struct
 #define MAX_NUM_TIMER_CALLBACKS 8
 static timerCallbackbackStruct_t callbacksArray[MAX_NUM_TIMER_CALLBACKS];// As a global this will get cleared by the compiler
 
-uint32_t fw_millis(void)
+inline uint32_t ticksGetMillis(void)
 {
-	return (PITCounter / PIT_COUNTS_PER_MS);
+	return PITCounter;
 }
 
 void handleTimerCallbacks(void)
@@ -54,7 +55,7 @@ void handleTimerCallbacks(void)
 
 	while((callbacksArray[i].funPtr != NULL) && (i < MAX_NUM_TIMER_CALLBACKS))
 	{
-		if (PITCounter > callbacksArray[i].PIT_TriggerTime)
+		if (ticksGetMillis() > callbacksArray[i].PIT_TriggerTime)
 		{
 			// Does the current menu matches the desired destination menu
 			if ((callbacksArray[i].menuDestination == MENU_ANY) || (callbacksArray[i].menuDestination == menuSystemGetCurrentMenuNumber()))
@@ -73,7 +74,7 @@ void handleTimerCallbacks(void)
 
 bool addTimerCallback(timerCallback_t funPtr, uint32_t delayIn_mS, int menuDest, bool updateExistingCallbackTime)
 {
-	uint32_t callBackTime = PITCounter + (delayIn_mS * PIT_COUNTS_PER_MS);
+	uint32_t callBackTime = ticksGetMillis() + (delayIn_mS * PIT_COUNTS_PER_MS);
 
 	for(int i = 0; i < MAX_NUM_TIMER_CALLBACKS; i++)
 	{

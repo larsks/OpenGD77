@@ -543,14 +543,14 @@ extern gpio_pin_config_t pin_config_output;
 // Connections with C6000
 
 // Reset
-#define Port_INT_C6000_RESET PORTE
-#define GPIO_INT_C6000_RESET GPIOE
-#define Pin_INT_C6000_RESET  0
+#define Port_C6000_RESET PORTE
+#define GPIO_C6000_RESET GPIOE
+#define Pin_C6000_RESET  0
 
 // Power down
-#define Port_INT_C6000_PWD   PORTE
-#define GPIO_INT_C6000_PWD   GPIOE
-#define Pin_INT_C6000_PWD    1
+#define Port_C6000_PWD   PORTE
+#define GPIO_C6000_PWD   GPIOE
+#define Pin_C6000_PWD    1
 
 #elif defined(PLATFORM_DM1801) || defined(PLATFORM_DM1801A)
 
@@ -579,14 +579,14 @@ extern gpio_pin_config_t pin_config_output;
 // Connections with C6000
 
 // Reset
-#define Port_INT_C6000_RESET PORTE
-#define GPIO_INT_C6000_RESET GPIOE
-#define Pin_INT_C6000_RESET  2
+#define Port_C6000_RESET PORTE
+#define GPIO_C6000_RESET GPIOE
+#define Pin_C6000_RESET  2
 
 // Power down
-#define Port_INT_C6000_PWD   PORTE
-#define GPIO_INT_C6000_PWD   GPIOE
-#define Pin_INT_C6000_PWD    3
+#define Port_C6000_PWD   PORTE
+#define GPIO_C6000_PWD   GPIOE
+#define Pin_C6000_PWD    3
 
 #elif defined(PLATFORM_RD5R)
 
@@ -615,14 +615,14 @@ extern gpio_pin_config_t pin_config_output;
 // Connections with C6000
 
 // Reset
-#define Port_INT_C6000_RESET PORTE
-#define GPIO_INT_C6000_RESET GPIOE
-#define Pin_INT_C6000_RESET  0
+#define Port_C6000_RESET PORTE
+#define GPIO_C6000_RESET GPIOE
+#define Pin_C6000_RESET  0
 
 // Power down
-#define Port_INT_C6000_PWD   PORTE
-#define GPIO_INT_C6000_PWD   GPIOE
-#define Pin_INT_C6000_PWD    1
+#define Port_C6000_PWD   PORTE
+#define GPIO_C6000_PWD   GPIOE
+#define Pin_C6000_PWD    1
 
 #endif
 

@@ -47,7 +47,6 @@ uiDataGlobal_t uiDataGlobal =
 		.tgBeforePcMode 	          = 0,    // No TG saved, prior to a Private call being accepted.
 		.displayQSOState              = QSO_DISPLAY_DEFAULT_SCREEN,
 		.displayQSOStatePrev          = QSO_DISPLAY_DEFAULT_SCREEN,
-		.displaySquelch               = false,
 		.isDisplayingQSOData          = false,
 		.displayChannelSettings       = false,
 		.reverseRepeater              = false,
@@ -56,11 +55,12 @@ uiDataGlobal_t uiDataGlobal =
 		.lastHeardCount               = 0,
 		.dmrDisabled                  = true,
 		.manualOverrideDMRId          = 0x00,
+		.dateTimeSecs			  	  = 0,
 
 		.Scan =
 		{
 				.timer                  	= 0,
-				.timerReload				= 30,
+				.dwellTime					= 30,
 				.direction              	= 1,
 				.availableChannelsCount 	= 0,
 				.nuisanceDeleteIndex    	= 0,
@@ -130,8 +130,14 @@ uiDataGlobal_t uiDataGlobal =
 				.poPtr      = 0U,
 				.durations  = { 0, 0, 0, 0, 0 },
 				.inTone     = false
-		}
+		},
 
+		.SatelliteAndAlarmData =
+		{
+				.alarmTime = 0,
+				.alarmType = ALARM_TYPE_NONE,
+				.currentSatellite = 0
+		}
 };
 
 

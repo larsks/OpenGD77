@@ -72,7 +72,7 @@ static void updateScreen(bool isFirstRun)
 	int mNum;
 	struct_codeplugZone_t zoneBuf;
 
-	ucClearBuf();
+	displayClearBuf();
 	menuDisplayTitle(currentLanguage->zones);
 
 	for(int i = -1; i <= 1; i++)
@@ -109,7 +109,7 @@ static void updateScreen(bool isFirstRun)
 		}
 	}
 
-	ucRender();
+	displayRender();
 }
 
 static void handleEvent(uiEvent_t *ev)

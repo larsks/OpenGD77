@@ -45,6 +45,9 @@
 #include "user_interface/languages/dutch.h"
 #include "user_interface/languages/slovenian.h"
 #include "user_interface/languages/portugues_brazil.h"
+#include "user_interface/languages/swedish.h"
+#include "user_interface/languages/hungarian.h"
+#include "user_interface/languages/croatian.h"
 #endif
 
 /*
@@ -72,7 +75,10 @@ const stringsTable_t languages[NUM_LANGUAGES]= { 	englishLanguage,        // eng
 													czechLanguage,          // czechLanguageName
 													dutchLanguage,          // nederlandsDutchLanguageName
 													slovenianLanguage,      // slovenianLanguageName
-													portuguesBrazilLanguage // portuguesBrazilLanguageName
+													portuguesBrazilLanguage,// portuguesBrazilLanguageName
+													swedishLanguage,        // swedishLanguageName
+													hungarianLanguage,      // hungarianLanguageName
+													croatianLanguage,       // croatianLanguageName
 #endif
 													};
 const stringsTable_t *currentLanguage;
@@ -84,10 +90,12 @@ const int LANGUAGE_DISPLAY_ORDER[NUM_LANGUAGES] = {	englishLanguageName,
 													japaneseLanguageName,
 #else
 													catalanLanguageName,
+													croatianLanguageName,
 													czechLanguageName,
 													danishLanguageName,
 													deutschGermanLanguageName,
 													frenchLanguageName,
+													hungarianLanguageName,
 													italianLanguageName,
 													nederlandsDutchLanguageName,
 													polishLanguageName,
@@ -96,6 +104,13 @@ const int LANGUAGE_DISPLAY_ORDER[NUM_LANGUAGES] = {	englishLanguageName,
 													slovenianLanguageName,
 													spanishLanguageName,
 													suomiFinnishLanguageName,
+													swedishLanguageName,
 													turkishLanguageName
 #endif
 													};
+
+
+char LanguageGetSymbol(LanguageSymbol_t s)
+{
+	return currentLanguage->symbols[s];
+}

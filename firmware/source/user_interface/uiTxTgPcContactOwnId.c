@@ -120,23 +120,23 @@ static void updateCursor(void)
 {
 	size_t sLen;
 
-	// Display blinking cursor only when digits could be entered.
-	if ((menuDataGlobal.currentItemIndex != ENTRY_SELECT_CONTACT) && ((sLen = strlen(digits)) <= (inAnalog ? NUM_DTMF_DIGITS : NUM_PC_OR_TG_DIGITS)))
+	// Display blinking cursor only when digits could be entered, and no transmit error message is displayed
+	if ((xmitErrorTimer == 0) && ((menuDataGlobal.currentItemIndex != ENTRY_SELECT_CONTACT) && ((sLen = strlen(digits)) <= (inAnalog ? NUM_DTMF_DIGITS : NUM_PC_OR_TG_DIGITS))))
 	{
 		static uint32_t lastBlink = 0;
 		static bool     blink = false;
-		uint32_t        m = fw_millis();
+		uint32_t        m = ticksGetMillis();
 
 		if ((m - lastBlink) > CURSOR_UPDATE_TIMEOUT)
 		{
 			sLen *= 8;
 
-			ucPrintCore((((DISPLAY_SIZE_X - sLen) >> 1) + sLen), (DISPLAY_SIZE_Y / 2), "_", FONT_SIZE_3, 0, blink);
+			displayPrintCore((((DISPLAY_SIZE_X - sLen) >> 1) + sLen), (DISPLAY_SIZE_Y / 2), "_", FONT_SIZE_3, 0, blink);
 
 			blink = !blink;
 			lastBlink = m;
 
-			ucRender();
+			displayRender();
 		}
 	}
 }
@@ -147,12 +147,12 @@ static void updateScreen(bool inputModeHasChanged)
 	size_t sLen = strlen(menuName[menuDataGlobal.currentItemIndex]) * 8;
 	int16_t y = 8;
 
-	ucClearBuf();
+	displayClearBuf();
 
-	ucDrawRoundRectWithDropShadow(2, y - 1, (DISPLAY_SIZE_X - 6), ((DISPLAY_SIZE_Y / 8) - 1) * 3, 3, true);
+	displayDrawRoundRectWithDropShadow(2, y - 1, (DISPLAY_SIZE_X - 6), ((DISPLAY_SIZE_Y / 8) - 1) * 3, 3, true);
 
 	// Not really centered, off by 2 pixels
-	ucPrintAt(((DISPLAY_SIZE_X - sLen) >> 1) - 2, y, (char *)menuName[menuDataGlobal.currentItemIndex], FONT_SIZE_3);
+	displayPrintAt(((DISPLAY_SIZE_X - sLen) >> 1) - 2, y, (char *)menuName[menuDataGlobal.currentItemIndex], FONT_SIZE_3);
 
 
 	if (inputModeHasChanged)
@@ -197,16 +197,16 @@ static void updateScreen(bool inputModeHasChanged)
 
 	if (pcIdx == 0)
 	{
-		ucPrintCentered((DISPLAY_SIZE_Y / 2), (char *)digits, FONT_SIZE_3);
+		displayPrintCentered((DISPLAY_SIZE_Y / 2), (char *)digits, FONT_SIZE_3);
 	}
 	else
 	{
 		codeplugUtilConvertBufToString((inAnalog ? dtmfContact.name : contact.name), buf, 16);
-		ucPrintCentered((DISPLAY_SIZE_Y / 2), buf, FONT_SIZE_3);
-		ucPrintCentered((DISPLAY_SIZE_Y - 12), (char *)digits, FONT_SIZE_1);
+		displayPrintCentered((DISPLAY_SIZE_Y / 2), buf, FONT_SIZE_3);
+		displayPrintCentered((DISPLAY_SIZE_Y - 12), (char *)digits, FONT_SIZE_1);
 	}
 
-	ucRender();
+	displayRender();
 }
 
 // curIdx: CODEPLUG_CONTACTS_MIN .. CODEPLUG_CONTACTS_MAX, if equal to 0 it means the previous index was unknown
@@ -395,7 +395,7 @@ static void handleEvent(uiEvent_t *ev)
 		{
 			if (voicePromptsIsPlaying())
 			{
-				voicePromptsTerminate();
+				voicePromptsTerminateNoTail();
 			}
 
 			dtmfSequencePrepare((uint8_t *)dtmfDigits2Code(), true);

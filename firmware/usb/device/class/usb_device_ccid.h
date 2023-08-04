@@ -738,9 +738,8 @@ struct _usb_device_ccid_slot_status_response
     uint8_t bSeq;         /*!< Sequence number for the corresponding command */
     uint8_t bStatus;      /*!< Slot status register */
     uint8_t bError;       /*!< Slot error register */
-    uint8_t
-        bClockStatus; /*!< 0x00U - Clock running, 0x01U - Clock stopped in L, 0x02U - clock stopped in H, and 0x03U -
-                         clock stopped in an unknown state.*/
+    uint8_t bClockStatus; /*!< 0x00U - Clock running, 0x01U - Clock stopped in L, 0x02U - clock stopped in H, and 0x03U
+                             - clock stopped in an unknown state.*/
 } STRUCT_UNPACKED;
 typedef struct _usb_device_ccid_slot_status_response usb_device_ccid_slot_status_response_t;
 
@@ -950,7 +949,7 @@ typedef struct _usb_device_ccid_slot_status_struct
 typedef enum _usb_device_ccid_slot_state
 {
     kUSB_DeviceCcidSlotStateNoPresent = 0x00U, /*!< Not present */
-    kUSB_DeviceCcidSlotStatePresent = 0x01U    /*!< Present */
+    kUSB_DeviceCcidSlotStatePresent   = 0x01U  /*!< Present */
 } usb_device_ccid_slot_state_t;
 
 /*! @brief Hardware error status */

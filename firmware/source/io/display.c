@@ -47,15 +47,15 @@ void displayInit(bool isInverseColour)
 
 	// Reset LCD
 	GPIO_PinWrite(GPIO_Display_RST, Pin_Display_RST, 0);
-	vTaskDelay(portTICK_PERIOD_MS * 1);
+	vTaskDelay((1 / portTICK_PERIOD_MS));
 	GPIO_PinWrite(GPIO_Display_RST, Pin_Display_RST, 1);
-	vTaskDelay(portTICK_PERIOD_MS * 5);
+	vTaskDelay((5 / portTICK_PERIOD_MS));
 
-	ucBegin(isInverseColour);
+	displayBegin(isInverseColour);
 #endif // ! PLATFORM_GD77S
 }
 
-void displayEnableBacklight(bool enable)
+void displayEnableBacklight(bool enable, int displayBacklightPercentageOff)
 {
 #if ! defined(PLATFORM_GD77S)
 	if (enable)
@@ -69,8 +69,7 @@ void displayEnableBacklight(bool enable)
 	else
 	{
 #ifdef DISPLAY_LED_PWM
-
-		gpioSetDisplayBacklightIntensityPercentage(((nonVolatileSettings.backlightMode == BACKLIGHT_MODE_NONE) ? 0 : nonVolatileSettings.displayBacklightPercentageOff));
+		gpioSetDisplayBacklightIntensityPercentage(((nonVolatileSettings.backlightMode == BACKLIGHT_MODE_NONE) ? 0 : displayBacklightPercentageOff));
 #else
 		GPIO_PinWrite(GPIO_Display_Light, Pin_Display_Light, 0);
 #endif

@@ -219,7 +219,7 @@ static void updateScreen(bool isFirstRun)
 {
 	int mNum = 0;
 
-	ucClearBuf();
+	displayClearBuf();
 	menuDisplayTitle(currentLanguage->language);
 
 	for(int i = -1; i <= 1; i++)
@@ -252,7 +252,7 @@ static void updateScreen(bool isFirstRun)
 		}
 	}
 
-	ucRender();
+	displayRender();
 }
 
 static void handleEvent(uiEvent_t *ev)

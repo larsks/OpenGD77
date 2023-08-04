@@ -42,11 +42,9 @@
 typedef enum _app_power_mode
 {
     kAPP_PowerModeMin = 'A' - 1,
-
     kAPP_PowerModeVlpr,  /*!< Very low power run mode. All Kinetis chips. */
     kAPP_PowerModeRun,   /*!< Run mode. All Kinetis chips. */
-    kAPP_PowerModeHsrun, /*!< High-speed run mode. Chip-specific. */
-    kAPP_PowerModeMax
+    kAPP_PowerModeHsrun /*!< High-speed run mode. Chip-specific. */
 } app_power_mode_t;
 
 /*!
@@ -96,8 +94,20 @@ typedef enum _app_wakeup_source
 
 extern app_power_mode_t clockManagerCurrentRunMode;
 
+/* Value of the enum is critical, and controls the clock Multipler and divider
+ * External clock frequency to the MCU is 12.288Mhz
+ *
+ * Clock speed calculation is (Lower bye + 24) / (upper byte + 1) * external clock
+ *
+ * So 0x0603 = (3 + 24) / ( 6 + 1 ) * 12.288 =  47.396Mhz
+ *
+ * See data sheet for max clock rates in both Run and HS Run modes.
+ * */
+enum { CLOCK_MANAGER_SPEED_RUN = 0x0603	 ,CLOCK_MANAGER_SPEED_HS_RUN = 0x0205, CLOCK_MANAGER_RUN_SUSPEND_MODE = 0x1F00, CLOCK_MANAGER_RUN_ECO_POWER_MODE = 0x1F00};
 
 void clockManagerInit(void);
-void clockManagerSetRunMode(uint8_t targetConfigIndex);
+void clockManagerSetRunMode(uint8_t targetConfigIndex, uint32_t clockSpeedSetting);
+uint32_t clockManagerGetRunMode(void);
+
 
 #endif /* _POWER_MANAGER_H_ */

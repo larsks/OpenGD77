@@ -29,6 +29,7 @@
 #include "hardware/UC1701.h"
 #include "functions/settings.h"
 #include "interfaces/gpio.h"
+#include "user_interface/menuSystem.h"
 
 /*
  * IMPORTANT
@@ -56,10 +57,11 @@ static void UC1701_setDataMode(void)
 }
 #endif // ! PLATFORM_GD77S
 
-void ucRenderRows(int16_t startRow, int16_t endRow)
+void displayRenderRows(int16_t startRow, int16_t endRow)
 {
 #if ! defined(PLATFORM_GD77S)
-	uint8_t *rowPos = (screenBuf + startRow * DISPLAY_SIZE_X);
+	taskENTER_CRITICAL();
+	uint8_t *rowPos = (displayGetScreenBuffer() + startRow * DISPLAY_SIZE_X);
 
 	GPIO_PinWrite(GPIO_Display_CS, Pin_Display_CS, 0);// Enable CS
 
@@ -69,7 +71,7 @@ void ucRenderRows(int16_t startRow, int16_t endRow)
 		UC1701_transfer(0xb0 | row); // set Y
 		UC1701_transfer(0x10 | 0); // set X (high MSB)
 
-// Note there are 4 pixels at the left which are no in the hardware of the LCD panel, but are in the RAM buffer of the controller
+		// Note there are 4 pixels at the left which are no in the hardware of the LCD panel, but are in the RAM buffer of the controller
 #if !defined(PLATFORM_RD5R)
 		UC1701_transfer(0x00 | 4); // set X (low MSB).
 #endif
@@ -101,12 +103,12 @@ void ucRenderRows(int16_t startRow, int16_t endRow)
 	}
 
 	GPIO_PinWrite(GPIO_Display_CS, Pin_Display_CS, 1);// Disable CS
+	taskEXIT_CRITICAL();
 #endif // ! PLATFORM_GD77S
 }
 #if ! defined(PLATFORM_GD77S)
 static void UC1701_transfer(register uint8_t data1)
 {
-
 	for (register int i = 0; i < 8; i++)
 	{
 		GPIO_Display_SCK->PCOR = 1U << Pin_Display_SCK;
@@ -126,9 +128,10 @@ static void UC1701_transfer(register uint8_t data1)
 }
 #endif // ! PLATFORM_GD77S
 
-void ucSetInverseVideo(bool inverted)
+void displaySetInverseVideo(bool inverted)
 {
 #if ! defined(PLATFORM_GD77S)
+	taskENTER_CRITICAL();
 	isInverted = inverted;
 	GPIO_PinWrite(GPIO_Display_CS, Pin_Display_CS, 0);// Enable CS
 	UC1701_setCommandMode();
@@ -141,17 +144,19 @@ void ucSetInverseVideo(bool inverted)
 		UC1701_transfer(0xA4); // White background, black pixels
 	}
 
-    UC1701_transfer(0xAF); // Set Display Enable
-    UC1701_setDataMode();
+	UC1701_transfer(0xAF); // Set Display Enable
+	UC1701_setDataMode();
 	GPIO_PinWrite(GPIO_Display_CS, Pin_Display_CS, 1);// Disable CS
+	taskEXIT_CRITICAL();
 #endif // ! PLATFORM_GD77S
 }
 
-void ucBegin(bool inverted)
+void displayBegin(bool inverted)
 {
 #if ! defined(PLATFORM_GD77S)
+	taskENTER_CRITICAL();
 	GPIO_PinWrite(GPIO_Display_CS, Pin_Display_CS, 0);// Enable CS
-    // Set the LCD parameters...
+	// Set the LCD parameters...
 	UC1701_setCommandMode();
 	UC1701_transfer(0xE2); // System Reset
 	UC1701_transfer(0x2F); // Voltage Follower On
@@ -174,37 +179,41 @@ void ucBegin(bool inverted)
 		UC1701_transfer(0xA4); // White background, black pixels
 	}
 
-    UC1701_transfer(0xAF); // Set Display Enable
+	UC1701_transfer(0xAF); // Set Display Enable
 	GPIO_PinWrite(GPIO_Display_CS, Pin_Display_CS, 1);// Disable CS
-    ucClearBuf();
-    ucRender();
+	taskEXIT_CRITICAL();
+
+	displayClearBuf();
+	displayRender();
 #endif // ! PLATFORM_GD77S
 }
 
-void ucSetContrast(uint8_t contrast)
+void displaySetContrast(uint8_t contrast)
 {
 #if ! defined(PLATFORM_GD77S)
+	taskENTER_CRITICAL();
 	GPIO_PinWrite(GPIO_Display_CS, Pin_Display_CS, 0);// Enable CS
 	UC1701_setCommandMode();
 	UC1701_transfer(0x81);              // command to set contrast
 	UC1701_transfer(contrast);          // set contrast
 	UC1701_setDataMode();
 	GPIO_PinWrite(GPIO_Display_CS, Pin_Display_CS, 1);// Disable CS
+	taskEXIT_CRITICAL();
 #endif // ! PLATFORM_GD77S
 }
 
 
 // Note.
 // Entering "Sleep" mode makes the display go blank
-void ucSetDisplayPowerMode(bool wake)
+void displaySetDisplayPowerMode(bool wake)
 {
 #if ! defined(PLATFORM_GD77S)
-
 	if (isAwake == wake)
 	{
 		return;
 	}
 
+	taskENTER_CRITICAL();
 	isAwake = wake;
 	GPIO_PinWrite(GPIO_Display_CS, Pin_Display_CS, 0);// Enable CS
 	UC1701_setCommandMode();
@@ -220,7 +229,20 @@ void ucSetDisplayPowerMode(bool wake)
 		{
 			UC1701_transfer(0xA4); // White background, black pixels
 		}
+
 		UC1701_transfer(0xAF); // White background, black pixels
+
+		if (nonVolatileSettings.backlightMode == BACKLIGHT_MODE_MANUAL)
+		{
+			if (nonVolatileSettings.displayBacklightPercentageOff > 0)
+			{
+				displayEnableBacklight(false, nonVolatileSettings.displayBacklightPercentageOff);
+			}
+		}
+		else
+		{
+			displayLightTrigger(true); // Lit the backlight
+		}
 	}
 	else
 	{
@@ -231,6 +253,6 @@ void ucSetDisplayPowerMode(bool wake)
 
 	UC1701_setDataMode();
 	GPIO_PinWrite(GPIO_Display_CS, Pin_Display_CS, 1);// Disable CS
-
+	taskEXIT_CRITICAL();
 #endif
 }

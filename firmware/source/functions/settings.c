@@ -27,7 +27,7 @@
  *
  */
 
-#include "hardware/EEPROM.h"
+#include "interfaces/settingsStorage.h"
 #include "functions/settings.h"
 #include "functions/sound.h"
 #include "functions/trx.h"
@@ -36,13 +36,11 @@
 #include "functions/ticks.h"
 #include "functions/rxPowerSaving.h"
 
-static const int STORAGE_BASE_ADDRESS 		= 0x6000;
-static const int STORAGE_MAGIC_NUMBER 		= 0x475E; // NOTE: never use 0xDEADBEEF, it's reserved value
 
-// Bit patterns for DMR Beep
-const uint8_t BEEP_TX_NONE  = 0x00;
-const uint8_t BEEP_TX_START = 0x01;
-const uint8_t BEEP_TX_STOP  = 0x02;
+#define STORAGE_MAGIC_NUMBER          0x4765 // NOTE: never use 0xDEADBEEF, it's reserved value
+// 0x4764: moves location at the top of the struct, make it upgradable.
+
+const uint32_t SETTINGS_UNITIALISED_LOCATION_LAT = 0x7F000000;
 
 #if defined(PLATFORM_RD5R)
 static uint32_t dirtyTime = 0;
@@ -56,13 +54,12 @@ struct_codeplugChannel_t channelScreenChannelData = { .rxFreq = 0 };
 struct_codeplugContact_t contactListContactData;
 struct_codeplugDTMFContact_t contactListDTMFContactData;
 struct_codeplugChannel_t settingsVFOChannel[2];// VFO A and VFO B from the codeplug.
-int settingsUsbMode = USB_MODE_CPS;
+volatile int settingsUsbMode = USB_MODE_CPS;
 
 int *nextKeyBeepMelody = (int *)MELODY_KEY_BEEP;
 struct_codeplugGeneralSettings_t settingsCodeplugGeneralSettings;
 
 monitorModeSettingsStruct_t monitorModeData = { .isEnabled = false, .qsoInfoUpdated = true, .dmrIsValid = false };
-const int ECO_LEVEL_MAX = 5;
 
 bool settingsSaveSettings(bool includeVFOs)
 {
@@ -78,7 +75,7 @@ bool settingsSaveSettings(bool includeVFOs)
 	nonVolatileSettings.audioPromptMode = AUDIO_PROMPT_MODE_VOICE_LEVEL_3;
 #endif
 
-	bool ret = EEPROM_Write(STORAGE_BASE_ADDRESS, (uint8_t *)&nonVolatileSettings, sizeof(settingsStruct_t));
+	bool ret = settingsStorageWrite((uint8_t *)&nonVolatileSettings, sizeof(settingsStruct_t));
 
 	if (ret)
 	{
@@ -91,7 +88,7 @@ bool settingsSaveSettings(bool includeVFOs)
 bool settingsLoadSettings(void)
 {
 	bool hasRestoredDefaultsettings = false;
-	if (!EEPROM_Read(STORAGE_BASE_ADDRESS, (uint8_t *)&nonVolatileSettings, sizeof(settingsStruct_t)))
+	if (!settingsStorageRead((uint8_t *)&nonVolatileSettings, sizeof(settingsStruct_t)))
 	{
 		nonVolatileSettings.magicNumber = 0;// flag settings could not be loaded
 	}
@@ -109,7 +106,7 @@ bool settingsLoadSettings(void)
 
 	codeplugGetVFO_ChannelData(&settingsVFOChannel[CHANNEL_VFO_A], CHANNEL_VFO_A);
 	codeplugGetVFO_ChannelData(&settingsVFOChannel[CHANNEL_VFO_B], CHANNEL_VFO_B);
-	/* 2020.10.27  vk3kyy. This should not be necessary as the rest of the fimware e.g. on the VFO screen and in the contact lookup handles when Rx Group and / or Contact is set to none
+	/* 2020.10.27  vk3kyy. This should not be necessary as the rest of the firmware e.g. on the VFO screen and in the contact lookup handles when Rx Group and / or Contact is set to none
 	settingsInitVFOChannel(0);// clean up any problems with VFO data
 	settingsInitVFOChannel(1);
 	*/
@@ -142,6 +139,12 @@ bool settingsLoadSettings(void)
 			USER_FREQUENCY_BANDS[RADIO_BAND_UHF].minFreq = tmpDeviceInfoBuffer.minUHFFreq * 100000;// value needs to be in 10s of Hz;
 			USER_FREQUENCY_BANDS[RADIO_BAND_UHF].maxFreq = tmpDeviceInfoBuffer.maxUHFFreq * 100000;// value needs to be in 10s of Hz;
 		}
+
+		if (nonVolatileSettings.timezone == 0)
+		{
+			nonVolatileSettings.timezone 	= SETTINGS_TIMEZONE_UTC;
+		}
+
 	}
 	//codeplugGetGeneralSettings(&settingsCodeplugGeneralSettings);
 
@@ -173,6 +176,15 @@ bool settingsLoadSettings(void)
 		settingsSet(nonVolatileSettings.initialMenuNumber, UI_CHANNEL_MODE);
 	}
 
+	// If the menu structure if changed the enum for the screens is changed which can result the initial screen being something other than the CHANNEL or VFO screen
+	if (nonVolatileSettings.initialMenuNumber != UI_CHANNEL_MODE && UI_CHANNEL_MODE != UI_VFO_MODE)
+	{
+		nonVolatileSettings.initialMenuNumber = UI_VFO_MODE;
+	}
+
+
+	nonVolatileSettings.dmrCcTsFilter |= DMR_CC_FILTER_PATTERN;// Force CC Filter to be enabled
+
 	return hasRestoredDefaultsettings;
 }
 
@@ -193,7 +205,16 @@ void settingsInitVFOChannel(int vfoNumber)
 
 void settingsRestoreDefaultSettings(void)
 {
+	// Upgrade location settings
+	if ((nonVolatileSettings.magicNumber >= 0x4764) == false)
+	{
+		nonVolatileSettings.locationLat 	= SETTINGS_UNITIALISED_LOCATION_LAT;// Value that are out of range, so that it can be detected in the Satellite menu;
+		nonVolatileSettings.locationLon 	= 0;
+		nonVolatileSettings.timezone 		= SETTINGS_TIMEZONE_UTC;
+	}
+
 	nonVolatileSettings.magicNumber = STORAGE_MAGIC_NUMBER;
+
 	nonVolatileSettings.currentChannelIndexInZone = 0;
 	nonVolatileSettings.currentChannelIndexInAllZone = 1;
 	nonVolatileSettings.currentIndexInTRxGroupList[SETTINGS_CHANNEL_MODE] = 0;
@@ -311,7 +332,7 @@ void settingsRestoreDefaultSettings(void)
 #endif
 
 	nonVolatileSettings.temperatureCalibration = 0;
-	nonVolatileSettings.batteryCalibration = 5;
+	nonVolatileSettings.batteryCalibration = (0x05) + (0x07 << 4);// Time is in upper 4 bits battery calibration in upper 4 bits
 
 	nonVolatileSettings.ecoLevel = 1;
 
@@ -484,7 +505,7 @@ void settingsSetDirty(void)
 	settingsDirty = true;
 
 #if defined(PLATFORM_RD5R)
-	dirtyTime = fw_millis();
+	dirtyTime = ticksGetMillis();
 #endif
 }
 
@@ -493,7 +514,7 @@ void settingsSetVFODirty(void)
 	settingsVFODirty = true;
 
 #if defined(PLATFORM_RD5R)
-	dirtyTime = fw_millis();
+	dirtyTime = ticksGetMillis();
 #endif
 }
 
@@ -503,7 +524,7 @@ void settingsSaveIfNeeded(bool immediately)
 	const int DIRTY_DURTION_MILLISECS = 500;
 
 	if ((settingsDirty || settingsVFODirty) &&
-			(immediately || (((fw_millis() - dirtyTime) > DIRTY_DURTION_MILLISECS) && // DIRTY_DURTION_ has passed since last change
+			(immediately || (((ticksGetMillis() - dirtyTime) > DIRTY_DURTION_MILLISECS) && // DIRTY_DURTION_ has passed since last change
 					((uiDataGlobal.Scan.active == false) || // not scanning, or scanning anything but channels
 							(menuSystemGetCurrentMenuNumber() != UI_CHANNEL_MODE)))))
 	{

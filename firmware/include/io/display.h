@@ -33,7 +33,7 @@
 #include <stdbool.h>
 
 void displayInit(bool isInverseColour);
-void displayEnableBacklight(bool enable);
+void displayEnableBacklight(bool enable, int displayBacklightPercentageOff);
 bool displayIsBacklightLit(void);
 
 #endif /* _OPENGD77_DISPLAY_H_ */

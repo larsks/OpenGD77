@@ -277,8 +277,8 @@ void gpioInitC6000Interface(void)
     GPIO_PinInit(GPIO_INT_C6000_TS, Pin_INT_C6000_TS, &pin_config_input);
 
     // Connections with C6000
-    PORT_SetPinMux(Port_INT_C6000_RESET, Pin_INT_C6000_RESET, kPORT_MuxAsGpio);
-    PORT_SetPinMux(Port_INT_C6000_PWD, Pin_INT_C6000_PWD, kPORT_MuxAsGpio);
-    GPIO_PinInit(GPIO_INT_C6000_RESET, Pin_INT_C6000_RESET, &pin_config_output);
-    GPIO_PinInit(GPIO_INT_C6000_PWD, Pin_INT_C6000_PWD, &pin_config_output);
+    PORT_SetPinMux(Port_C6000_RESET, Pin_C6000_RESET, kPORT_MuxAsGpio);
+    PORT_SetPinMux(Port_C6000_PWD, Pin_C6000_PWD, kPORT_MuxAsGpio);
+    GPIO_PinInit(GPIO_C6000_RESET, Pin_C6000_RESET, &pin_config_output);
+    GPIO_PinInit(GPIO_C6000_PWD, Pin_C6000_PWD, &pin_config_output);
 }

@@ -32,6 +32,75 @@
 #include "user_interface/menuSystem.h"
 #include "functions/settings.h"
 
+
+#define COMPUTE_BUILD_YEAR \
+    ( \
+        (__DATE__[ 7] - '0') * 1000 + \
+        (__DATE__[ 8] - '0') *  100 + \
+        (__DATE__[ 9] - '0') *   10 + \
+        (__DATE__[10] - '0') \
+    )
+
+
+#define COMPUTE_BUILD_DAY \
+    ( \
+        ((__DATE__[4] >= '0') ? (__DATE__[4] - '0') * 10 : 0) + \
+        (__DATE__[5] - '0') \
+    )
+
+
+#define BUILD_MONTH_IS_JAN (__DATE__[0] == 'J' && __DATE__[1] == 'a' && __DATE__[2] == 'n')
+#define BUILD_MONTH_IS_FEB (__DATE__[0] == 'F')
+#define BUILD_MONTH_IS_MAR (__DATE__[0] == 'M' && __DATE__[1] == 'a' && __DATE__[2] == 'r')
+#define BUILD_MONTH_IS_APR (__DATE__[0] == 'A' && __DATE__[1] == 'p')
+#define BUILD_MONTH_IS_MAY (__DATE__[0] == 'M' && __DATE__[1] == 'a' && __DATE__[2] == 'y')
+#define BUILD_MONTH_IS_JUN (__DATE__[0] == 'J' && __DATE__[1] == 'u' && __DATE__[2] == 'n')
+#define BUILD_MONTH_IS_JUL (__DATE__[0] == 'J' && __DATE__[1] == 'u' && __DATE__[2] == 'l')
+#define BUILD_MONTH_IS_AUG (__DATE__[0] == 'A' && __DATE__[1] == 'u')
+#define BUILD_MONTH_IS_SEP (__DATE__[0] == 'S')
+#define BUILD_MONTH_IS_OCT (__DATE__[0] == 'O')
+#define BUILD_MONTH_IS_NOV (__DATE__[0] == 'N')
+#define BUILD_MONTH_IS_DEC (__DATE__[0] == 'D')
+
+
+#define COMPUTE_BUILD_MONTH \
+    ( \
+        (BUILD_MONTH_IS_JAN) ?  1 : \
+        (BUILD_MONTH_IS_FEB) ?  2 : \
+        (BUILD_MONTH_IS_MAR) ?  3 : \
+        (BUILD_MONTH_IS_APR) ?  4 : \
+        (BUILD_MONTH_IS_MAY) ?  5 : \
+        (BUILD_MONTH_IS_JUN) ?  6 : \
+        (BUILD_MONTH_IS_JUL) ?  7 : \
+        (BUILD_MONTH_IS_AUG) ?  8 : \
+        (BUILD_MONTH_IS_SEP) ?  9 : \
+        (BUILD_MONTH_IS_OCT) ? 10 : \
+        (BUILD_MONTH_IS_NOV) ? 11 : \
+        (BUILD_MONTH_IS_DEC) ? 12 : \
+        /* error default */  99 \
+    )
+
+#define COMPUTE_BUILD_HOUR ((__TIME__[0] - '0') * 10 + __TIME__[1] - '0')
+#define COMPUTE_BUILD_MIN  ((__TIME__[3] - '0') * 10 + __TIME__[4] - '0')
+#define COMPUTE_BUILD_SEC  ((__TIME__[6] - '0') * 10 + __TIME__[7] - '0')
+
+
+#define BUILD_DATE_IS_BAD (__DATE__[0] == '?')
+
+#define BUILD_YEAR  ((BUILD_DATE_IS_BAD) ? 99 : COMPUTE_BUILD_YEAR)
+#define BUILD_MONTH ((BUILD_DATE_IS_BAD) ? 99 : COMPUTE_BUILD_MONTH)
+#define BUILD_DAY   ((BUILD_DATE_IS_BAD) ? 99 : COMPUTE_BUILD_DAY)
+
+#define BUILD_TIME_IS_BAD (__TIME__[0] == '?')
+
+#define BUILD_HOUR  ((BUILD_TIME_IS_BAD) ? 99 :  COMPUTE_BUILD_HOUR)
+#define BUILD_MIN   ((BUILD_TIME_IS_BAD) ? 99 :  COMPUTE_BUILD_MIN)
+#define BUILD_SEC   ((BUILD_TIME_IS_BAD) ? 99 :  COMPUTE_BUILD_SEC)
+
+#define BUILD_DAY_CH0 ((__DATE__[4] >= '0') ? (__DATE__[4]) : '0')
+#define BUILD_DAY_CH1 (__DATE__[ 5])
+
+
 #if defined(PLATFORM_GD77S)
 #define ANNOUNCE_STATIC
 #else
@@ -92,9 +161,7 @@ typedef enum
 	DISPLAY_INFO_CONTACT,
 	DISPLAY_INFO_CONTACT_OVERRIDE_FRAME,
 	DISPLAY_INFO_CHANNEL,
-	DISPLAY_INFO_SQUELCH,
 	DISPLAY_INFO_TONE_AND_SQUELCH,
-	DISPLAY_INFO_SQUELCH_CLEAR_AREA,
 	DISPLAY_INFO_TX_TIMER,
 	DISPLAY_INFO_ZONE
 } displayInformation_t;
@@ -106,7 +173,6 @@ typedef struct
 	uint32_t			slices[ID_SLICES]; // [0] is min availabel ID, [ID_SLICES - 1] is max available ID
 	uint32_t			IDsPerSlice;
 } dmrIDsCache_t;
-
 
 
 #define TS_NO_OVERRIDE  0
@@ -131,6 +197,7 @@ void uiUtilityRenderHeader(bool isVFODualWatchScanning, bool isVFOSweepScanning)
 void uiUtilityRedrawHeaderOnly(bool isVFODualWatchScanning, bool isVFOSweepScanning);
 LinkItem_t *lastheardFindInList(uint32_t id);
 void lastheardInitList(void);
+void lastHeardClearWorkingTAData(void);
 bool lastHeardListUpdate(uint8_t *dmrDataBuffer, bool forceOnHotspot);
 void lastHeardClearLastID(void);
 int getRSSIdBm(void);
@@ -192,5 +259,9 @@ void dtmfSequenceStop(void);
 void dtmfSequenceTick(bool popPreviousMenuOnEnding);
 
 void resetOriginalSettingsData(void);
+struct tm *gmtime_r_Custom(const time_t_custom *__restrict tim_p, struct tm *__restrict res);
+time_t_custom mktime_custom(const struct tm * tb);
+
+uint8_t *coordsToMaidenhead(uint8_t *maidenheadBuffer, double longitude, double latitude);
 
 #endif

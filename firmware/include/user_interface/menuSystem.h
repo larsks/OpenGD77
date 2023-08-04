@@ -76,6 +76,16 @@ typedef enum
 	MENU_STATUS_FORCE_FIRST = (1 << 3)
 } menuStatus_t;
 
+
+typedef enum
+{
+	NOTIFICATION_TYPE_SQUELCH = 0,
+	NOTIFICATION_TYPE_POWER,
+	NOTIFICATION_TYPE_MESSAGE,
+	NOTIFICATION_TYPE_MAX
+} uiNotificationType_t;
+
+
 typedef struct
 {
 	uint32_t        		buttons;
@@ -177,6 +187,11 @@ void menuPrivateCallDismiss(void);
 void menuHotspotRestoreSettings(void);
 
 bool menuTxScreenDisplaysLastHeard(void);
+void menuTxScreenHandleTxTermination(uiEvent_t *ev, txTerminationReason_t reason);
+
+void menuSatelliteScreenClearPredictions(bool reloadKeps);
+bool menuSatelliteIsDisplayingHeader(void);
+void menuSatelliteTxScreen(uint32_t txTimeSecs);
 
 void menuSystemMenuIncrement(int32_t *O, int32_t M);
 void menuSystemMenuDecrement(int32_t *O, int32_t M);
@@ -189,6 +204,14 @@ void menuDisplaySettingOption(const char *entryText, const char *valueText);
 bool uiChannelModeTransmitDTMFContactForGD77S(void);
 void uiChannelModeHeartBeatActivityForGD77S(uiEvent_t *ev);
 #endif
+
+
+void uiNotificationShow(uiNotificationType_t type, uint32_t msTimeout, const char *message, bool immediateRender);
+void uiNotificationRefresh(void);
+bool uiNotificationHasTimedOut(void);
+bool uiNotificationIsVisible(void);
+void uiNotificationHide(bool immediateRender);
+
 
 
 //
@@ -206,38 +229,41 @@ enum MENU_SCREENS
 {
 	MENU_EMPTY = -1,
 	MENU_ANY = MENU_EMPTY,
-	UI_SPLASH_SCREEN = 0,
-	UI_POWER_OFF,
-	UI_VFO_MODE,
-	UI_CHANNEL_MODE,
-	MENU_MAIN_MENU,
+	MENU_MAIN_MENU = 0,
 	MENU_CONTACTS_MENU,
 	MENU_ZONE_LIST,
 	MENU_RADIO_INFOS,
-	MENU_FIRMWARE_INFO,
-	MENU_NUMERICAL_ENTRY,
-	UI_TX_SCREEN,
 	MENU_RSSI_SCREEN,
 	MENU_LAST_HEARD,
-	MENU_OPTIONS,
-	MENU_DISPLAY,
-	MENU_SOUND,
-	MENU_CREDITS,
-	MENU_CHANNEL_DETAILS,
-	UI_HOTSPOT_MODE,
-	UI_CPS,
-	UI_CHANNEL_QUICK_MENU,
-	UI_VFO_QUICK_MENU,
-	UI_LOCK_SCREEN,
+	MENU_OPTIONS,// Top level menu 'Options'
+	MENU_GENERAL,// General options
+	MENU_RADIO,// Radio options
+	MENU_DISPLAY,// Display options
+	MENU_SOUND,// Sound options
+	MENU_SATELLITE,
 	MENU_CONTACT_LIST,
 	MENU_DTMF_CONTACT_LIST,
 	MENU_CONTACT_QUICKLIST,
 	MENU_CONTACT_LIST_SUBMENU,
 	MENU_CONTACT_DETAILS,
-	MENU_CONTACT_NEW,
 	MENU_LANGUAGE,
-	UI_PRIVATE_CALL,
+	// *** Add new menus to be accessed using quickkey (ID: 0..31) above this line ***
 	UI_MESSAGE_BOX,
+	UI_HOTSPOT_MODE,
+	UI_CPS,
+	MENU_NUMERICAL_ENTRY,
+	UI_TX_SCREEN,
+	UI_SPLASH_SCREEN,
+	UI_POWER_OFF,
+	UI_VFO_MODE,
+	UI_CHANNEL_MODE,
+	MENU_FIRMWARE_INFO,
+	MENU_CHANNEL_DETAILS,
+	UI_CHANNEL_QUICK_MENU,
+	UI_VFO_QUICK_MENU,
+	UI_LOCK_SCREEN,
+	UI_PRIVATE_CALL,
+	MENU_CONTACT_NEW,
 	NUM_MENU_ENTRIES
 };
 
@@ -267,9 +293,9 @@ enum QUICK_FUNCTIONS {  FUNC_START_SCANNING = QUICKKEY_MENUVALUE(0, 0, 1),
 
 typedef struct
 {
-	int 					currentItemIndex;
-	int 					startIndex;
-	int 					endIndex;
+	int32_t 				currentItemIndex;
+	int32_t 				startIndex;
+	int32_t 				endIndex;
 	int 					lightTimer;
 	menuItemNewData_t		*currentMenuList;
 	menuControlDataStruct_t	controlData;
@@ -279,9 +305,12 @@ typedef struct
 	const menuItemsList_t	*data[];
 } menuDataGlobal_t;
 
+enum { RADIO_INFOS_BATTERY_LEVEL = 0, RADIO_INFOS_CURRENT_TIME, RADIO_INFOS_DATE, RADIO_INFOS_LOCATION, RADIO_INFOS_TEMPERATURE_LEVEL, RADIO_INFOS_BATTERY_GRAPH, NUM_RADIO_INFOS_MENU_ITEMS, RADIO_INFOS_UP_TIME, RADIO_INFOS_TIME_ALARM };
+
 extern menuDataGlobal_t 		menuDataGlobal;
 extern const menuItemsList_t 	menuDataMainMenu;
 extern const menuItemsList_t 	menuDataContact;
+extern const menuItemsList_t 	menuDataOptions;
 
 menuStatus_t uiVFOMode(uiEvent_t *event, bool isFirstRun);
 menuStatus_t uiVFOModeQuickMenu(uiEvent_t *event, bool isFirstRun);
@@ -299,7 +328,8 @@ menuStatus_t menuNumericalEntry(uiEvent_t *event, bool isFirstRun);
 menuStatus_t menuTxScreen(uiEvent_t *event, bool isFirstRun);
 menuStatus_t menuRSSIScreen(uiEvent_t *event, bool isFirstRun);
 menuStatus_t menuLastHeard(uiEvent_t *event, bool isFirstRun);
-menuStatus_t menuOptions(uiEvent_t *event, bool isFirstRun);
+menuStatus_t menuGeneralOptions(uiEvent_t *event, bool isFirstRun);
+menuStatus_t menuRadioOptions(uiEvent_t *event, bool isFirstRun);
 menuStatus_t menuDisplayOptions(uiEvent_t *event, bool isFirstRun);
 menuStatus_t menuSoundOptions(uiEvent_t *event, bool isFirstRun);
 menuStatus_t menuCredits(uiEvent_t *event, bool isFirstRun);
@@ -311,8 +341,8 @@ menuStatus_t menuContactListSubMenu(uiEvent_t *event, bool isFirstRun);
 menuStatus_t menuContactDetails(uiEvent_t *event, bool isFirstRun);
 menuStatus_t menuLanguage(uiEvent_t *event, bool isFirstRun);
 menuStatus_t menuPrivateCall(uiEvent_t *event, bool isFirstRun);
-
 menuStatus_t uiMessageBox(uiEvent_t *event, bool isFirstRun);
+menuStatus_t menuSatelliteScreen(uiEvent_t *ev, bool isFirstRun);
 
 
 #endif

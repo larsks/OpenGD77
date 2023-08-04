@@ -89,13 +89,16 @@ static void updateScreen(bool isFirstRun)
 	int mNum;
 	const char *mName = currentLanguage->menu;
 
-	ucClearBuf();
+	displayClearBuf();
 
 	// Apply some menu title override(s)
 	switch (menuSystemGetCurrentMenuNumber())
 	{
 		case MENU_CONTACTS_MENU:
 			mName = currentLanguage->contacts;
+			break;
+		case MENU_OPTIONS:
+			mName = currentLanguage->options;
 			break;
 	}
 
@@ -126,7 +129,7 @@ static void updateScreen(bool isFirstRun)
 		}
 	}
 
-	ucRender();
+	displayRender();
 }
 
 static void handleEvent(uiEvent_t *ev)

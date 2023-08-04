@@ -49,10 +49,10 @@ menuStatus_t uiPowerOff(uiEvent_t *ev, bool isFirstRun)
 
 static void updateScreen(void)
 {
-	ucClearBuf();
-	ucPrintCentered(12, currentLanguage->power_off, FONT_SIZE_3);
-	ucPrintCentered(32, "73", FONT_SIZE_3);
-	ucRender();
+	displayClearBuf();
+	displayPrintCentered(12, currentLanguage->power_off, FONT_SIZE_3);
+	displayPrintCentered(32, "73", FONT_SIZE_3);
+	displayRender();
 }
 
 static void handleEvent(uiEvent_t *ev)
@@ -71,6 +71,7 @@ static void handleEvent(uiEvent_t *ev)
 
 	if ((ev->time - initialEventTime) > POWEROFF_DURATION_MILLISECONDS)
 	{
-		powerOffFinalStage();
+		powerOffFinalStage(false);
 	}
+
 }

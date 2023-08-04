@@ -33,18 +33,21 @@
 
 #include "interfaces/adc.h"
 
-typedef void (*batteryHistoryCallback_t)(int32_t);
+#define TASK_FLAGGED_ALIVE  5
 
-extern volatile bool alive_maintask;
-extern volatile bool alive_beeptask;
-extern volatile bool alive_hrc6000task;
+typedef struct
+{
+	TaskHandle_t   Handle;
+	volatile bool  Running; // Not Suspended
+	volatile uint8_t  AliveCount;
+} Task_t;
 
-extern int batteryVoltage;
-extern float averageBatteryVoltage;
-extern bool headerRowIsDirty;
 
-void watchdogInit(batteryHistoryCallback_t cb);
+void watchdogInit(void);
+void watchdogRun(bool run);
 void watchdogReboot(void);
-void watchdogDeinit(void);
+void watchdogRebootNow(void);
+void watchdogTick(void);
+uint32_t GetTimerOutputValue(void);
 
 #endif /* _OPENGD77_WDOG_H_ */

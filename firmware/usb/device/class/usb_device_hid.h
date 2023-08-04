@@ -37,42 +37,6 @@
 /*! @brief Request code to set protocol of HID class. */
 #define USB_DEVICE_HID_REQUEST_SET_PROTOCOL (0x0BU)
 
-#if (defined(USB_DEVICE_CHARGER_DETECT_ENABLE) && (USB_DEVICE_CHARGER_DETECT_ENABLE > 0U))
-/*! @brief The sequence initiation time for the dcd module. */
-#define USB_DEVICE_DCD_SEQ_INIT_TIME (1000U)
-/*! @brief The time period to debounce on DP signal. */
-#define USB_DEVICE_DCD_DBNC_MSEC (10U)
-/*! @brief The time period comparator enabled. */
-#define USB_DEVICE_DCD_VDPSRC_ON_MSEC (200U)
-/*! @brief The amount of time that the module waits after primary detection before start to secondary detection. */
-#define USB_DEVICE_DCD_TIME_WAIT_AFTER_PRI_DETECTION (40U)
-/*! @brief The amount of time the module enable the Vdm_src. */
-#define USB_DEVICE_DCD_TIME_DM_SRC_ON (10U)
-
-/*! @brief USB DCD charging port type */
-typedef enum _usb_device_dcd_port_type
-{
-    kUSB_DeviceDCDPortTypeNoPort = 0x0U,
-    kUSB_DeviceDCDPortTypeSDP,
-    kUSB_DeviceDCDPortTypeCDP,
-    kUSB_DeviceDCDPortTypeDCP,
-} usb_device_dcd_port_type_t;
-
-/*! @brief USB DCD charging detect status */
-typedef enum _usb_device_dcd_dev_status
-{
-    kUSB_DeviceDCDDevStatusVBUSDetect = 0x0U,
-    kUSB_DeviceDCDDevStatusDataContactDetect,
-    kUSB_DeviceDCDDevStatusChargingPortDetect,
-    kUSB_DeviceDCDDevStatusTimeOut,
-    kUSB_DeviceDCDDevStatusUnknownType,
-    kUSB_DeviceDCDDevStatusDetectFinish,
-    kUSB_DeviceDCDDevStatusComplete,
-    kUSB_DeviceDCDDevStatusAttached,
-    kUSB_DeviceDCDDevStatusDetached,
-} usb_device_dcd_dev_status_t;
-#endif
-
 /*! @brief Available common EVENT types in HID class callback */
 typedef enum _usb_device_hid_event
 {
@@ -129,8 +93,8 @@ typedef struct _usb_device_hid_struct
     usb_device_interface_struct_t *interfaceHandle; /*!< Current interface handle */
     uint8_t *interruptInPipeDataBuffer;             /*!< IN pipe data buffer backup when stall */
     uint32_t interruptInPipeDataLen;                /*!< IN pipe data length backup when stall  */
-    uint8_t *interruptOutPipeDataBuffer;             /*!< OUT pipe data buffer backup when stall */
-    uint32_t interruptOutPipeDataLen;                /*!< OUT pipe data length backup when stall  */
+    uint8_t *interruptOutPipeDataBuffer;            /*!< OUT pipe data buffer backup when stall */
+    uint32_t interruptOutPipeDataLen;               /*!< OUT pipe data length backup when stall  */
     uint8_t configuration;                          /*!< Current configuration */
     uint8_t interfaceNumber;                        /*!< The interface number of the class */
     uint8_t alternate;                              /*!< Current alternate setting of the interface */
@@ -138,8 +102,8 @@ typedef struct _usb_device_hid_struct
     uint8_t protocol;                               /*!< Current protocol */
     uint8_t interruptInPipeBusy;                    /*!< Interrupt IN pipe busy flag */
     uint8_t interruptOutPipeBusy;                   /*!< Interrupt OUT pipe busy flag */
-    uint8_t interruptInPipeStall;                    /*!< Interrupt IN pipe stall flag */
-    uint8_t interruptOutPipeStall;                   /*!< Interrupt OUT pipe stall flag */
+    uint8_t interruptInPipeStall;                   /*!< Interrupt IN pipe stall flag */
+    uint8_t interruptOutPipeStall;                  /*!< Interrupt OUT pipe stall flag */
 } usb_device_hid_struct_t;
 
 /*******************************************************************************
@@ -211,7 +175,7 @@ extern usb_status_t USB_DeviceHidEvent(void *handle, uint32_t event, void *param
  * @return A USB error code or kStatus_USB_Success.
  *
  * @note The function can only be called in the same context.
- * 
+ *
  * @note The return value indicates whether the sending request is successful or not. The transfer done is notified by
  * usb_device_hid_interrupt_in.
  * Currently, only one transfer request can be supported for one specific endpoint.
@@ -236,7 +200,7 @@ extern usb_status_t USB_DeviceHidSend(class_handle_t handle, uint8_t ep, uint8_t
  *
  * @return A USB error code or kStatus_USB_Success.
  *
- * @note The function can only be called in the same context. 
+ * @note The function can only be called in the same context.
  *
  * @note The return value indicates whether the receiving request is successful or not. The transfer done is notified by
  * usb_device_hid_interrupt_out.

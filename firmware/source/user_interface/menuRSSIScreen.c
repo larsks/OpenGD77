@@ -52,9 +52,9 @@ menuStatus_t menuRSSIScreen(uiEvent_t *ev, bool isFirstRun)
 	{
 		//calibrationGetRSSIMeterParams(&rssiCalibration); // UNUSED
 		menuDataGlobal.endIndex = 0;
-		ucClearBuf();
+		displayClearBuf();
 		menuDisplayTitle(currentLanguage->rssi);
-		ucRenderRows(0, 2);
+		displayRenderRows(0, 2);
 
 		updateScreen(true, true);
 	}
@@ -111,23 +111,23 @@ static void updateScreen(bool forceRedraw, bool isFirstRun)
 	if (forceRedraw)
 	{
 		// Clear whole drawing region
-		ucFillRect(0, 14, DISPLAY_SIZE_X, DISPLAY_SIZE_Y - 14, true);
+		displayFillRect(0, 14, DISPLAY_SIZE_X, DISPLAY_SIZE_Y - 14, true);
 
 		// Draw S-Meter outer frame
-		ucDrawRect((barX - 2), (DISPLAY_Y_POS_RSSI_BAR - 2), (DISPLAY_SIZE_X - (barX - 2)), (8 + 4), true);
+		displayDrawRect((barX - 2), (DISPLAY_Y_POS_RSSI_BAR - 2), (DISPLAY_SIZE_X - (barX - 2)), (8 + 4), true);
 		// Clear the right V line of the frame
-		ucDrawFastVLine((DISPLAY_SIZE_X - 1), (DISPLAY_Y_POS_RSSI_BAR - 1), (8 + 2), false);
+		displayDrawFastVLine((DISPLAY_SIZE_X - 1), (DISPLAY_Y_POS_RSSI_BAR - 1), (8 + 2), false);
 		// S9+xx H Dots
 		for (int16_t i = ((barX - 2) + (rssiMeterBar[9] * 2) + 1); i < DISPLAY_SIZE_X; i += 4)
 		{
-			ucDrawFastHLine(i, (DISPLAY_Y_POS_RSSI_BAR - 2), 2, false);
+			displayDrawFastHLine(i, (DISPLAY_Y_POS_RSSI_BAR - 2), 2, false);
 		}
 		// +10..60dB
-		ucFillRect(((barX - 2) + (rssiMeterBar[9] * 2) + 2), (DISPLAY_Y_POS_RSSI_BAR + 8) + 2,
+		displayFillRect(((barX - 2) + (rssiMeterBar[9] * 2) + 2), (DISPLAY_Y_POS_RSSI_BAR + 8) + 2,
 				(DISPLAY_SIZE_X - ((barX - 2) + (rssiMeterBar[9] * 2) + 2)), 2, false);
 
 		// Draw S, Numbers and ticks
-		ucPrintAt(1, DISPLAY_Y_POS_RSSI_BAR, "S", FONT_SIZE_1_BOLD);
+		displayPrintAt(1, DISPLAY_Y_POS_RSSI_BAR, "S", FONT_SIZE_1_BOLD);
 
 		int xPos;
 		int currentMode = trxGetMode();
@@ -147,14 +147,14 @@ static void updateScreen(bool forceRedraw, bool isFirstRun)
 			xPos *= 2;
 
 			// V ticks
-			ucDrawFastVLine(((barX - 2) + xPos), (DISPLAY_Y_POS_RSSI_BAR + 8) + 2, ((i % 2) ? 3 : 1), ((i < 10) ? true : false));
+			displayDrawFastVLine(((barX - 2) + xPos), (DISPLAY_Y_POS_RSSI_BAR + 8) + 2, ((i % 2) ? 3 : 1), ((i < 10) ? true : false));
 
 			if ((i % 2) && (i < 10))
 			{
 				char buf[2];
 
 				sprintf(buf, "%d", i);
-				ucPrintAt(((((barX - 2) + xPos) - 2) - 1)/* FONT_2 H offset */, DISPLAY_Y_POS_RSSI_BAR + 15
+				displayPrintAt(((((barX - 2) + xPos) - 2) - 1)/* FONT_2 H offset */, DISPLAY_Y_POS_RSSI_BAR + 15
 #if defined(PLATFORM_RD5R)
 						-1
 #endif
@@ -165,15 +165,15 @@ static void updateScreen(bool forceRedraw, bool isFirstRun)
 	else
 	{
 		// Clear dBm region value
-		ucFillRect(((DISPLAY_SIZE_X - (7 * 8)) >> 1), DISPLAY_Y_POS_RSSI_VALUE, (7 * 8), FONT_SIZE_3_HEIGHT, true);
+		displayFillRect(((DISPLAY_SIZE_X - (7 * 8)) >> 1), DISPLAY_Y_POS_RSSI_VALUE, (7 * 8), FONT_SIZE_3_HEIGHT, true);
 	}
 
 	snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "%d%s", dBm, "dBm");
-	ucPrintCentered(DISPLAY_Y_POS_RSSI_VALUE, buffer, FONT_SIZE_3);
+	displayPrintCentered(DISPLAY_Y_POS_RSSI_VALUE, buffer, FONT_SIZE_3);
 
 #if 0 // DEBUG
 	sprintf(buffer, "%d", trxRxSignal);
-	ucFillRect((DISPLAY_SIZE_X - (4 * 8)), DISPLAY_Y_POS_RSSI_VALUE, (4 * 8), 8, true);
+	displayFillRect((DISPLAY_SIZE_X - (4 * 8)), DISPLAY_Y_POS_RSSI_VALUE, (4 * 8), 8, true);
 	ucPrintCore((DISPLAY_SIZE_X - ((strlen(buffer) + 1) * 8)), DISPLAY_Y_POS_RSSI_VALUE, buffer, FONT_SIZE_2, TEXT_ALIGN_RIGHT, false);
 #endif
 
@@ -193,26 +193,26 @@ static void updateScreen(bool forceRedraw, bool isFirstRun)
 
 	if (barWidth)
 	{
-		ucFillRect(barX, DISPLAY_Y_POS_RSSI_BAR, barWidth, 8, false);
+		displayFillRect(barX, DISPLAY_Y_POS_RSSI_BAR, barWidth, 8, false);
 	}
 
 	// Clear the end of the bar area, if needed
 	if (barWidth < (DISPLAY_SIZE_X - barX))
 	{
-		ucFillRect(barX + barWidth, DISPLAY_Y_POS_RSSI_BAR, (DISPLAY_SIZE_X - barX) - barWidth, 8, true);
+		displayFillRect(barX + barWidth, DISPLAY_Y_POS_RSSI_BAR, (DISPLAY_SIZE_X - barX) - barWidth, 8, true);
 	}
 
 	if (forceRedraw)
 	{
-		ucRender();
+		displayRender();
 	}
 	else
 	{
 #if defined(PLATFORM_RD5R)
-		ucRenderRows((DISPLAY_Y_POS_RSSI_VALUE / 8), (DISPLAY_Y_POS_RSSI_VALUE / 8) + 3);
+		displayRenderRows((DISPLAY_Y_POS_RSSI_VALUE / 8), (DISPLAY_Y_POS_RSSI_VALUE / 8) + 3);
 #else
-		ucRenderRows((DISPLAY_Y_POS_RSSI_VALUE / 8), (DISPLAY_Y_POS_RSSI_VALUE / 8) + 2);
-		ucRenderRows((DISPLAY_Y_POS_RSSI_BAR / 8), (DISPLAY_Y_POS_RSSI_BAR / 8) + 1);
+		displayRenderRows((DISPLAY_Y_POS_RSSI_VALUE / 8), (DISPLAY_Y_POS_RSSI_VALUE / 8) + 2);
+		displayRenderRows((DISPLAY_Y_POS_RSSI_BAR / 8), (DISPLAY_Y_POS_RSSI_BAR / 8) + 1);
 #endif
 	}
 }

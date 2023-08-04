@@ -28,10 +28,11 @@
 #ifndef _OPENGD77_UILOCALISATION_H_
 #define _OPENGD77_UILOCALISATION_H_
 
+
 #if defined(LANGUAGE_BUILD_JAPANESE)
 #define NUM_LANGUAGES 2
 #else
-#define NUM_LANGUAGES 15
+#define NUM_LANGUAGES 18
 #endif
 
 #define LANGUAGE_TEXTS_LENGTH 17
@@ -190,7 +191,7 @@ typedef struct
    const char *voice_prompt_level_2;
    const char *voice_prompt_level_3;
    const char *dmr_filter;
-   const char *dmr_cc_filter;
+   const char *UNUSED_4;
    const char *dmr_ts_filter;
    const char *dtmf_contact_list;// Menu number 18
    const char *channel_power;// "Ch Power" for the Channel details screen
@@ -220,7 +221,31 @@ typedef struct
    const char *scan_on_boot;
    const char *dtmf_entry;
    const char *name;
+   const char *UNUSED_3;
    const char *openDM1801A;
+   const char *time;
+   const char *uptime;
+   const char *hours;
+   const char *minutes;
+   const char *satellite;
+   const char *alarm_time;
+   const char *location;
+   const char *date;
+   const char *timeZone;
+   const char *suspend;
+   const char *pass;
+   const char *elevation;
+   const char *azimuth;
+   const char *inHHMMSS;
+   const char *predicting;
+   const char *maximum;
+   const char *satellite_short;
+   const char *local;// For timezone
+   const char *UTC;// For timezone
+   const char *symbols; // NSEW
+   const char *not_set;// Used when Location etc has not been set.
+   const char *general_options;
+   const char *radio_options;
 } stringsTable_t;
 
 extern const stringsTable_t languages[];
@@ -245,10 +270,24 @@ enum languageNamesOrder
 	czechLanguageName,
 	nederlandsDutchLanguageName,
 	slovenianLanguageName,
-	portuguesBrazilLanguageName
+	portuguesBrazilLanguageName,
+	swedishLanguageName,
+	hungarianLanguageName,
+	croatianLanguageName
 #endif
 };
 
 extern const int LANGUAGE_DISPLAY_ORDER[];
+
+typedef enum
+{
+	SYMBOLS_NORTH = 0,
+	SYMBOLS_SOUTH,
+	SYMBOLS_EAST,
+	SYMBOLS_WEST
+} LanguageSymbol_t;
+
+
+char LanguageGetSymbol(LanguageSymbol_t s);
 
 #endif

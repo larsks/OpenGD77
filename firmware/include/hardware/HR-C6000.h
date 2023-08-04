@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2019      Kai Ludwig, DG4KLU
  * Copyright (C) 2020-2021 Roger Clark, VK3KYY / G4KYF
+ *                         Daniel Caujolle-Bert, F1RMB
  *
  *
  * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions
@@ -38,17 +39,23 @@
 #include "usb/usb_com.h"
 
 #include "dmr_codec/codec.h"
+#include "interfaces/wdog.h"
+
+extern Task_t hrc6000Task;
+
+#define DMR_FRAME_BUFFER_SIZE     64
+
+#define AMBE_AUDIO_LENGTH         27
+#define LC_DATA_LENGTH            12
 
 
-#define DMR_FRAME_BUFFER_SIZE 64
+#define TG_CALL_FLAG            0x00
+#define PC_CALL_FLAG            0x03
 
-extern const uint8_t TG_CALL_FLAG;
-extern const uint8_t PC_CALL_FLAG;
-extern volatile int slot_state;
+extern volatile int slotState;
 extern volatile uint8_t DMR_frame_buffer[DMR_FRAME_BUFFER_SIZE];
 extern volatile bool updateLastHeard;
 extern volatile int dmrMonitorCapturedTS;
-extern char talkAliasText[33];
 extern volatile uint32_t readDMRRSSI;
 
 enum DMR_SLOT_STATE { DMR_STATE_IDLE, DMR_STATE_RX_1, DMR_STATE_RX_2, DMR_STATE_RX_END,
@@ -57,7 +64,7 @@ enum DMR_SLOT_STATE { DMR_STATE_IDLE, DMR_STATE_RX_1, DMR_STATE_RX_2, DMR_STATE_
 					  DMR_STATE_REPEATER_WAKE_1, DMR_STATE_REPEATER_WAKE_2, DMR_STATE_REPEATER_WAKE_3,
 					  DMR_STATE_REPEATER_WAKE_FAIL_1, DMR_STATE_REPEATER_WAKE_FAIL_2 };
 
-enum WakingMode { WAKING_MODE_NONE, WAKING_MODE_WAITING, WAKING_MODE_FAILED };
+enum WakingMode { WAKING_MODE_NONE, WAKING_MODE_WAITING, WAKING_MODE_AWAKEN, WAKING_MODE_FAILED };
 
 enum DMR_Embedded_Data
 {
@@ -70,27 +77,30 @@ enum DMR_Embedded_Data
 	DMR_EMBEDDED_DATA_GPS_INFO            = 8U
 };
 
-void HRC6000_init(void);
 void PORTC_IRQHandler(void);
-void init_HR_C6000_interrupts(void);
-void init_digital_state(void);
-void init_digital_DMR_RX(void);
-void reset_timeslot_detection(void);
-void init_digital(void);
-void terminate_digital(void);
-void init_hrc6000_task(void);
-void fw_hrc6000_task(void *data);
-void tick_HR_C6000(void);
 
-void clearIsWakingState(void);
-int getIsWakingState(void);
-void clearActiveDMRID(void);
-void setMicGainDMR(uint8_t gain);
-bool checkTalkGroupFilter(void);
 
-int HRC6000GetReceivedTgOrPcId(void);
-int HRC6000GetReceivedSrcId(void);
+void HRC6000Init(void);
+void HRC6000InitInterrupts(void);
+void HRC6000InitDigitalDmrRx(void);
+void HRC6000ResetTimeSlotDetection(void);
+void HRC6000InitDigital(void);
+void HRC6000TerminateDigital(void);
+void HRC6000InitTask(void);
+void HRC6000ResyncTimeSlot(void);
+uint32_t HRC6000GetReceivedTgOrPcId(void);
+uint32_t HRC6000GetReceivedSrcId(void);
 void HRC6000ClearTimecodeSynchronisation(void);
-void HRC6000SetCCFilterMode(bool enable);
+void HRC6000SetTalkerAlias(const char *text);
+bool HRC6000IRQHandlerIsRunning(void);
+bool HRC6000HasGotSync(void);
+
+
+void HRC6000ClearIsWakingState(void);
+int HRC6000GetIsWakingState(void);
+void HRC6000ClearActiveDMRID(void);
+bool HRC6000CheckTalkGroupFilter(void);
+
+void HRC6000SetMicGainDMR(uint8_t gain);
 
 #endif /* _OPENGD77_HR_C6000_H_ */

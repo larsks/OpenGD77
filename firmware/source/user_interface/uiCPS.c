@@ -27,6 +27,8 @@
  */
 #include "functions/trx.h"
 #include "user_interface/menuSystem.h"
+#include "functions/rxPowerSaving.h"
+#include "functions/ticks.h"
 
 static void handleTick(void);
 
@@ -37,12 +39,13 @@ typedef enum
 	LED_GREEN
 } blinkLed_t;
 
-static blinkLed_t mode = LED_NONE;
+#define PIT_COUNTS_PER_UPDATE  500
+
+static blinkLed_t ledType = LED_NONE;
 static uint32_t nextPIT;
-static int ledState = 0;
-static const int PIT_COUNTS_PER_UPDATE = 5000;
+static bool ledState = false;
 static int radioMode;
-static int radioBandWidth;
+static bool radioBandWidth;
 
 
 menuStatus_t uiCPS(uiEvent_t *ev, bool isFirstRun)
@@ -50,22 +53,21 @@ menuStatus_t uiCPS(uiEvent_t *ev, bool isFirstRun)
 	if (isFirstRun)
 	{
 		menuDataGlobal.endIndex = 0;
+		rxPowerSavingSetState(ECOPHASE_POWERSAVE_INACTIVE);
 		radioMode = trxGetMode();
 		radioBandWidth = trxGetBandwidthIs25kHz();
 		trxSetModeAndBandwidth(RADIO_MODE_NONE, radioBandWidth);
-		// Just clear the display and turn on the
-//		UC1701_clearBuf();
-//		UC1701_render();
-		nextPIT = PITCounter + PIT_COUNTS_PER_UPDATE;
+		nextPIT = ticksGetMillis() + PIT_COUNTS_PER_UPDATE;
 	}
 	else
 	{
-		if (PITCounter >= nextPIT)
+		if (ticksGetMillis() >= nextPIT)
 		{
-			nextPIT = PITCounter + PIT_COUNTS_PER_UPDATE;
+			nextPIT = ticksGetMillis() + PIT_COUNTS_PER_UPDATE;
 			handleTick();
 		}
 	}
+
 	return MENU_STATUS_SUCCESS;
 }
 
@@ -74,31 +76,32 @@ void uiCPSUpdate(uiCPSCommand_t command, int x, int y, ucFont_t fontSize, ucText
 	switch(command)
 	{
 		case CPS2UI_COMMAND_CLEARBUF:
-			ucClearBuf();
+			displayClearBuf();
 			break;
 		case CPS2UI_COMMAND_PRINT:
-			ucPrintCore(x, y, szMsg, fontSize, alignment, isInverted);
+			displayPrintCore(x, y, szMsg, fontSize, alignment, isInverted);
 			break;
 		case CPS2UI_COMMAND_RENDER_DISPLAY:
-			ucRender();
+			displayRender();
 			displayLightTrigger(true);
 			break;
 		case CPS2UI_COMMAND_BACKLIGHT:
 			displayLightTrigger(true);
 			break;
 		case CPS2UI_COMMAND_GREEN_LED:
-			mode = LED_GREEN;// flash green LED
+			ledType = LED_GREEN;// flash green LED
 			break;
 		case CPS2UI_COMMAND_RED_LED:
-			mode = LED_RED;// flash red LED
+			ledType = LED_RED;// flash red LED
 			break;
 		case CPS2UI_COMMAND_END:
 		    LEDs_PinWrite(GPIO_LEDgreen, Pin_LEDgreen, 0);
 		    LEDs_PinWrite(GPIO_LEDred, Pin_LEDred, 0);
-		    mode = LED_NONE;
+		    ledState = false;
+		    ledType = LED_NONE;
 		    trxSetRX();// Rx would be turned off at start of CPS by setting radio mode to none
 		    trxSetModeAndBandwidth(radioMode, radioBandWidth);
-			menuSystemPopAllAndDisplayRootMenu();
+		    menuSystemPopPreviousMenu();
 			break;
 		default:
 			break;
@@ -107,32 +110,16 @@ void uiCPSUpdate(uiCPSCommand_t command, int x, int y, ucFont_t fontSize, ucText
 
 static void handleTick(void)
 {
-	switch(mode)
+	switch(ledType)
 	{
 		case LED_GREEN:
-			if (ledState == 0)
-			{
-				ledState = 1;
-			    LEDs_PinWrite(GPIO_LEDgreen, Pin_LEDgreen, 1);
-			}
-			else
-			{
-				ledState = 0;
-			    LEDs_PinWrite(GPIO_LEDgreen, Pin_LEDgreen, 0);
-			}
+			ledState = !ledState;
+			LEDs_PinWrite(GPIO_LEDgreen, Pin_LEDgreen, (ledState ? 1 : 0));
 			break;
 
 		case LED_RED:
-			if (ledState == 0)
-			{
-				ledState = 1;
-			    LEDs_PinWrite(GPIO_LEDred, Pin_LEDred, 1);
-			}
-			else
-			{
-				ledState = 0;
-			    LEDs_PinWrite(GPIO_LEDred, Pin_LEDred, 0);
-			}
+			ledState = !ledState;
+			LEDs_PinWrite(GPIO_LEDred, Pin_LEDred, (ledState ? 1 : 0));
 			break;
 
 		case LED_NONE:

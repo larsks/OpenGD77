@@ -37,15 +37,15 @@
 extern volatile uint32_t timer_maintask;
 extern volatile uint32_t timer_beeptask;
 extern volatile uint32_t timer_hrc6000task;
-extern volatile uint32_t timer_watchdogtask;
 extern volatile uint32_t timer_keypad;
 extern volatile uint32_t timer_keypad_timeout;
 extern volatile uint32_t PITCounter;
+extern volatile int PIT2SecondsCounter;
 
 // For long press handling
 extern volatile uint32_t timer_mbuttons[3];
 
-void init_pit(void);
+void pitInit(void);
 void PIT0_IRQHandler(void);
 
 #endif /* _OPENGD77_PIT_H_ */

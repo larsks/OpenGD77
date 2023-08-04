@@ -1,19 +1,21 @@
-/*
- * Copyright (c) 2015, Freescale Semiconductor, Inc.
- * Copyright 2016 NXP
+/*! *********************************************************************************
+ * Copyright (c) 2013-2014, Freescale Semiconductor, Inc.
+ * Copyright 2016-2017 NXP
  * All rights reserved.
  *
+ * ile
+ *
  * SPDX-License-Identifier: BSD-3-Clause
- */
-
-#ifndef __USB_OSA_FREERTOS_H__
-#define __USB_OSA_FREERTOS_H__
+ ********************************************************************************** */
+#if !defined(__FSL_OS_ABSTRACTION_FREERTOS_H__)
+#define __FSL_OS_ABSTRACTION_FREERTOS_H__
 
 #if defined(__IAR_SYSTEMS_ICC__)
 /**
  * Workaround to disable MISRA C message suppress warnings for IAR compiler.
- * http://supp.iar.com/Support/?note=24725
  */
+/* http://supp.iar.com/Support/?note=24725 */
+
 #define MISRAC_DISABLE \
     _Pragma(           \
         "diag_suppress=                       \
@@ -63,27 +65,68 @@ MISRAC_DISABLE
 #include "event_groups.h"
 MISRAC_ENABLE
 
-/*******************************************************************************
- * Definitions
- ******************************************************************************/
-
-#define USB_OSA_SR_ALLOC() uint8_t usbOsaCurrentSr;
-#define USB_OSA_ENTER_CRITICAL() USB_OsaEnterCritical(&usbOsaCurrentSr)
-#define USB_OSA_EXIT_CRITICAL() USB_OsaExitCritical(usbOsaCurrentSr)
+/*!
+ * @addtogroup os_abstraction_free_rtos
+ * @{
+ */
 
 /*******************************************************************************
- * API
+ * Declarations
  ******************************************************************************/
+/*! @brief Type for a task handler, returned by the OSA_TaskCreate function. */
+typedef TaskHandle_t task_handler_t;
 
-#if defined(__cplusplus)
-extern "C" {
-#endif
+/*! @brief Type for a task stack.*/
+typedef portSTACK_TYPE task_stack_t;
 
-extern void USB_OsaEnterCritical(uint8_t *sr);
-extern void USB_OsaExitCritical(uint8_t sr);
+/*! @brief Type for task parameter */
+typedef void *task_param_t;
 
-#if defined(__cplusplus)
-}
-#endif
+/*! @brief Type for an event flags object.*/
+typedef EventBits_t event_flags_t;
 
-#endif /* __USB_OSA_FREERTOS_H__ */
+/*! @brief Constant to pass as timeout value in order to wait indefinitely. */
+#define OSA_WAIT_FOREVER 0xFFFFFFFFU
+
+/*! @brief OSA's time range in millisecond, OSA time wraps if exceeds this value. */
+#define FSL_OSA_TIME_RANGE 0xFFFFFFFFU
+
+/*! @brief The default interrupt handler installed in vector table. */
+#define OSA_DEFAULT_INT_HANDLER ((osa_int_handler_t)(&DefaultISR))
+
+extern void DefaultISR(void);
+
+/*!
+ * @name Thread management
+ * @{
+ */
+
+/*!
+ * @brief To provide unified task piority for upper layer, OSA layer makes conversion.
+ */
+#define PRIORITY_OSA_TO_RTOS(osa_prio)  ((UBaseType_t)configMAX_PRIORITIES - (osa_prio)-2U)
+#define PRIORITY_RTOS_TO_OSA(rtos_prio) ((UBaseType_t)configMAX_PRIORITIES - (rtos_prio)-2U)
+
+/* @}*/
+
+/*!
+ * @name Message queues
+ * @{
+ */
+
+/*!
+ * @brief This macro statically reserves the memory required for the queue.
+ *
+ * @param name Identifier for the memory region.
+ * @param number Number of elements in the queue.
+ * @param size Size of every elements in words.
+ */
+#define MSG_QUEUE_DECLARE(name, number, size) msg_queue_t *name = NULL
+
+/* @}*/
+
+/*! @}*/
+/*! @}*/
+/*! @}*/
+
+#endif /* __FSL_OS_ABSTRACTION_FREERTOS_H__ */

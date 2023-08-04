@@ -36,9 +36,9 @@
 #define DT_TERMINATOR_WITH_LC 	0x02U
 #define DMR_SYNC_DATA           0x40U
 
-#define HOTSPOT_VERSION_STRING "OpenGD77_HS v0.1.8"
+#define HOTSPOT_VERSION_STRING "OpenGD77_HS v0.1.15"
 
-typedef struct DMRLC
+typedef struct
 {
 	bool        PF;
 	bool        R;
@@ -59,7 +59,6 @@ enum HOTSPOT_RX_STATE
 	HOTSPOT_RX_START_LATE,
 	HOTSPOT_RX_AUDIO_FRAME,
 	HOTSPOT_RX_STOP,
-	HOTSPOT_RX_IDLE_OR_REPEAT,
 	HOTSPOT_RX_UNKNOWN
 };
 
@@ -135,6 +134,23 @@ typedef enum
 	MMDVMHOST_RX_BUSY,
 	MMDVMHOST_RX_ERROR
 } MMDVMHOST_RX_STATE;
+
+
+// Uncomment this to enable all mmdvmSendDebug*() functions. You will see the results in the MMDVMHost log file.
+//#define MMDVM_SEND_DEBUG
+
+#if defined(MMDVM_SEND_DEBUG)
+#define MMDVM_DEBUG1        0xF1
+#define MMDVM_DEBUG2        0xF2
+#define MMDVM_DEBUG3        0xF3
+#define MMDVM_DEBUG4        0xF4
+#define MMDVM_DEBUG5        0xF5
+void mmdvmSendDebug1(const char *text);
+void mmdvmSendDebug2(const char *text, int16_t n1);
+void mmdvmSendDebug3(const char *text, int16_t n1, int16_t n2);
+void mmdvmSendDebug4(const char *text, int16_t n1, int16_t n2, int16_t n3);
+void mmdvmSendDebug5(const char *text, int16_t n1, int16_t n2, int16_t n3, int16_t n4);
+#endif
 
 void hotspotRxFrameHandler(uint8_t *frameBuf);
 

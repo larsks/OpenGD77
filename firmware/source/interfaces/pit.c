@@ -27,34 +27,32 @@
  */
 
 #include "interfaces/pit.h"
+#include "user_interface/uiGlobals.h"
 
 volatile uint32_t timer_maintask;
 volatile uint32_t timer_beeptask;
 volatile uint32_t timer_hrc6000task;
-volatile uint32_t timer_watchdogtask;
 volatile uint32_t timer_keypad;
 volatile uint32_t timer_keypad_timeout;
-volatile uint32_t PITCounter;
+volatile uint32_t PITCounter = 0;
+volatile int PIT2SecondsCounter = 0;
 
 volatile uint32_t timer_mbuttons[3];
 
-void init_pit(void)
+void pitInit(void)
 {
-	taskENTER_CRITICAL();
 	timer_maintask = 0;
 	timer_beeptask = 0;
 	timer_hrc6000task = 0;
-	timer_watchdogtask = 0;
 	timer_keypad = 0;
 	timer_keypad_timeout = 0;
 	timer_mbuttons[0] = timer_mbuttons[1] = timer_mbuttons[2] = 0;
-	taskEXIT_CRITICAL();
 
 	pit_config_t pitConfig;
 	PIT_GetDefaultConfig(&pitConfig);
 	PIT_Init(PIT, &pitConfig);
 
-	PIT_SetTimerPeriod(PIT, kPIT_Chnl_0, USEC_TO_COUNT(100U, CLOCK_GetFreq(kCLOCK_BusClk)));
+	PIT_SetTimerPeriod(PIT, kPIT_Chnl_0, USEC_TO_COUNT(1000U, CLOCK_GetFreq(kCLOCK_BusClk)));
 	PIT_EnableInterrupts(PIT, kPIT_Chnl_0, kPIT_TimerInterruptEnable);
 
 	EnableIRQ(PIT0_IRQn);
@@ -65,6 +63,12 @@ void init_pit(void)
 void PIT0_IRQHandler(void)
 {
 	PITCounter++;// is unsigned so will wrap around
+	PIT2SecondsCounter++;
+	if (PIT2SecondsCounter == 1000)
+	{
+		PIT2SecondsCounter = 0;
+		uiDataGlobal.dateTimeSecs++;
+	}
 
 	if (timer_maintask > 0)
 	{
@@ -78,10 +82,7 @@ void PIT0_IRQHandler(void)
 	{
 		timer_hrc6000task--;
 	}
-	if (timer_watchdogtask > 0)
-	{
-		timer_watchdogtask--;
-	}
+
 	if (timer_keypad > 0)
 	{
 		timer_keypad--;
@@ -105,6 +106,7 @@ void PIT0_IRQHandler(void)
 		timer_mbuttons[2]--;
 	}
 
+	watchdogTick();
 
     /* Clear interrupt flag.*/
     PIT_ClearStatusFlags(PIT, kPIT_Chnl_0, kPIT_TimerFlag);

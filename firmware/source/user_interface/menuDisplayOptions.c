@@ -36,6 +36,7 @@ static void handleEvent(uiEvent_t *ev);
 static void updateBacklightMode(uint8_t mode);
 static void setDisplayInvert(bool invert);
 static void checkMinBacklightValue(void);
+static void buildTimeZoneBufferText(char * buffer);
 
 static menuStatus_t menuDisplayOptionsExitCode = MENU_STATUS_SUCCESS;
 
@@ -57,7 +58,7 @@ static const char *contactOrders[] = { "Ct/DB/TA", "DB/Ct/TA", "TA/Ct/DB", "TA/D
 
 enum DISPLAY_MENU_LIST { DISPLAY_MENU_BRIGHTNESS = 0, DISPLAY_MENU_BRIGHTNESS_OFF, DISPLAY_MENU_CONTRAST, DISPLAY_MENU_BACKLIGHT_MODE,
 	DISPLAY_MENU_TIMEOUT, DISPLAY_MENU_COLOUR_INVERT, DISPLAY_MENU_CONTACT_DISPLAY_ORDER, DISPLAY_MENU_CONTACT_DISPLAY_SPLIT_CONTACT,
-	DISPLAY_BATTERY_UNIT_IN_HEADER, DISPLAY_EXTENDED_INFOS, DISPLAY_ALL_LEDS_ENABLED,
+	DISPLAY_BATTERY_UNIT_IN_HEADER, DISPLAY_EXTENDED_INFOS, DISPLAY_ALL_LEDS_ENABLED, DISLAY_TIMEZONE_VALUE, DISLAY_TIME_UTC_OR_LOCAL,
 	NUM_DISPLAY_MENU_ITEMS };
 
 menuStatus_t menuDisplayOptions(uiEvent_t *ev, bool isFirstRun)
@@ -107,7 +108,7 @@ static void updateScreen(bool isFirstRun)
 	voicePrompt_t rightSideUnitsPrompt;
 	const char * rightSideUnitsStr;
 
-	ucClearBuf();
+	displayClearBuf();
 	bool settingOption = uiShowQuickKeysChoices(buf, SCREEN_LINE_BUFFER_SIZE, currentLanguage->display_options);
 
 	// Can only display 3 of the options at a time menu at -1, 0 and +1
@@ -205,6 +206,15 @@ static void updateScreen(bool isFirstRun)
 					leftSide = (char * const *)&currentLanguage->leds;
 					rightSideConst = settingsIsOptionBitSet(BIT_ALL_LEDS_DISABLED) ? (char * const *)&currentLanguage->off : (char * const *)&currentLanguage->on;
 					break;
+				case DISLAY_TIMEZONE_VALUE:
+					leftSide = (char * const *)&currentLanguage->timeZone;
+					buildTimeZoneBufferText(rightSideVar);
+					break;
+				case DISLAY_TIME_UTC_OR_LOCAL:
+					leftSide = (char * const *)&currentLanguage->time;
+					rightSideConst = (nonVolatileSettings.timezone & 0x80)?(char * const *)&currentLanguage->local:(char * const *)&currentLanguage->UTC;
+					break;
+
 			}
 
 			// workaround for non standard format of line for colour display
@@ -270,7 +280,7 @@ static void updateScreen(bool isFirstRun)
 		}
 	}
 
-	ucRender();
+	displayRender();
 }
 
 static void handleEvent(uiEvent_t *ev)
@@ -346,7 +356,7 @@ static void handleEvent(uiEvent_t *ev)
 			if (nonVolatileSettings.displayContrast != originalNonVolatileSettings.displayContrast)
 			{
 				settingsSet(nonVolatileSettings.displayContrast, originalNonVolatileSettings.displayContrast);
-				ucSetContrast(nonVolatileSettings.displayContrast);
+				displaySetContrast(nonVolatileSettings.displayContrast);
 			}
 
 			if ((nonVolatileSettings.bitfieldOptions & BIT_INVERSE_VIDEO) != (originalNonVolatileSettings.bitfieldOptions & BIT_INVERSE_VIDEO))
@@ -447,7 +457,7 @@ static void handleEvent(uiEvent_t *ev)
 					{
 						settingsIncrement(nonVolatileSettings.displayContrast, 1);
 					}
-					ucSetContrast(nonVolatileSettings.displayContrast);
+					displaySetContrast(nonVolatileSettings.displayContrast);
 					break;
 				case DISPLAY_MENU_BACKLIGHT_MODE:
 					if (nonVolatileSettings.backlightMode < BACKLIGHT_MODE_NONE)
@@ -503,6 +513,32 @@ static void handleEvent(uiEvent_t *ev)
 						GPIO_PinWrite(GPIO_LEDgreen, Pin_LEDgreen, state);
 					}
 					break;
+				case DISLAY_TIMEZONE_VALUE:
+					{
+						int tz = (nonVolatileSettings.timezone & 0x7F) ;
+						if (BUTTONCHECK_DOWN(ev, BUTTON_SK2))
+						{
+							tz++;
+						}
+						else
+						{
+							tz += 4;
+						}
+
+						if (tz <= ((14 * 4) + SETTINGS_TIMEZONE_UTC))
+						{
+							settingsSet(nonVolatileSettings.timezone, ((nonVolatileSettings.timezone & ~0x7F) + tz));
+						}
+						else
+						{
+							tz = (14 * 4) + SETTINGS_TIMEZONE_UTC;
+						}
+					}
+					break;
+				case DISLAY_TIME_UTC_OR_LOCAL:
+					settingsSet(nonVolatileSettings.timezone, (uint8_t) (nonVolatileSettings.timezone | 0x80));
+					break;
+
 			}
 		}
 		else if (KEYCHECK_PRESS(ev->keys, KEY_LEFT) || (QUICKKEY_FUNCTIONID(ev->function) == FUNC_LEFT))
@@ -545,7 +581,7 @@ static void handleEvent(uiEvent_t *ev)
 					{
 						settingsDecrement(nonVolatileSettings.displayContrast, 1);
 					}
-					ucSetContrast(nonVolatileSettings.displayContrast);
+					displaySetContrast(nonVolatileSettings.displayContrast);
 					break;
 				case DISPLAY_MENU_BACKLIGHT_MODE:
 					if (nonVolatileSettings.backlightMode > BACKLIGHT_MODE_AUTO)
@@ -596,6 +632,31 @@ static void handleEvent(uiEvent_t *ev)
 						GPIO_PinWrite(GPIO_LEDgreen, Pin_LEDgreen, 0);
 						settingsSetOptionBit(BIT_ALL_LEDS_DISABLED, true);
 					}
+					break;
+				case DISLAY_TIMEZONE_VALUE:
+					{
+						int tz = (nonVolatileSettings.timezone & 0x7F) ;
+						if (BUTTONCHECK_DOWN(ev, BUTTON_SK2))
+						{
+							tz--;
+						}
+						else
+						{
+							tz -= 4;
+						}
+
+						if (tz >= ((-12 * 4) + SETTINGS_TIMEZONE_UTC))
+						{
+							settingsSet(nonVolatileSettings.timezone, ((nonVolatileSettings.timezone & ~0x7F) + tz));
+						}
+						else
+						{
+							tz = (-12 * 4) + SETTINGS_TIMEZONE_UTC;
+						}
+					}
+					break;
+				case DISLAY_TIME_UTC_OR_LOCAL:
+					settingsSet(nonVolatileSettings.timezone, (uint8_t) (nonVolatileSettings.timezone & ~0x80));
 					break;
 			}
 		}
@@ -649,7 +710,7 @@ static void updateBacklightMode(uint8_t mode)
 	{
 		case BACKLIGHT_MODE_MANUAL:
 		case BACKLIGHT_MODE_NONE:
-			displayEnableBacklight(false); // Could be MANUAL previously, but in OFF state, so turn it OFF blindly.
+			displayEnableBacklight(false,nonVolatileSettings.displayBacklightPercentageOff); // Could be MANUAL previously, but in OFF state, so turn it OFF blindly.
 			break;
 		case BACKLIGHT_MODE_SQUELCH:
 		case BACKLIGHT_MODE_BUTTONS:
@@ -682,4 +743,12 @@ static void checkMinBacklightValue(void)
 				(int8_t) (nonVolatileSettings.displayBacklightPercentage ?
 						(nonVolatileSettings.displayBacklightPercentage - ((nonVolatileSettings.displayBacklightPercentageOff <= BACKLIGHT_PERCENTAGE_STEP) ? BACKLIGHT_PERCENTAGE_STEP_SMALL : BACKLIGHT_PERCENTAGE_STEP)) : 0));
 	}
+}
+
+static void buildTimeZoneBufferText(char * buffer)
+{
+	int tz 		= (nonVolatileSettings.timezone & 0x7F);
+	int hoursPart 	= abs((tz - SETTINGS_TIMEZONE_UTC) / 4);
+	int minutesPart = 15 * abs(tz % 4);// optimisation . No need to subtract the SETTINGS_TIMEZONE_UTC as we just extra act the modulus 4 part.
+	snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "%c%2u:%02u",(tz >= SETTINGS_TIMEZONE_UTC)?'+':'-', abs(hoursPart),minutesPart);
 }

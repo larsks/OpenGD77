@@ -37,51 +37,61 @@
 #include "functions/sound.h"
 #include "hardware/SPI_Flash.h"
 #include "user_interface/uiLocalisation.h"
+#include "functions/rxPowerSaving.h"
+
+//#define LOOKUP_ENABLED 1
 
 static void handleCPSRequest(void);
 
-__attribute__((section(".data.$RAM2"))) volatile uint8_t com_buffer[COM_BUFFER_SIZE];
-int com_buffer_write_idx = 0;
-int com_buffer_read_idx = 0;
-volatile int com_buffer_cnt = 0;
 volatile int com_request = 0;
 __attribute__((section(".data.$RAM2"))) volatile uint8_t com_requestbuffer[COM_REQUESTBUFFER_SIZE];
 __attribute__((section(".data.$RAM2"))) USB_DMA_NONINIT_DATA_ALIGN(USB_DATA_ALIGN_SIZE) uint8_t usbComSendBuf[COM_BUFFER_SIZE];//DATA_BUFF_SIZE
 int sector = -1;
+volatile int comRecvMMDVMIndexIn = 0;
+volatile int comRecvMMDVMIndexOut = 0;
+volatile int comRecvMMDVMFrameCount = 0;
 static bool flashingDMRIDs = false;
 static bool channelsRewritten = false;
+
+bool isCompressingAMBE = false;
 
 
 void tick_com_request(void)
 {
-		switch (settingsUsbMode)
-		{
-			case USB_MODE_CPS:
-				if (com_request == 1)
-				{
-					if ((nonVolatileSettings.hotspotType != HOTSPOT_TYPE_OFF) &&
-							(com_requestbuffer[0] == 0xE0U) && // MMDVM_FRAME_START
-							(uiDataGlobal.dmrDisabled == false)) // DMR (digital) is disabled.
-					{
-						settingsUsbMode = USB_MODE_HOTSPOT;
-						menuSystemPushNewMenu(UI_HOTSPOT_MODE);
-						return;
-					}
-					taskENTER_CRITICAL();
-					handleCPSRequest();
-					taskEXIT_CRITICAL();
-					com_request = 0;
-				}
+	switch (settingsUsbMode)
+	{
+		case USB_MODE_CPS:
+			if (com_request == 1)
+			{
+				handleCPSRequest();
+				com_request = 0;
+			}
+			break;
 
-				break;
-			case USB_MODE_HOTSPOT:
-				break;
+		case USB_MODE_HOTSPOT:
+			// That will happen once when MMDVMHost send the first frame
+			// out of the Hotspot mode.
+			if (com_request == 1)
+			{
+				com_request = 0;
+
+				if ((nonVolatileSettings.hotspotType != HOTSPOT_TYPE_OFF) &&
+						((comRecvMMDVMFrameCount >= 1) && (com_requestbuffer[1] == MMDVM_FRAME_START)) &&
+						(uiDataGlobal.dmrDisabled == false)) // DMR (digital) is disabled.
+				{
+					if (menuSystemGetCurrentMenuNumber() != UI_HOTSPOT_MODE)
+					{
+						menuSystemPushNewMenu(UI_HOTSPOT_MODE);
+					}
+				}
+			}
+			break;
 	}
 }
 
 enum CPS_ACCESS_AREA { 	CPS_ACCESS_FLASH = 1,
 						CPS_ACCESS_EEPROM = 2,
-						CPS_ACCESS_MCU_ROM=5,
+						CPS_ACCESS_MCU_ROM = 5,
 						CPS_ACCESS_DISPLAY_BUFFER = 6,
 						CPS_ACCESS_WAV_BUFFER = 7,
 						CPS_COMPRESS_AND_ACCESS_AMBE_BUFFER = 8,
@@ -90,34 +100,31 @@ enum CPS_ACCESS_AREA { 	CPS_ACCESS_FLASH = 1,
 
 static void cpsHandleReadCommand(void)
 {
-
 	uint32_t address = (com_requestbuffer[2] << 24) + (com_requestbuffer[3] << 16) + (com_requestbuffer[4] << 8) + (com_requestbuffer[5] << 0);
 	uint32_t length = (com_requestbuffer[6] << 8) + (com_requestbuffer[7] << 0);
 	bool result = false;
 
-	if (length > 32)
+	watchdogRun(false);
+
+	if (length > (COM_REQUESTBUFFER_SIZE - 3))
 	{
-		length = 32;
+		length = (COM_REQUESTBUFFER_SIZE - 3);
 	}
 
 	switch(com_requestbuffer[1])
 	{
 		case CPS_ACCESS_FLASH:
-			taskEXIT_CRITICAL();
 			result = SPI_Flash_read(address, &usbComSendBuf[3], length);
-			taskENTER_CRITICAL();
 			break;
 		case CPS_ACCESS_EEPROM:
-			taskEXIT_CRITICAL();
 			result = EEPROM_Read(address, &usbComSendBuf[3], length);
-			taskENTER_CRITICAL();
 			break;
 		case CPS_ACCESS_MCU_ROM:
 			memcpy(&usbComSendBuf[3], (uint8_t *)address, length);
 			result = true;
 			break;
 		case CPS_ACCESS_DISPLAY_BUFFER:
-			memcpy(&usbComSendBuf[3], &screenBuf[address], length);
+			memcpy(&usbComSendBuf[3], displayGetPrimaryScreenBuffer() + address, length);
 			result = true;
 			break;
 		case CPS_ACCESS_WAV_BUFFER:
@@ -139,7 +146,7 @@ static void cpsHandleReadCommand(void)
 				struct
 				{
 					uint32_t structVersion;
-					uint32_t	radioType;
+					uint32_t radioType;
 					char gitRevision[16];
 					char buildDateTime[16];
 					uint32_t flashId;
@@ -156,10 +163,11 @@ static void cpsHandleReadCommand(void)
 				radioInfo.radioType = 3;
 #elif defined(PLATFORM_DM1801A)
 				radioInfo.radioType = 4;
+#elif defined(PLATFOR_MD9600)
+				radioInfo.radioType = 5;
 #endif
-				snprintf(radioInfo.gitRevision, 15, "%s", GITVERSION);
-
-				snprintf(radioInfo.buildDateTime, 15,"%04d%02d%02d%02d%02d%02d\n", BUILD_YEAR, BUILD_MONTH, BUILD_DAY, BUILD_HOUR, BUILD_MIN, BUILD_SEC);
+				snprintf(radioInfo.gitRevision, sizeof(radioInfo.gitRevision), "%s", GITVERSION);
+				snprintf(radioInfo.buildDateTime, sizeof(radioInfo.buildDateTime), "%04d%02d%02d%02d%02d%02d", BUILD_YEAR, BUILD_MONTH, BUILD_DAY, BUILD_HOUR, BUILD_MIN, BUILD_SEC);
 				radioInfo.flashId = flashChipPartNumber;
 
 				length = sizeof(radioInfo);
@@ -181,27 +189,29 @@ static void cpsHandleReadCommand(void)
 		usbComSendBuf[0] = '-';
 		USB_DeviceCdcAcmSend(s_cdcVcom.cdcAcmHandle, USB_CDC_VCOM_BULK_IN_ENDPOINT, usbComSendBuf, 1);
 	}
+
+	watchdogRun(true);
 }
 
 static void cpsHandleWriteCommand(void)
 {
 	bool ok = false;
 
+	watchdogRun(false);
+
 	switch(com_requestbuffer[1])
 	{
 		case 1:
 			if (sector == -1)
 			{
-				sector=(com_requestbuffer[2] << 16) + (com_requestbuffer[3] << 8) + (com_requestbuffer[4] << 0);
+				sector = (com_requestbuffer[2] << 16) + (com_requestbuffer[3] << 8) + (com_requestbuffer[4] << 0);
 
 				if ((sector * 4096) == 0x30000) // start address of DMRIDs DB
 				{
 					flashingDMRIDs = true;
 				}
 
-				taskEXIT_CRITICAL();
 				ok = SPI_Flash_read(sector * 4096, SPI_Flash_sectorbuffer, 4096);
-				taskENTER_CRITICAL();
 			}
 			break;
 		case 2:
@@ -222,9 +232,9 @@ static void cpsHandleWriteCommand(void)
 				}
 #endif
 
-				if (length > 32)
+				if (length > (COM_REQUESTBUFFER_SIZE - 8))
 				{
-					length = 32;
+					length = (COM_REQUESTBUFFER_SIZE - 8);
 				}
 
 				for (int i = 0; i < length; i++)
@@ -241,22 +251,20 @@ static void cpsHandleWriteCommand(void)
 		case 3:
 			if (sector >= 0)
 			{
-				taskEXIT_CRITICAL();
 				ok = SPI_Flash_eraseSector(sector * 4096);
-				taskENTER_CRITICAL();
 				if (ok)
 				{
+					// Write the 16 pages of the sector
 					for (int i = 0; i < 16; i++)
 					{
-						taskEXIT_CRITICAL();
 						ok = SPI_Flash_writePage(sector * 4096 + i * 256, SPI_Flash_sectorbuffer + i * 256);
-						taskENTER_CRITICAL();
 						if (!ok)
 						{
 							break;
 						}
 					}
 				}
+
 				sector = -1;
 			}
 			break;
@@ -271,9 +279,9 @@ static void cpsHandleWriteCommand(void)
 					channelsRewritten = true;
 				}
 
-				if (length > 32)
+				if (length > (COM_REQUESTBUFFER_SIZE - 8))
 				{
-					length = 32;
+					length = (COM_REQUESTBUFFER_SIZE - 8);
 				}
 
 
@@ -336,11 +344,44 @@ static void cpsHandleWriteCommand(void)
 	}
 	else
 	{
-		sector=-1;
+		sector = -1;
 		usbComSendBuf[0] = '-';
 		USB_DeviceCdcAcmSend(s_cdcVcom.cdcAcmHandle, USB_CDC_VCOM_BULK_IN_ENDPOINT, usbComSendBuf, 1);
 	}
+
+	watchdogRun(true);
 }
+
+#if defined(LOOKUP_ENABLED)
+static void cpsHandleLookup(void)
+{
+	bool ok = false;
+	uint32_t ID = 0;
+	dmrIdDataStruct_t ctx;
+	char buf[80];
+
+	ID = atoi((char *)&com_requestbuffer[1]);
+
+	if (dmrIDLookup(ID, &ctx))
+	{
+		snprintf(buf, sizeof(buf), "L%d %s\n", ID, ctx.text);
+		memcpy(usbComSendBuf, buf, strlen(buf));
+		ok = true;
+	}
+
+	if (ok)
+	{
+		USB_DeviceCdcAcmSend(s_cdcVcom.cdcAcmHandle, USB_CDC_VCOM_BULK_IN_ENDPOINT, usbComSendBuf, strlen(buf));
+	}
+	else
+	{
+		usbComSendBuf[0] = '-';
+		usbComSendBuf[1] = '\n';
+		usbComSendBuf[2] = 0;
+		USB_DeviceCdcAcmSend(s_cdcVcom.cdcAcmHandle, USB_CDC_VCOM_BULK_IN_ENDPOINT, usbComSendBuf, 3);
+	}
+}
+#endif
 
 static void cpsHandleCommand(void)
 {
@@ -374,12 +415,14 @@ static void cpsHandleCommand(void)
 				dmrIDCacheInit();
 				flashingDMRIDs = false;
 			}
+			isCompressingAMBE = false;
+			rxPowerSavingSetLevel(nonVolatileSettings.ecoLevel);
 			uiCPSUpdate(CPS2UI_COMMAND_END, 0, 0, FONT_SIZE_1, TEXT_ALIGN_LEFT, 0, NULL);
 			break;
 		case 6:
 			{
 				int subCommand = com_requestbuffer[2];
-				uint32_t m = fw_millis();
+				uint32_t m = ticksGetMillis();
 
 				// Do some other processing
 				switch(subCommand)
@@ -393,10 +436,10 @@ static void cpsHandleCommand(void)
 							//
 							// Give it a bit of time before reading the zone count as DM-1801 EEPROM looks slower
 							// than GD-77 to write
-							m = fw_millis();
+							m = ticksGetMillis();
 							while (1U)
 							{
-								if ((fw_millis() - m) > 50)
+								if ((ticksGetMillis() - m) > 50)
 								{
 									break;
 								}
@@ -422,14 +465,14 @@ static void cpsHandleCommand(void)
 						}
 
 						// save current settings and reboot
-						m = fw_millis();
+						m = ticksGetMillis();
 						settingsSaveSettings(false);// Need to save these channels prior to reboot, as reboot does not save
 
 						// Give it a bit of time before pulling the plug as DM-1801 EEPROM looks slower
 						// than GD-77 to write, then quickly power cycling triggers settings reset.
 						while (1U)
 						{
-							if ((fw_millis() - m) > 50)
+							if ((ticksGetMillis() - m) > 50)
 							{
 								break;
 							}
@@ -452,11 +495,29 @@ static void cpsHandleCommand(void)
 						uiCPSUpdate(CPS2UI_COMMAND_RED_LED, 0, 0, FONT_SIZE_1, TEXT_ALIGN_LEFT, 0, NULL);
 						break;
 					case 5:
+						rxPowerSavingSetLevel(0);
+						isCompressingAMBE = true;
 						codecInitInternalBuffers();
 						break;
 					case 6:
 						soundInit();// Resets the sound buffers
 						memset((uint8_t *)&audioAndHotspotDataBuffer.rawBuffer[0], 0, (6 * WAV_BUFFER_SIZE));// clear 1 dmr frame size of wav buffer memory
+						break;
+					case 7:
+						memcpy(&uiDataGlobal.dateTimeSecs, (uint8_t *)&com_requestbuffer[3], sizeof(uint32_t));// update date with data from the CPS
+						menuSatelliteScreenClearPredictions(true);
+						break;
+					// 8:
+					// 9:
+					case 10: // wait 10ms
+						m = ticksGetMillis();
+						while (1U)
+						{
+							if ((ticksGetMillis() - m) > 10)
+							{
+								break;
+							}
+						}
 						break;
 					default:
 						break;
@@ -486,13 +547,25 @@ static void handleCPSRequest(void)
 		case 'C':
 			cpsHandleCommand();
 			break;
+#if defined(LOOKUP_ENABLED)
+		case 'L':
+			cpsHandleLookup();
+			break;
+#endif
 		default:
 			usbComSendBuf[0] = '-';
 			USB_DeviceCdcAcmSend(s_cdcVcom.cdcAcmHandle, USB_CDC_VCOM_BULK_IN_ENDPOINT, usbComSendBuf, 1);
 			break;
 	}
 }
+
 #if 0
+__attribute__((section(".data.$RAM2"))) volatile uint8_t com_buffer[COM_BUFFER_SIZE];
+int com_buffer_write_idx = 0;
+int com_buffer_read_idx = 0;
+volatile int com_buffer_cnt = 0;
+
+
 void send_packet(uint8_t val_0x82, uint8_t val_0x86, int ram)
 {
 	taskENTER_CRITICAL();
@@ -553,19 +626,22 @@ void add_to_commbuffer(uint8_t value)
 	}
 }
 #endif
+
 void USB_DEBUG_PRINT(char *str)
 {
-	strcpy((char*)usbComSendBuf, str);
-	USB_DeviceCdcAcmSend(s_cdcVcom.cdcAcmHandle, USB_CDC_VCOM_BULK_IN_ENDPOINT, usbComSendBuf, strlen(str));
+	strncpy((char *)usbComSendBuf, str, COM_BUFFER_SIZE);
+	usbComSendBuf[COM_BUFFER_SIZE - 1] = 0; // SAFETY: strncpy won't NULL terminate the buffer if length was exceeding.
+
+	USB_DeviceCdcAcmSend(s_cdcVcom.cdcAcmHandle, USB_CDC_VCOM_BULK_IN_ENDPOINT, usbComSendBuf, strlen((char *)usbComSendBuf));
 }
 
 void USB_DEBUG_printf(const char *format, ...)
 {
-	  char buf[80];
+	  char buf[COM_BUFFER_SIZE];
 	  va_list params;
 
 	  va_start(params, format);
-	  vsnprintf(buf, 77, format, params);
+	  vsnprintf(buf, (sizeof(buf) - 2), format, params);
 	  strcat(buf, "\n");
 	  va_end(params);
 	  USB_DEBUG_PRINT(buf);

@@ -30,15 +30,18 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <time.h>
 #include "functions/settings.h"
 #include "functions/codeplug.h"
+
+typedef unsigned int time_t_custom;     /* date/time in unix secs past 1-Jan-70 */
 
 #define MAX_ZONE_SCAN_NUISANCE_CHANNELS       16
 #define NUM_LASTHEARD_STORED                  32
 
 #if defined(PLATFORM_RD5R)
 #define MENU_ENTRY_HEIGHT                     10
-#define SQUELCH_BAR_H                          4
+#define SQUELCH_BAR_H                          5
 #define V_OFFSET                               2
 #define OVERRIDE_FRAME_HEIGHT                 11
 #define VFO_LETTER_Y_OFFSET                    0
@@ -104,7 +107,10 @@
 #define TIMESLOT_DURATION                     30
 
 #define SCAN_SHORT_PAUSE_TIME                500 //time to wait after carrier detected to allow time for full signal detection. (CTCSS or DMR)
-#define SCAN_DMR_SIMPLEX_MIN_INTERVAL        (TIMESLOT_DURATION * 2) //minimum time between steps when scanning DMR Simplex. (needs extra time to capture TDMA Pulsing)
+
+#define SCAN_DMR_DUPLEX_MIN_DWELL_TIME       (TIMESLOT_DURATION * 6) //minimum time between steps when scanning DMR Duplex. (needs extra time to capture TDMA Pulsing)
+#define SCAN_DMR_SIMPLEX_MIN_DWELL_TIME      (TIMESLOT_DURATION * 10) //minimum time between steps when scanning DMR Simplex. (needs extra time to capture TDMA Pulsing)
+
 #define SCAN_FREQ_CHANGE_SETTLING_INTERVAL     1 //Time after frequency is changed before RSSI sampling starts
 #define SCAN_SKIP_CHANNEL_INTERVAL             1 //This is actually just an implicit flag value to indicate the channel should be skipped
 
@@ -166,6 +172,13 @@ extern const int DBM_LEVELS[16];
 
 typedef enum
 {
+	TXSTOP_TIMEOUT,
+	TXSTOP_RX_ONLY,
+	TXSTOP_OUT_OF_BAND
+} txTerminationReason_t;
+
+typedef enum
+{
 	PRIVATE_CALL_NOT_IN_CALL = 0,
 	PRIVATE_CALL_ACCEPT,
 	PRIVATE_CALL,
@@ -212,7 +225,8 @@ typedef struct LinkItem
     char 				talkerAlias[32];// 4 blocks of data. 6 bytes + 7 bytes + 7 bytes + 7 bytes . plus 1 for termination some more for safety.
     char 				locator[7];
     uint32_t			time;// current system time when this station was heard
-    int					receivedTS;
+    uint8_t				receivedTS;
+    uint8_t				dmrMode;
     struct LinkItem 	*next;
 } LinkItem_t;
 
@@ -242,6 +256,22 @@ typedef enum
 
 typedef bool (*messageBoxValidator_t)(void); // MessageBox callback function prototype.
 
+typedef enum
+{
+	ALARM_TYPE_NONE,
+	ALARM_TYPE_CLOCK,
+	ALARM_TYPE_SATELLITE,
+	ALARM_TYPE_CANCELLED
+} alarmType_t;
+
+typedef enum
+{
+	SATELLITE_PHASE_NONE,
+	SATELLITE_PHASE_BEFORE_PASS,
+	SATELLITE_PHASE_DURING_PASS,
+	SATELLITE_PHASE_AFTER_PASS
+} satellitePhase_t;
+
 typedef struct
 {
 	uint32_t            userDMRId;
@@ -249,7 +279,6 @@ typedef struct
 	uint32_t            tgBeforePcMode;
 	qsoDisplayState_t 	displayQSOState;
 	qsoDisplayState_t 	displayQSOStatePrev;
-	bool 				displaySquelch;
 	bool 				isDisplayingQSOData;
 	bool				displayChannelSettings;
 	bool				reverseRepeater;
@@ -259,12 +288,12 @@ typedef struct
 	int					receivedPcTS;
 	bool				dmrDisabled;
 	uint32_t			manualOverrideDMRId;// This is a global so it will default to 0
-
+	time_t_custom		dateTimeSecs;// Epoch (00:00:00 UTC, January 1, 1970)
 
 	struct
 	{
 		int 				timer;
-		int 				timerReload;
+		int 				dwellTime;
 		int 				direction;
 		int					availableChannelsCount;
 		int 				nuisanceDeleteIndex;
@@ -284,10 +313,10 @@ typedef struct
 
 	struct
 	{
-		int 				tmpDmrDestinationFilterLevel;
-		int 				tmpDmrCcTsFilterLevel;
-		int 				tmpAnalogFilterLevel;
-		int					tmpTxRxLockMode;
+		uint8_t 			tmpDmrDestinationFilterLevel;
+		uint8_t 			tmpDmrCcTsFilterLevel;
+		uint8_t 			tmpAnalogFilterLevel;
+		bool				tmpTxRxLockMode;
 		CodeplugCSSTypes_t	tmpToneScanCSS;
 		uint8_t				tmpVFONumber;
 	} QuickMenu;
@@ -332,7 +361,15 @@ typedef struct
 		bool                                        inTone;
 	} DTMFContactList;
 
+	struct
+	{
+		uint32_t			alarmTime;
+		alarmType_t			alarmType;
+		uint32_t			currentSatellite;
+	} SatelliteAndAlarmData;
+
 } uiDataGlobal_t;
+
 
 extern const char 				*POWER_LEVELS[];
 extern const char 				*POWER_LEVEL_UNITS[];
@@ -352,5 +389,7 @@ extern struct_codeplugContact_t currentContactData;
 extern LinkItem_t 				*LinkHead;
 
 extern bool 					PTTToggledDown;
+extern uint32_t					xmitErrorTimer;
+
 
 #endif

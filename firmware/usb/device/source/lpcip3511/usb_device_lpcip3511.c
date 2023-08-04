@@ -1,9 +1,35 @@
 /*
+ * The Clear BSD License
  * Copyright (c) 2016, Freescale Semiconductor, Inc.
  * Copyright 2016 - 2017 NXP
  * All rights reserved.
  *
- * SPDX-License-Identifier: BSD-3-Clause
+ * Redistribution and use in source and binary forms, with or without modification,
+ * are permitted (subject to the limitations in the disclaimer below) provided
+ * that the following conditions are met:
+ *
+ * o Redistributions of source code must retain the above copyright notice, this list
+ *   of conditions and the following disclaimer.
+ *
+ * o Redistributions in binary form must reproduce the above copyright notice, this
+ *   list of conditions and the following disclaimer in the documentation and/or
+ *   other materials provided with the distribution.
+ *
+ * o Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from this
+ *   software without specific prior written permission.
+ *
+ * NO EXPRESS OR IMPLIED LICENSES TO ANY PARTY'S PATENT RIGHTS ARE GRANTED BY THIS LICENSE.
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
+ * ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ * ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 #include "usb_device_config.h"
@@ -422,21 +448,8 @@ static void USB_DeviceLpc3511IpSetDefaultState(usb_device_lpc3511ip_state_struct
     USB_DeviceLpc3511IpControl(lpc3511IpState, kUSB_DeviceControlSetDeviceAddress, &usbAddress);
 
     lpc3511IpState->registerBase->EPLISTSTART = (uint32_t)lpc3511IpState->epCommandStatusList;
-#if ((defined(USB_DEVICE_CONFIG_LPCIP3511HS)) && (USB_DEVICE_CONFIG_LPCIP3511HS > 0U))
-    if (lpc3511IpState->controllerSpeed)
-    {
-        if ((USB_DATABUFSTART_DA_BUF_MASK & (uint32_t)lpc3511IpState->setupData) !=
-            lpc3511IpState->registerBase->DATABUFSTART)
-        {
-            /* please use the dedicated ram */
-        }
-    }
-    else
-#endif
-    {
-        /* all data buffer is in the same 4M range with this setup data buffer */
-        ((USB_Type *)(lpc3511IpState->registerBase))->DATABUFSTART = (uint32_t)lpc3511IpState->setupData;
-    }
+    /* all data buffer is in the same 4M range with this setup data buffer */
+    lpc3511IpState->registerBase->DATABUFSTART = (uint32_t)lpc3511IpState->setupData;
     /* reset registers */
     lpc3511IpState->registerBase->EPINUSE = 0x0;
     lpc3511IpState->registerBase->EPSKIP = 0x0;
@@ -1001,7 +1014,7 @@ static void USB_DeviceLpc3511IpInterruptToken(usb_device_lpc3511ip_state_struct_
         /* Whether the transfer is completed or not.
          * The transfer is completed when one of the following conditions meet:
          * 1. The remaining length is zero.
-         * 2. The length of current tansaction is not the multiple of max packet size.
+         * 2. The length of current transcation is not the multiple of max packet size.
          */
         if ((length > 0U) && (!(length % epState->stateUnion.stateBitField.maxPacketSize)) && (remainLength > 0U))
         {
@@ -1491,7 +1504,7 @@ usb_status_t USB_DeviceLpc3511IpSend(usb_device_controller_handle controllerHand
         return kStatus_USB_Error;
     }
 
-    /* Save the transfer information */
+    /* Save the tansfer information */
     epState->transferDone = 0U;
     epState->transferBuffer = buffer;
     epState->transferLength = length;

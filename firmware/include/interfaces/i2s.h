@@ -37,7 +37,7 @@
 
 #include "functions/sound.h"
 
-#define NUM_I2S_BUFFERS 6
+#define NUM_I2S_BUFFERS  SAI_XFER_QUEUE_SIZE // was 6, but SAI_XFER_QUEUE_SIZE == 4
 
 
 #if defined(PLATFORM_GD77) || defined(PLATFORM_GD77S)

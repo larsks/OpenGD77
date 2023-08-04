@@ -230,8 +230,8 @@ void keyboardCheckKeyEvent(keyboardCode_t *keys, int *event)
 	bool validKey;
 	int newAlphaKey;
 	uint32_t tmp_timer_keypad;
-	uint32_t keypadTimerLong = nonVolatileSettings.keypadTimerLong * 1000;
-	uint32_t keypadTimerRepeat = nonVolatileSettings.keypadTimerRepeat * 1000;
+	uint32_t keypadTimerLong = nonVolatileSettings.keypadTimerLong * 100;
+	uint32_t keypadTimerRepeat = nonVolatileSettings.keypadTimerRepeat * 100;
 
 	*event = EVENT_KEY_NONE;
 	keys->event = 0;
@@ -287,8 +287,8 @@ void keyboardCheckKeyEvent(keyboardCode_t *keys, int *event)
 		*event = EVENT_KEY_CHANGE;
 
 		taskENTER_CRITICAL();
-		timer_keypad=keypadTimerLong;
-		timer_keypad_timeout = 10000;
+		timer_keypad = keypadTimerLong;
+		timer_keypad_timeout = 1000;
 		taskEXIT_CRITICAL();
 		keyState = KEY_WAITLONG;
 

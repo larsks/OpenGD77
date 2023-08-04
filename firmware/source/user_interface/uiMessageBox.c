@@ -195,7 +195,7 @@ static void updateScreen(bool forceRedraw)
 
 	if (forceRedraw)
 	{
-		ucClearBuf();
+		displayClearBuf();
 	}
 
 	switch (uiDataGlobal.MessageBox.type)
@@ -204,7 +204,7 @@ static void updateScreen(bool forceRedraw)
 		{
 			if (uiDataGlobal.MessageBox.decoration != MESSAGEBOX_DECORATION_NONE)
 			{
-				ucDrawRoundRectWithDropShadow(4, 4, 120, DISPLAY_SIZE_Y - (uiDataGlobal.MessageBox.buttons != MESSAGEBOX_BUTTONS_NONE ? FONT_SIZE_3_HEIGHT : 0) - 6, 5, true);
+				displayDrawRoundRectWithDropShadow(4, 4, 120, DISPLAY_SIZE_Y - (uiDataGlobal.MessageBox.buttons != MESSAGEBOX_BUTTONS_NONE ? FONT_SIZE_3_HEIGHT : 0) - 6, 5, true);
 			}
 
 			if (strlen(uiDataGlobal.MessageBox.message))
@@ -232,7 +232,7 @@ static void updateScreen(bool forceRedraw)
 			else
 			{
 				// Clear input
-				ucFillRect(0, (((DISPLAY_SIZE_Y / 8) - 1) * 3) + 2, DISPLAY_SIZE_X,
+				displayFillRect(0, (((DISPLAY_SIZE_Y / 8) - 1) * 3) + 2, DISPLAY_SIZE_X,
 						(DISPLAY_SIZE_Y - (((DISPLAY_SIZE_Y / 8) - 1) * 3)) - FONT_SIZE_3_HEIGHT - 2, true);
 			}
 
@@ -242,7 +242,7 @@ static void updateScreen(bool forceRedraw)
 				sprintf(pinStr, "%s%c", p, uiDataGlobal.FreqEnter.digits[i]);
 			}
 
-			ucPrintCentered(DISPLAY_Y_POS_RX_FREQ, pinStr, FONT_SIZE_3);
+			displayPrintCentered(DISPLAY_Y_POS_RX_FREQ, pinStr, FONT_SIZE_3);
 
 			// Cursor
 			if (uiDataGlobal.FreqEnter.index < uiDataGlobal.MessageBox.pinLength)
@@ -253,11 +253,11 @@ static void updateScreen(bool forceRedraw)
 
 			if ((xCursor >= 0) && (yCursor >= 0))
 			{
-				ucDrawFastHLine(xCursor + 1, yCursor, 6, blink);
+				displayDrawFastHLine(xCursor + 1, yCursor, 6, blink);
 
-				if ((fw_millis() - blinkTime) > 500)
+				if ((ticksGetMillis() - blinkTime) > 500)
 				{
-					blinkTime = fw_millis();
+					blinkTime = ticksGetMillis();
 					blink = !blink;
 				}
 			}
@@ -268,7 +268,7 @@ static void updateScreen(bool forceRedraw)
 			break;
 	}
 
-	ucRender();
+	displayRender();
 }
 
 static void displayMessage(void)
@@ -319,7 +319,7 @@ static void displayMessage(void)
 			memcpy(msg, pb, cnt);
 			msg[cnt] = '\0';
 
-			ucPrintCentered(y, msg, FONT_SIZE_3);
+			displayPrintCentered(y, msg, FONT_SIZE_3);
 			y += FONT_SIZE_3_HEIGHT;
 
 			pb = p + 1;
@@ -336,7 +336,7 @@ static void displayMessage(void)
 			memcpy(msg, pb, cnt);
 			msg[cnt] = '\0';
 
-			ucPrintCentered(y, msg, FONT_SIZE_3);
+			displayPrintCentered(y, msg, FONT_SIZE_3);
 		}
 	}
 	else
@@ -348,13 +348,13 @@ static void displayMessage(void)
 			decoration = true; // Override decoration
 
 			// Display title
-			ucDrawRoundRectWithDropShadow(2, 2, (DISPLAY_SIZE_X - 6), ((DISPLAY_SIZE_Y / 8) - 1) * 3, 3, true);
+			displayDrawRoundRectWithDropShadow(2, 2, (DISPLAY_SIZE_X - 6), ((DISPLAY_SIZE_Y / 8) - 1) * 3, 3, true);
 
 			y = 3;
 		}
 
 		snprintf(msg, (decoration ? 15 : 17), "%s", uiDataGlobal.MessageBox.message);
-		ucPrintCentered(y, msg, FONT_SIZE_3);
+		displayPrintCentered(y, msg, FONT_SIZE_3);
 	}
 
 }
@@ -364,13 +364,13 @@ static void displayButtons(void)
 	switch (uiDataGlobal.MessageBox.buttons)
 	{
 		case MESSAGEBOX_BUTTONS_OK:
-			ucDrawChoice(CHOICE_OK, false);
+			displayDrawChoice(CHOICE_OK, false);
 			break;
 		case MESSAGEBOX_BUTTONS_YESNO:
-			ucDrawChoice(CHOICE_YESNO, false);
+			displayDrawChoice(CHOICE_YESNO, false);
 			break;
 		case MESSAGEBOX_BUTTONS_DISMISS:
-			ucDrawChoice(CHOICE_DISMISS, false);
+			displayDrawChoice(CHOICE_DISMISS, false);
 			break;
 		default:
 			break;

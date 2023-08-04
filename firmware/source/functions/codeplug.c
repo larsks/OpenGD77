@@ -1244,9 +1244,15 @@ bool codeplugGetOpenGD77CustomData(codeplugCustomDataType_t dataType, uint8_t *d
 			SPI_Flash_read(dataHeaderAddress, (uint8_t *)&blockHeader, sizeof(codeplugCustomDataBlockHeader_t));
 			if (blockHeader.dataType == dataType)
 			{
-				SPI_Flash_read(dataHeaderAddress + sizeof(codeplugCustomDataBlockHeader_t), dataBuf,blockHeader.dataLength);
+				SPI_Flash_read(dataHeaderAddress + sizeof(codeplugCustomDataBlockHeader_t), dataBuf, blockHeader.dataLength);
 				return true;
 			}
+
+			if (blockHeader.dataLength == 0)
+			{
+				return false;
+			}
+
 			dataHeaderAddress += sizeof(codeplugCustomDataBlockHeader_t) + blockHeader.dataLength;
 
 		} while (dataHeaderAddress < MAX_BLOCK_ADDRESS);

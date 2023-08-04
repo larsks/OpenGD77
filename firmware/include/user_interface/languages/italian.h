@@ -29,7 +29,7 @@
  * Translators: IU4LEG, IZ2EIB
  *
  *
- * Rev: 2021.05.30 IZ2EIB  & IU4LEG
+ * Rev: 2021.09.11 IZ2EIB & IU4LEG
  */
 #ifndef USER_INTERFACE_LANGUAGES_ITALIAN_H_
 #define USER_INTERFACE_LANGUAGES_ITALIAN_H_
@@ -180,7 +180,7 @@ const stringsTable_t italianLanguage =
 .voice_prompt_level_2	   = "Voce L2", // Maxlen 16 (with : + audio_prompt)
 .voice_prompt_level_3	   = "Voce L3", // Maxlen 16 (with : + audio_prompt)
 .dmr_filter				   = "Filtro DMR",// MaxLen: 12 (with ':' + settings: "TG" or "Ct" or "RxG")
-.dmr_cc_filter			   = "Filtro CC", // MaxLen: 12 (with ':' + settings: .on or .off)
+.UNUSED_4				= "",
 .dmr_ts_filter			   = "Filtro TS", // MaxLen: 12 (with ':' + settings: .on or .off)
 .dtmf_contact_list			= "FM DTMF contacts", // Maxlen: 16
 .channel_power				= "W Ch", //Displayed as "Ch Power:" + .from_master or "Ch Power:"+ power text e.g. "Power:500mW" . Max total length 16
@@ -208,9 +208,33 @@ const stringsTable_t italianLanguage =
 .high					= "Alta",
 .dmr_id					= "2°idDMR",
 .scan_on_boot				= "Scan su ON",
-.dtmf_entry				= "DTMF entry",
-.name					= "Name",
-.openDM1801A 				= "OpenDM1801A" // Do not translate
+.dtmf_entry				= "Ins. DTMF",
+.name					= "Nome",
+.UNUSED_3				= "",
+.openDM1801A 				= "OpenDM1801A", // Do not translate
+.time					= "Orario",
+.uptime					= "Tempo Attività",
+.hours					= "Ore",
+.minutes				= "Minuti",
+.satellite				= "Satellite",
+.alarm_time				= "Allarme",
+.location				= "Posizione",
+.date					= "Data",
+.timeZone				= "Fuso orario",
+.suspend				= "Sospensione",
+.pass					= "Pass", // For satellite screen
+.elevation				= "El",
+.azimuth				= "Az",
+.inHHMMSS				= "in",
+.predicting				= "Previsione",
+.maximum				= "Max",
+.satellite_short		= "Sat",
+.local					= "Locale",
+.UTC					= "UTC",
+.symbols				= "NSEO", // symbols: N,S,E,W
+.not_set				= "NON IMPOSTATO",
+.general_options		= "Opzioni generali",
+.radio_options			= "Opzioni radio"
 };
 /********************************************************************
  *

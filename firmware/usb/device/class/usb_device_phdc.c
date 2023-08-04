@@ -43,7 +43,8 @@ static usb_status_t USB_DevicePhdcEndpointsDeinit(usb_device_phdc_struct_t *phdc
  ******************************************************************************/
 
 /*! @brief the PHDC device instance */
-USB_GLOBAL USB_RAM_ADDRESS_ALIGNMENT(USB_DATA_ALIGN_SIZE) usb_device_phdc_struct_t g_phdcHandle[USB_DEVICE_CONFIG_PHDC];
+USB_GLOBAL USB_RAM_ADDRESS_ALIGNMENT(USB_DATA_ALIGN_SIZE) static usb_device_phdc_struct_t
+    g_phdcHandle[USB_DEVICE_CONFIG_PHDC];
 
 /*******************************************************************************
  * Code
@@ -61,7 +62,7 @@ USB_GLOBAL USB_RAM_ADDRESS_ALIGNMENT(USB_DATA_ALIGN_SIZE) usb_device_phdc_struct
  */
 static usb_status_t USB_DevicePhdcAllocateHandle(usb_device_phdc_struct_t **handle)
 {
-    int32_t count;
+    uint32_t count;
     for (count = 0; count < USB_DEVICE_CONFIG_PHDC; count++)
     {
         if (NULL == g_phdcHandle[count].handle)
@@ -84,10 +85,10 @@ static usb_status_t USB_DevicePhdcAllocateHandle(usb_device_phdc_struct_t **hand
  */
 static usb_status_t USB_DevicePhdcFreeHandle(usb_device_phdc_struct_t *handle)
 {
-    handle->handle = NULL;
-    handle->configStruct = (usb_device_class_config_struct_t *)NULL;
+    handle->handle        = NULL;
+    handle->configStruct  = (usb_device_class_config_struct_t *)NULL;
     handle->configuration = 0U;
-    handle->alternate = 0U;
+    handle->alternate     = 0U;
     return kStatus_USB_Success;
 }
 
@@ -111,24 +112,24 @@ static usb_status_t USB_DevicePhdcBulkInCallback(usb_device_handle handle,
                                                  void *callbackParam)
 {
     usb_device_phdc_struct_t *phdcHandle;
-    usb_status_t error = kStatus_USB_Error;
+    usb_status_t status = kStatus_USB_Error;
 
     phdcHandle = (usb_device_phdc_struct_t *)callbackParam;
 
-    if (!phdcHandle)
+    if (NULL == phdcHandle)
     {
         return kStatus_USB_InvalidHandle;
     }
     phdcHandle->bulkIn.isBusy = 0U;
-    if ((NULL != phdcHandle->configStruct) && (phdcHandle->configStruct->classCallback))
+    if ((NULL != phdcHandle->configStruct) && (NULL != phdcHandle->configStruct->classCallback))
     {
         /* classCallback is initialized in classInit of s_UsbDeviceClassInterfaceMap,
         it is from the second parameter of classInit */
-        error = phdcHandle->configStruct->classCallback((class_handle_t)phdcHandle,
-                                                        kUSB_DevicePhdcEventBulkInSendComplete, message);
+        status = phdcHandle->configStruct->classCallback((class_handle_t)phdcHandle,
+                                                         kUSB_DevicePhdcEventBulkInSendComplete, message);
     }
 
-    return error;
+    return status;
 }
 
 /*!
@@ -151,24 +152,24 @@ static usb_status_t USB_DevicePhdcBulkOutCallback(usb_device_handle handle,
                                                   void *callbackParam)
 {
     usb_device_phdc_struct_t *phdcHandle;
-    usb_status_t error = kStatus_USB_Error;
+    usb_status_t status = kStatus_USB_Error;
 
     phdcHandle = (usb_device_phdc_struct_t *)callbackParam;
 
-    if (!phdcHandle)
+    if (NULL == phdcHandle)
     {
         return kStatus_USB_InvalidHandle;
     }
     phdcHandle->bulkOut.isBusy = 0U;
-    if ((NULL != phdcHandle->configStruct) && (phdcHandle->configStruct->classCallback))
+    if ((NULL != phdcHandle->configStruct) && (NULL != phdcHandle->configStruct->classCallback))
     {
         /* classCallback is initialized in classInit of s_UsbDeviceClassInterfaceMap,
         it is from the second parameter of classInit */
-        error = phdcHandle->configStruct->classCallback((class_handle_t)phdcHandle, kUSB_DevicePhdcEventDataReceived,
-                                                        message);
+        status = phdcHandle->configStruct->classCallback((class_handle_t)phdcHandle, kUSB_DevicePhdcEventDataReceived,
+                                                         message);
     }
 
-    return error;
+    return status;
 }
 
 /*!
@@ -191,23 +192,23 @@ static usb_status_t USB_DevicePhdcInterruptInCallback(usb_device_handle handle,
                                                       void *callbackParam)
 {
     usb_device_phdc_struct_t *phdcHandle;
-    usb_status_t error = kStatus_USB_Error;
+    usb_status_t status = kStatus_USB_Error;
 
     phdcHandle = (usb_device_phdc_struct_t *)callbackParam;
 
-    if (!phdcHandle)
+    if (NULL == phdcHandle)
     {
         return kStatus_USB_InvalidHandle;
     }
     phdcHandle->interruptIn.isBusy = 0U;
-    if ((NULL != phdcHandle->configStruct) && (phdcHandle->configStruct->classCallback))
+    if ((NULL != phdcHandle->configStruct) && (NULL != phdcHandle->configStruct->classCallback))
     {
         /* classCallback is initialized in classInit of s_UsbDeviceClassInterfaceMap,
         it is from the second parameter of classInit */
-        error = phdcHandle->configStruct->classCallback((class_handle_t)phdcHandle,
-                                                        kUSB_DevicePhdcEventInterruptInSendComplete, message);
+        status = phdcHandle->configStruct->classCallback((class_handle_t)phdcHandle,
+                                                         kUSB_DevicePhdcEventInterruptInSendComplete, message);
     }
-    return error;
+    return status;
 }
 
 /*!
@@ -225,22 +226,22 @@ static usb_status_t USB_DevicePhdcEndpointsInit(usb_device_phdc_struct_t *phdcHa
 {
     usb_device_interface_list_t *interfaceList;
     usb_device_interface_struct_t *interface = (usb_device_interface_struct_t *)NULL;
-    usb_status_t error = kStatus_USB_Error;
-    if (!phdcHandle)
+    usb_status_t status                      = kStatus_USB_Error;
+    if (NULL == phdcHandle)
     {
-        return error;
+        return status;
     }
     if (phdcHandle->configuration > phdcHandle->configStruct->classInfomation->configurations)
     {
-        return error;
+        return status;
     }
     /* gets the interface list */
-    interfaceList = &phdcHandle->configStruct->classInfomation->interfaceList[phdcHandle->configuration - 1];
-    for (int count = 0; count < interfaceList->count; count++)
+    interfaceList = &phdcHandle->configStruct->classInfomation->interfaceList[phdcHandle->configuration - 1U];
+    for (uint32_t count = 0U; count < interfaceList->count; count++)
     {
         if (USB_DEVICE_CONFIG_PHDC_CLASS_CODE == interfaceList->interfaces[count].classCode)
         {
-            for (int index = 0; index < interfaceList->interfaces[count].count; index++)
+            for (uint32_t index = 0U; index < interfaceList->interfaces[count].count; index++)
             {
                 if (interfaceList->interfaces[count].interface[index].alternateSetting == phdcHandle->alternate)
                 {
@@ -252,50 +253,50 @@ static usb_status_t USB_DevicePhdcEndpointsInit(usb_device_phdc_struct_t *phdcHa
             break;
         }
     }
-    if (!interface)
+    if (NULL == interface)
     {
-        return error;
+        return status;
     }
     phdcHandle->interfaceHandle = interface;
-    for (int count = 0; count < interface->endpointList.count; count++)
+    for (uint32_t count = 0U; count < interface->endpointList.count; count++)
     {
         usb_device_endpoint_init_struct_t epInitStruct;
         usb_device_endpoint_callback_struct_t epCallback;
-        epInitStruct.zlt = 0U;
-        epInitStruct.interval = interface->endpointList.endpoint[count].interval;
+        epInitStruct.zlt             = 0U;
+        epInitStruct.interval        = interface->endpointList.endpoint[count].interval;
         epInitStruct.endpointAddress = interface->endpointList.endpoint[count].endpointAddress;
-        epInitStruct.maxPacketSize = interface->endpointList.endpoint[count].maxPacketSize;
-        epInitStruct.transferType = interface->endpointList.endpoint[count].transferType;
+        epInitStruct.maxPacketSize   = interface->endpointList.endpoint[count].maxPacketSize;
+        epInitStruct.transferType    = interface->endpointList.endpoint[count].transferType;
         if (USB_ENDPOINT_INTERRUPT == epInitStruct.transferType)
         {
-            epCallback.callbackFn = USB_DevicePhdcInterruptInCallback;
+            epCallback.callbackFn      = USB_DevicePhdcInterruptInCallback;
             phdcHandle->interruptIn.ep = (epInitStruct.endpointAddress & USB_DESCRIPTOR_ENDPOINT_ADDRESS_NUMBER_MASK);
-            phdcHandle->interruptIn.pipeDataBuffer = (uint8_t*)USB_UNINITIALIZED_VAL_32;
-            phdcHandle->interruptIn.pipeStall = 0U;
-            phdcHandle->interruptIn.pipeDataLen = 0U;
+            phdcHandle->interruptIn.pipeDataBuffer = (uint8_t *)USB_INVALID_TRANSFER_BUFFER;
+            phdcHandle->interruptIn.pipeStall      = 0U;
+            phdcHandle->interruptIn.pipeDataLen    = 0U;
         }
         else if (USB_IN == ((epInitStruct.endpointAddress & USB_DESCRIPTOR_ENDPOINT_ADDRESS_DIRECTION_MASK) >>
                             USB_DESCRIPTOR_ENDPOINT_ADDRESS_DIRECTION_SHIFT))
         {
             epCallback.callbackFn = USB_DevicePhdcBulkInCallback;
             phdcHandle->bulkIn.ep = (epInitStruct.endpointAddress & USB_DESCRIPTOR_ENDPOINT_ADDRESS_NUMBER_MASK);
-            phdcHandle->bulkIn.pipeDataBuffer = (uint8_t*)USB_UNINITIALIZED_VAL_32;
-            phdcHandle->bulkIn.pipeStall = 0U;
-            phdcHandle->bulkIn.pipeDataLen = 0U;
+            phdcHandle->bulkIn.pipeDataBuffer = (uint8_t *)USB_INVALID_TRANSFER_BUFFER;
+            phdcHandle->bulkIn.pipeStall      = 0U;
+            phdcHandle->bulkIn.pipeDataLen    = 0U;
         }
         else
         {
-            epCallback.callbackFn = USB_DevicePhdcBulkOutCallback;
+            epCallback.callbackFn  = USB_DevicePhdcBulkOutCallback;
             phdcHandle->bulkOut.ep = (epInitStruct.endpointAddress & USB_DESCRIPTOR_ENDPOINT_ADDRESS_NUMBER_MASK);
-            phdcHandle->bulkOut.pipeDataBuffer = (uint8_t*)USB_UNINITIALIZED_VAL_32;
-            phdcHandle->bulkOut.pipeStall = 0U;
-            phdcHandle->bulkOut.pipeDataLen = 0U;
+            phdcHandle->bulkOut.pipeDataBuffer = (uint8_t *)USB_INVALID_TRANSFER_BUFFER;
+            phdcHandle->bulkOut.pipeStall      = 0U;
+            phdcHandle->bulkOut.pipeDataLen    = 0U;
         }
         epCallback.callbackParam = phdcHandle;
 
-        error = USB_DeviceInitEndpoint(phdcHandle->handle, &epInitStruct, &epCallback);
+        status = USB_DeviceInitEndpoint(phdcHandle->handle, &epInitStruct, &epCallback);
     }
-    return error;
+    return status;
 }
 
 /*!
@@ -311,18 +312,18 @@ static usb_status_t USB_DevicePhdcEndpointsInit(usb_device_phdc_struct_t *phdcHa
  */
 static usb_status_t USB_DevicePhdcEndpointsDeinit(usb_device_phdc_struct_t *phdcHandle)
 {
-    usb_status_t error = kStatus_USB_Error;
+    usb_status_t status = kStatus_USB_Error;
 
-    if (!phdcHandle->interfaceHandle)
+    if (NULL == phdcHandle->interfaceHandle)
     {
-        return error;
+        return status;
     }
-    for (int count = 0; count < phdcHandle->interfaceHandle->endpointList.count; count++)
+    for (uint32_t count = 0; count < phdcHandle->interfaceHandle->endpointList.count; count++)
     {
-        error = USB_DeviceDeinitEndpoint(phdcHandle->handle,
-                                         phdcHandle->interfaceHandle->endpointList.endpoint[count].endpointAddress);
+        status = USB_DeviceDeinitEndpoint(phdcHandle->handle,
+                                          phdcHandle->interfaceHandle->endpointList.endpoint[count].endpointAddress);
     }
-    return error;
+    return status;
 }
 
 /*!
@@ -345,79 +346,84 @@ usb_status_t USB_DevicePhdcEvent(void *handle, uint32_t event, void *param)
     uint16_t interfaceAlternate;
     uint8_t *temp8;
     uint8_t alternate;
-
-    if ((!param) || (!handle))
+    usb_device_class_event_t eventCode = (usb_device_class_event_t)event;
+    if ((NULL == param) || (NULL == handle))
     {
         return kStatus_USB_InvalidHandle;
     }
 
     phdcHandle = (usb_device_phdc_struct_t *)handle;
 
-    switch (event)
+    switch (eventCode)
     {
         case kUSB_DeviceClassEventDeviceReset:
-            phdcHandle->configuration = 0U;
-            phdcHandle->bulkIn.isBusy = 0U;
-            phdcHandle->bulkOut.isBusy = 0U;
+            phdcHandle->configuration      = 0U;
+            phdcHandle->bulkIn.isBusy      = 0U;
+            phdcHandle->bulkOut.isBusy     = 0U;
             phdcHandle->interruptIn.isBusy = 0U;
+            error                          = kStatus_USB_Success;
             break;
         case kUSB_DeviceClassEventSetConfiguration:
             temp8 = ((uint8_t *)param);
-            if (!phdcHandle->configStruct)
+            if (NULL == phdcHandle->configStruct)
             {
                 break;
             }
             if (*temp8 == phdcHandle->configuration)
             {
+                error = kStatus_USB_Success;
                 break;
             }
 
-            if (phdcHandle->configuration)
+            if (0U != phdcHandle->configuration)
             {
                 error = USB_DevicePhdcEndpointsDeinit(phdcHandle);
             }
             phdcHandle->configuration = *temp8;
-            phdcHandle->alternate = 0U;
-            error = USB_DevicePhdcEndpointsInit(phdcHandle);
+            phdcHandle->alternate     = 0U;
+            error                     = USB_DevicePhdcEndpointsInit(phdcHandle);
             break;
         case kUSB_DeviceClassEventSetInterface:
-            if (!phdcHandle->configStruct)
+            if (NULL == phdcHandle->configStruct)
             {
                 break;
             }
 
             interfaceAlternate = *((uint16_t *)param);
-            alternate = (uint8_t)(interfaceAlternate & 0xFF);
+            alternate          = (uint8_t)(interfaceAlternate & 0xFFU);
 
-            if (phdcHandle->interfaceNumber != ((uint8_t)(interfaceAlternate >> 8)))
+            if (phdcHandle->interfaceNumber != ((uint8_t)(interfaceAlternate >> 8U)))
             {
                 break;
             }
             if (alternate == phdcHandle->alternate)
             {
+                error = kStatus_USB_Success;
                 break;
             }
-            error = USB_DevicePhdcEndpointsDeinit(phdcHandle);
+            error                 = USB_DevicePhdcEndpointsDeinit(phdcHandle);
             phdcHandle->alternate = alternate;
-            error = USB_DevicePhdcEndpointsInit(phdcHandle);
+            error                 = USB_DevicePhdcEndpointsInit(phdcHandle);
             break;
         case kUSB_DeviceClassEventSetEndpointHalt:
-            if ((!phdcHandle->configStruct) || (!phdcHandle->interfaceHandle))
+            if ((NULL == phdcHandle->configStruct) || (NULL == phdcHandle->interfaceHandle))
             {
                 break;
             }
             temp8 = ((uint8_t *)param);
-            for (int count = 0; count < phdcHandle->interfaceHandle->endpointList.count; count++)
+            for (uint32_t count = 0; count < phdcHandle->interfaceHandle->endpointList.count; count++)
             {
                 if (*temp8 == phdcHandle->interfaceHandle->endpointList.endpoint[count].endpointAddress)
                 {
                     /* Only stall the endpoint belongs to the class */
-                    if (USB_ENDPOINT_INTERRUPT == phdcHandle->interfaceHandle->endpointList.endpoint[count].transferType)
+                    if (USB_ENDPOINT_INTERRUPT ==
+                        phdcHandle->interfaceHandle->endpointList.endpoint[count].transferType)
                     {
-                       phdcHandle->interruptIn.pipeStall = 1U;
+                        phdcHandle->interruptIn.pipeStall = 1U;
                     }
-                    else if (USB_IN == ((phdcHandle->interfaceHandle->endpointList.endpoint[count].endpointAddress & USB_DESCRIPTOR_ENDPOINT_ADDRESS_DIRECTION_MASK) >>
-                            USB_DESCRIPTOR_ENDPOINT_ADDRESS_DIRECTION_SHIFT))
+                    else if (USB_IN == ((phdcHandle->interfaceHandle->endpointList.endpoint[count].endpointAddress &
+                                         USB_DESCRIPTOR_ENDPOINT_ADDRESS_DIRECTION_MASK) >>
+                                        USB_DESCRIPTOR_ENDPOINT_ADDRESS_DIRECTION_SHIFT))
                     {
                         phdcHandle->bulkIn.pipeStall = 1U;
                     }
@@ -430,138 +436,156 @@ usb_status_t USB_DevicePhdcEvent(void *handle, uint32_t event, void *param)
             }
             break;
         case kUSB_DeviceClassEventClearEndpointHalt:
-            if ((!phdcHandle->configStruct) || (!phdcHandle->interfaceHandle))
+            if ((NULL == phdcHandle->configStruct) || (NULL == phdcHandle->interfaceHandle))
             {
                 break;
             }
             temp8 = ((uint8_t *)param);
-            for (int count = 0; count < phdcHandle->interfaceHandle->endpointList.count; count++)
+            for (uint32_t count = 0U; count < phdcHandle->interfaceHandle->endpointList.count; count++)
             {
                 if (*temp8 == phdcHandle->interfaceHandle->endpointList.endpoint[count].endpointAddress)
                 {
                     error = USB_DeviceUnstallEndpoint(phdcHandle->handle, *temp8);
-                    if (USB_ENDPOINT_INTERRUPT == phdcHandle->interfaceHandle->endpointList.endpoint[count].transferType)
+                    if (USB_ENDPOINT_INTERRUPT ==
+                        phdcHandle->interfaceHandle->endpointList.endpoint[count].transferType)
                     {
-                        if (phdcHandle->interruptIn.pipeStall)
+                        if (0U != phdcHandle->interruptIn.pipeStall)
                         {
                             phdcHandle->interruptIn.pipeStall = 0U;
-                            if ((uint8_t*)USB_UNINITIALIZED_VAL_32 != phdcHandle->interruptIn.pipeDataBuffer)
+                            if ((uint8_t *)USB_INVALID_TRANSFER_BUFFER != phdcHandle->interruptIn.pipeDataBuffer)
                             {
                                 error = USB_DeviceSendRequest(phdcHandle->handle, (phdcHandle->interruptIn.ep),
-                                                            phdcHandle->interruptIn.pipeDataBuffer, phdcHandle->interruptIn.pipeDataLen);
+                                                              phdcHandle->interruptIn.pipeDataBuffer,
+                                                              phdcHandle->interruptIn.pipeDataLen);
                                 if (kStatus_USB_Success != error)
                                 {
                                     usb_device_endpoint_callback_message_struct_t endpointCallbackMessage;
-                                    endpointCallbackMessage.buffer = phdcHandle->interruptIn.pipeDataBuffer;
-                                    endpointCallbackMessage.length = phdcHandle->interruptIn.pipeDataLen;
+                                    endpointCallbackMessage.buffer  = phdcHandle->interruptIn.pipeDataBuffer;
+                                    endpointCallbackMessage.length  = phdcHandle->interruptIn.pipeDataLen;
                                     endpointCallbackMessage.isSetup = 0U;
-                                    USB_DevicePhdcInterruptInCallback(phdcHandle->handle,(void*)&endpointCallbackMessage, handle);
+                                    (void)USB_DevicePhdcInterruptInCallback(phdcHandle->handle,
+                                                                            (void *)&endpointCallbackMessage, handle);
                                 }
-                                phdcHandle->interruptIn.pipeDataBuffer = (uint8_t*)USB_UNINITIALIZED_VAL_32;
-                                phdcHandle->interruptIn.pipeDataLen = 0U;
+                                phdcHandle->interruptIn.pipeDataBuffer = (uint8_t *)USB_INVALID_TRANSFER_BUFFER;
+                                phdcHandle->interruptIn.pipeDataLen    = 0U;
                             }
                         }
                     }
-                    else if (USB_IN == ((phdcHandle->interfaceHandle->endpointList.endpoint[count].endpointAddress & USB_DESCRIPTOR_ENDPOINT_ADDRESS_DIRECTION_MASK) >>
-                            USB_DESCRIPTOR_ENDPOINT_ADDRESS_DIRECTION_SHIFT))
+                    else if (USB_IN == ((phdcHandle->interfaceHandle->endpointList.endpoint[count].endpointAddress &
+                                         USB_DESCRIPTOR_ENDPOINT_ADDRESS_DIRECTION_MASK) >>
+                                        USB_DESCRIPTOR_ENDPOINT_ADDRESS_DIRECTION_SHIFT))
                     {
-                        if (phdcHandle->bulkIn.pipeStall)
+                        if (0U != phdcHandle->bulkIn.pipeStall)
                         {
                             phdcHandle->bulkIn.pipeStall = 0U;
-                            if ((uint8_t*)USB_UNINITIALIZED_VAL_32 != phdcHandle->bulkIn.pipeDataBuffer)
+                            if ((uint8_t *)USB_INVALID_TRANSFER_BUFFER != phdcHandle->bulkIn.pipeDataBuffer)
                             {
                                 error = USB_DeviceSendRequest(phdcHandle->handle, (phdcHandle->bulkIn.ep),
-                                                            phdcHandle->bulkIn.pipeDataBuffer, phdcHandle->bulkIn.pipeDataLen);
+                                                              phdcHandle->bulkIn.pipeDataBuffer,
+                                                              phdcHandle->bulkIn.pipeDataLen);
                                 if (kStatus_USB_Success != error)
                                 {
                                     usb_device_endpoint_callback_message_struct_t endpointCallbackMessage;
-                                    endpointCallbackMessage.buffer = phdcHandle->bulkIn.pipeDataBuffer;
-                                    endpointCallbackMessage.length = phdcHandle->bulkIn.pipeDataLen;
+                                    endpointCallbackMessage.buffer  = phdcHandle->bulkIn.pipeDataBuffer;
+                                    endpointCallbackMessage.length  = phdcHandle->bulkIn.pipeDataLen;
                                     endpointCallbackMessage.isSetup = 0U;
-                                    USB_DevicePhdcBulkInCallback(phdcHandle->handle,(void*)&endpointCallbackMessage, handle);
+                                    (void)USB_DevicePhdcBulkInCallback(phdcHandle->handle,
+                                                                       (void *)&endpointCallbackMessage, handle);
                                 }
-                                phdcHandle->bulkIn.pipeDataBuffer = (uint8_t*)USB_UNINITIALIZED_VAL_32;
-                                phdcHandle->bulkIn.pipeDataLen = 0U;
+                                phdcHandle->bulkIn.pipeDataBuffer = (uint8_t *)USB_INVALID_TRANSFER_BUFFER;
+                                phdcHandle->bulkIn.pipeDataLen    = 0U;
                             }
                         }
                     }
                     else
                     {
-                        if (phdcHandle->bulkOut.pipeStall)
+                        if (0U != phdcHandle->bulkOut.pipeStall)
                         {
                             phdcHandle->bulkOut.pipeStall = 0U;
-                            if ((uint8_t*)USB_UNINITIALIZED_VAL_32 != phdcHandle->bulkOut.pipeDataBuffer)
+                            if ((uint8_t *)USB_INVALID_TRANSFER_BUFFER != phdcHandle->bulkOut.pipeDataBuffer)
                             {
                                 error = USB_DeviceRecvRequest(phdcHandle->handle, (phdcHandle->bulkOut.ep),
-                                                              phdcHandle->bulkOut.pipeDataBuffer, phdcHandle->bulkOut.pipeDataLen);
+                                                              phdcHandle->bulkOut.pipeDataBuffer,
+                                                              phdcHandle->bulkOut.pipeDataLen);
                                 if (kStatus_USB_Success != error)
                                 {
                                     usb_device_endpoint_callback_message_struct_t endpointCallbackMessage;
-                                    endpointCallbackMessage.buffer = phdcHandle->bulkOut.pipeDataBuffer;
-                                    endpointCallbackMessage.length = phdcHandle->bulkOut.pipeDataLen;
+                                    endpointCallbackMessage.buffer  = phdcHandle->bulkOut.pipeDataBuffer;
+                                    endpointCallbackMessage.length  = phdcHandle->bulkOut.pipeDataLen;
                                     endpointCallbackMessage.isSetup = 0U;
-                                    USB_DevicePhdcBulkOutCallback(phdcHandle->handle, (void*)&endpointCallbackMessage, handle);
+                                    (void)USB_DevicePhdcBulkOutCallback(phdcHandle->handle,
+                                                                        (void *)&endpointCallbackMessage, handle);
                                 }
-                                phdcHandle->bulkOut.pipeDataBuffer = (uint8_t*)USB_UNINITIALIZED_VAL_32;
-                                phdcHandle->bulkOut.pipeDataLen = 0U;
+                                phdcHandle->bulkOut.pipeDataBuffer = (uint8_t *)USB_INVALID_TRANSFER_BUFFER;
+                                phdcHandle->bulkOut.pipeDataLen    = 0U;
                             }
                         }
-
                     }
                 }
             }
             break;
         case kUSB_DeviceClassEventClassRequest:
-            if (param)
+        {
+            usb_device_control_request_struct_t *controlRequest = (usb_device_control_request_struct_t *)param;
+
+            if ((controlRequest->setup->bmRequestType & USB_REQUEST_TYPE_RECIPIENT_MASK) !=
+                USB_REQUEST_TYPE_RECIPIENT_INTERFACE)
             {
-                usb_device_control_request_struct_t *controlRequest = (usb_device_control_request_struct_t *)param;
+                break;
+            }
 
-                if ((controlRequest->setup->bmRequestType & USB_REQUEST_TYPE_RECIPIENT_MASK) !=
-                    USB_REQUEST_TYPE_RECIPIENT_INTERFACE)
-                {
-                    break;
-                }
+            if ((controlRequest->setup->wIndex & 0xFFU) != phdcHandle->interfaceNumber)
+            {
+                break;
+            }
 
-                if ((controlRequest->setup->wIndex & 0xFF) != phdcHandle->interfaceNumber)
+            error = kStatus_USB_InvalidRequest;
+            switch (controlRequest->setup->bRequest)
+            {
+                case USB_DEVICE_PHDC_REQUEST_SET_FEATURE:
                 {
-                    break;
-                }
-
-                switch (controlRequest->setup->bRequest)
-                {
-                    case USB_DEVICE_PHDC_REQUEST_SET_FEATURE:
+                    if (((controlRequest->setup->bmRequestType & USB_REQUEST_TYPE_DIR_MASK) == USB_REQUEST_TYPE_DIR_OUT)
+                        && (controlRequest->setup->wLength == 0U))
                     {
                         /* classCallback is initialized in classInit of s_UsbDeviceClassInterfaceMap,
                         it is from the second parameter of classInit */
                         error = phdcHandle->configStruct->classCallback(
                             (class_handle_t)phdcHandle, kUSB_DevicePhdcEventSetFeature, &controlRequest->setup->wValue);
                     }
-                    break;
-                    case USB_DEVICE_PHDC_REQUEST_CLEAR_FEATURE:
+                }
+                break;
+                case USB_DEVICE_PHDC_REQUEST_CLEAR_FEATURE:
+                {
+                    if (((controlRequest->setup->bmRequestType & USB_REQUEST_TYPE_DIR_MASK) == USB_REQUEST_TYPE_DIR_OUT)
+                        && (controlRequest->setup->wLength == 0U))
                     {
                         /* classCallback is initialized in classInit of s_UsbDeviceClassInterfaceMap,
                         it is from the second parameter of classInit */
-                        error = phdcHandle->configStruct->classCallback((class_handle_t)phdcHandle,
-                                                                        kUSB_DevicePhdcEventClearFeature,
-                                                                        &controlRequest->setup->wValue);
+                        error = phdcHandle->configStruct->classCallback(
+                            (class_handle_t)phdcHandle, kUSB_DevicePhdcEventClearFeature, &controlRequest->setup->wValue);
                     }
-                    break;
-                    case USB_DEVICE_PHDC_REQUEST_GET_STATUS:
+                }
+                break;
+                case USB_DEVICE_PHDC_REQUEST_GET_STATUS:
+                {
+                    if (((controlRequest->setup->bmRequestType & USB_REQUEST_TYPE_DIR_MASK) == USB_REQUEST_TYPE_DIR_IN)
+                        && (controlRequest->setup->wLength <= 2U))
                     {
                         /* classCallback is initialized in classInit of s_UsbDeviceClassInterfaceMap,
                         it is from the second parameter of classInit */
                         error = phdcHandle->configStruct->classCallback((class_handle_t)phdcHandle,
                                                                         kUSB_DevicePhdcEventGetStatus, controlRequest);
                     }
-                    break;
-                    default:
-                        error = kStatus_USB_InvalidRequest;
-                        break;
                 }
+                break;
+                default:
+                    /* no action */
+                    break;
             }
-            break;
+        }
+        break;
         default:
-            error = kStatus_USB_InvalidRequest;
+            /* no action */
             break;
     }
     return error;
@@ -600,13 +624,13 @@ usb_status_t USB_DevicePhdcInit(uint8_t controllerId, usb_device_class_config_st
         return error;
     }
 
-    if (!phdcHandle->handle)
+    if (NULL == phdcHandle->handle)
     {
         return kStatus_USB_InvalidHandle;
     }
-    phdcHandle->configStruct = config;
+    phdcHandle->configStruct  = config;
     phdcHandle->configuration = 0U;
-    phdcHandle->alternate = 0xff;
+    phdcHandle->alternate     = 0xff;
 
     *handle = (class_handle_t)phdcHandle;
     return error;
@@ -629,12 +653,12 @@ usb_status_t USB_DevicePhdcDeinit(class_handle_t handle)
 
     phdcHandle = (usb_device_phdc_struct_t *)handle;
 
-    if (!phdcHandle)
+    if (NULL == phdcHandle)
     {
         return kStatus_USB_InvalidHandle;
     }
     error = USB_DevicePhdcEndpointsDeinit(phdcHandle);
-    USB_DevicePhdcFreeHandle(phdcHandle);
+    (void)USB_DevicePhdcFreeHandle(phdcHandle);
     return error;
 }
 
@@ -658,8 +682,8 @@ usb_status_t USB_DevicePhdcSend(class_handle_t handle, uint8_t ep, uint8_t *buff
     usb_device_phdc_struct_t *phdcHandle;
     usb_device_phdc_pipe_t *pipe;
     usb_status_t error;
-    
-    if (!handle)
+
+    if (NULL == handle)
     {
         return kStatus_USB_InvalidHandle;
     }
@@ -682,11 +706,11 @@ usb_status_t USB_DevicePhdcSend(class_handle_t handle, uint8_t ep, uint8_t *buff
         return kStatus_USB_Busy;
     }
     pipe->isBusy = 1U;
-    
-    if (pipe->pipeStall)
+
+    if (0U != pipe->pipeStall)
     {
         pipe->pipeDataBuffer = buffer;
-        pipe->pipeDataLen = length;
+        pipe->pipeDataLen    = length;
         return kStatus_USB_Success;
     }
     error = USB_DeviceSendRequest(phdcHandle->handle, ep, buffer, length);
@@ -717,7 +741,7 @@ usb_status_t USB_DevicePhdcRecv(class_handle_t handle, uint8_t ep, uint8_t *buff
     usb_device_phdc_struct_t *phdcHandle;
     usb_status_t error;
 
-    if (!handle)
+    if (NULL == handle)
     {
         return kStatus_USB_InvalidHandle;
     }
@@ -727,11 +751,11 @@ usb_status_t USB_DevicePhdcRecv(class_handle_t handle, uint8_t ep, uint8_t *buff
         return kStatus_USB_Busy;
     }
     phdcHandle->bulkOut.isBusy = 1U;
-    
-    if (phdcHandle->bulkOut.pipeStall)
+
+    if (0U != phdcHandle->bulkOut.pipeStall)
     {
         phdcHandle->bulkOut.pipeDataBuffer = buffer;
-        phdcHandle->bulkOut.pipeDataLen = length;
+        phdcHandle->bulkOut.pipeDataLen    = length;
         return kStatus_USB_Success;
     }
     error = USB_DeviceRecvRequest(phdcHandle->handle, ep, buffer, length);

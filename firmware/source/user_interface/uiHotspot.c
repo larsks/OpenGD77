@@ -80,18 +80,16 @@ M: 2020-01-07 09:52:15.246 DMR Slot 2, received network end of voice transmissio
  */
 
 
-// Uncomment this to enable all sendDebug*() functions. You will see the results in the MMDVMHost log file.
-//#define MMDVM_SEND_DEBUG
-
-
-
 static uint8_t savedDMRDestinationFilter = 0xFF; // 0xFF value means unset
 static uint8_t savedDMRCcTsFilter = 0xFF; // 0xFF value means unset
 static bool displayFWVersion;
 static uint32_t savedTGorPC;
 static uint8_t savedLibreDMR_Power;
+static uint32_t batteryUpdateTimeout;
+static uint16_t batteryAverageMillivolts;
 
 static bool handleEvent(uiEvent_t *ev);
+static uint16_t getBatteryAverageInMillivolts(void);
 
 #if defined(DEMO_SCREEN)
 bool demoScreen = false;
@@ -110,8 +108,9 @@ menuStatus_t menuHotspotMode(uiEvent_t *ev, bool isFirstRun)
 			// Override DMR filtering
 			savedDMRDestinationFilter = nonVolatileSettings.dmrDestinationFilter;
 			savedDMRCcTsFilter = nonVolatileSettings.dmrCcTsFilter;
-			settingsSet(nonVolatileSettings.dmrDestinationFilter, DMR_DESTINATION_FILTER_NONE);
-			settingsSet(nonVolatileSettings.dmrCcTsFilter, DMR_CCTS_FILTER_CC_TS);
+
+			nonVolatileSettings.dmrDestinationFilter = DMR_DESTINATION_FILTER_NONE;
+			nonVolatileSettings.dmrCcTsFilter = DMR_CCTS_FILTER_CC_TS;
 		}
 
 		// Do not user per channel power settings
@@ -122,13 +121,13 @@ menuStatus_t menuHotspotMode(uiEvent_t *ev, bool isFirstRun)
 
 		displayFWVersion = false;
 
-		hotspotInit();
+		displayClearBuf();
+		displayPrintCentered(0, "Hotspot", FONT_SIZE_3);
+		displayPrintCentered(32, "Waiting for", FONT_SIZE_3);
+		displayPrintCentered(48, "Pi-Star", FONT_SIZE_3);
+		displayRender();
 
-		ucClearBuf();
-		ucPrintCentered(0, "Hotspot", FONT_SIZE_3);
-		ucPrintCentered(32, "Waiting for", FONT_SIZE_3);
-		ucPrintCentered(48, "Pi-Star", FONT_SIZE_3);
-		ucRender();
+		hotspotInit();
 
 		displayLightTrigger(false);
 	}
@@ -149,10 +148,9 @@ menuStatus_t menuHotspotMode(uiEvent_t *ev, bool isFirstRun)
 	{
 #endif
 		processUSBDataQueue();
-		if (com_request == 1)
+		if (comRecvMMDVMFrameCount > 0)
 		{
 			handleHotspotRequest();
-			com_request = 0;
 		}
 		hotspotStateMachine();
 
@@ -168,6 +166,13 @@ menuStatus_t menuHotspotMode(uiEvent_t *ev, bool isFirstRun)
 	}
 #endif
 
+	// Battery level has changed in the last 5 minutes, but screen wasn't redrawn yet
+	if ((batteryAverageMillivolts != getBatteryAverageInMillivolts()) &&
+			((ticksGetMillis() - batteryUpdateTimeout) > 300000U))
+	{
+		uiHotspotUpdateScreen(hotspotCurrentRxCommandState);
+	}
+
 	return MENU_STATUS_SUCCESS;
 }
 
@@ -175,11 +180,13 @@ void menuHotspotRestoreSettings(void)
 {
 	if (savedDMRDestinationFilter != 0xFF)
 	{
-		settingsSet(nonVolatileSettings.dmrDestinationFilter, savedDMRDestinationFilter);
+		nonVolatileSettings.dmrDestinationFilter = savedDMRDestinationFilter;
 		savedDMRDestinationFilter = 0xFF; // Unset saved DMR destination filter level
 
-		settingsSet(nonVolatileSettings.dmrCcTsFilter, savedDMRCcTsFilter);
+		nonVolatileSettings.dmrCcTsFilter = savedDMRCcTsFilter;
 		savedDMRCcTsFilter = 0xFF; // Unset saved CC TS filter level
+
+		HRC6000ResetTimeSlotDetection();
 	}
 }
 
@@ -198,7 +205,7 @@ static void displayContactInfo(uint8_t y, char *text, size_t maxLen)
 			// Callsign found
 			memcpy(buffer, text, cpos);
 			buffer[cpos] = 0;
-			ucPrintCentered(y, chomp(buffer), FONT_SIZE_3);
+			displayPrintCentered(y, chomp(buffer), FONT_SIZE_3);
 		}
 		else
 		{
@@ -206,14 +213,14 @@ static void displayContactInfo(uint8_t y, char *text, size_t maxLen)
 			memcpy(buffer, text, 16);
 			buffer[16] = 0;
 
-			ucPrintCentered(y, chomp(buffer), FONT_SIZE_3);
+			displayPrintCentered(y, chomp(buffer), FONT_SIZE_3);
 		}
 	}
 	else
 	{
 		memcpy(buffer, text, strlen(text));
 		buffer[strlen(text)] = 0;
-		ucPrintCentered(y, chomp(buffer), FONT_SIZE_3);
+		displayPrintCentered(y, chomp(buffer), FONT_SIZE_3);
 	}
 }
 
@@ -221,7 +228,7 @@ static void updateContactLine(uint8_t y)
 {
 	if ((LinkHead->talkGroupOrPcId >> 24) == PC_CALL_FLAG) // Its a Private call
 	{
-		ucPrintCentered(y, LinkHead->contact, FONT_SIZE_3);
+		displayPrintCentered(y, LinkHead->contact, FONT_SIZE_3);
 	}
 	else // Group call
 	{
@@ -264,27 +271,47 @@ void uiHotspotUpdateScreen(uint8_t rxCommandState)
 
 	hotspotCurrentRxCommandState = rxCommandState;
 
-	ucClearBuf();
-	ucPrintAt(4, 4, "DMR", FONT_SIZE_1);
-	ucPrintCentered(0, "Hotspot", FONT_SIZE_3);
+	displayClearBuf();
+	displayPrintAt(4, 4, "DMR", FONT_SIZE_1);
+	displayPrintCentered(0, "Hotspot", FONT_SIZE_3);
 
-	snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "%d%%", getBatteryPercentage());
+	if (nonVolatileSettings.bitfieldOptions & BIT_BATTERY_VOLTAGE_IN_HEADER)
+	{
+		int volts, mvolts;
+		int16_t xV = (DISPLAY_SIZE_X - ((4 * 6) + 6));
 
-	ucPrintAt(DISPLAY_SIZE_X - (strlen(buffer) * 6) - 4, 4, buffer, FONT_SIZE_1);
+		getBatteryVoltage(&volts, &mvolts);
+
+		snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "%2d", volts);
+		displayPrintCore(xV, 4, buffer, FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
+
+		displayDrawRect(xV + (6 * 2), 4 + 5, 2, 2, true);
+
+		snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "%1dV", mvolts);
+		displayPrintCore(xV + (6 * 2) + 3, 4, buffer, FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
+	}
+	else
+	{
+		snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "%d%%", getBatteryPercentage());
+		displayPrintAt(DISPLAY_SIZE_X - (strlen(buffer) * 6) - 4, 4, buffer, FONT_SIZE_1);
+	}
+
+	batteryUpdateTimeout = ticksGetMillis();
+	batteryAverageMillivolts = getBatteryAverageInMillivolts();
 
 	if (trxTransmissionEnabled)
 	{
 		if (displayFWVersion)
 		{
 			snprintf(buffer, 22, "%s", &HOTSPOT_VERSION_STRING[12]);
-			ucPrintCentered(16 + 4, buffer, FONT_SIZE_1);
+			displayPrintCentered(16 + 4, buffer, FONT_SIZE_1);
 		}
 		else
 		{
 			if (hotspotCwKeying)
 			{
 				sprintf(buffer, "%s", "<Tx CW ID>");
-				ucPrintCentered(16, buffer, FONT_SIZE_3);
+				displayPrintCentered(16, buffer, FONT_SIZE_3);
 			}
 			else
 			{
@@ -317,7 +344,7 @@ void uiHotspotUpdateScreen(uint8_t rxCommandState)
 			}
 		}
 
-		ucPrintCentered(32, buffer, FONT_SIZE_3);
+		displayPrintCentered(32, buffer, FONT_SIZE_3);
 
 		val_before_dp = hotspotFreqTx / 100000;
 		val_after_dp = hotspotFreqTx - val_before_dp * 100000;
@@ -345,7 +372,7 @@ void uiHotspotUpdateScreen(uint8_t rxCommandState)
 				}
 			}
 
-			ucPrintCentered(16 + (displayFWVersion ? 4 : 0), buffer, (displayFWVersion ? FONT_SIZE_1 : FONT_SIZE_3));
+			displayPrintCentered(16 + (displayFWVersion ? 4 : 0), buffer, (displayFWVersion ? FONT_SIZE_1 : FONT_SIZE_3));
 
 			if (hotspotRxedDMR_LC.FLCO == 0)
 			{
@@ -356,7 +383,7 @@ void uiHotspotUpdateScreen(uint8_t rxCommandState)
 				snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "%s %u", currentLanguage->pc, hotspotRxedDMR_LC.dstId);
 			}
 
-			ucPrintCentered(32, buffer, FONT_SIZE_3);
+			displayPrintCentered(32, buffer, FONT_SIZE_3);
 		}
 		else
 		{
@@ -364,39 +391,42 @@ void uiHotspotUpdateScreen(uint8_t rxCommandState)
 			if (displayFWVersion)
 			{
 				snprintf(buffer, 22, "%s", &HOTSPOT_VERSION_STRING[12]);
-				ucPrintCentered(16 + 4, buffer, FONT_SIZE_1);
+				displayPrintCentered(16 + 4, buffer, FONT_SIZE_1);
 			}
 			else
 			{
 				if (hotspotModemState == STATE_POCSAG)
 				{
-					ucPrintCentered(16, "<POCSAG>", FONT_SIZE_3);
+					displayPrintCentered(16, "<POCSAG>", FONT_SIZE_3);
 				}
 				else
 				{
 					if (strlen(hotspotMmdvmQSOInfoIP))
 					{
-						ucPrintCentered(16 + 4, hotspotMmdvmQSOInfoIP, FONT_SIZE_1);
+						displayPrintCentered(16 + 4, hotspotMmdvmQSOInfoIP, FONT_SIZE_1);
 					}
 				}
 			}
 
 			snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "CC:%d", trxGetDMRColourCode());//, trxGetDMRTimeSlot()+1) ;
 
-			ucPrintCore(0, 32, buffer, FONT_SIZE_3, TEXT_ALIGN_LEFT, false);
+			displayPrintCore(0, 32, buffer, FONT_SIZE_3, TEXT_ALIGN_LEFT, false);
 
 			sprintf(buffer,"%s%s",POWER_LEVELS[hotspotPowerLevel],POWER_LEVEL_UNITS[hotspotPowerLevel]);
-			ucPrintCore(0, 32, buffer, FONT_SIZE_3, TEXT_ALIGN_RIGHT, false);
+			displayPrintCore(0, 32, buffer, FONT_SIZE_3, TEXT_ALIGN_RIGHT, false);
 		}
 		val_before_dp = hotspotFreqRx / 100000;
 		val_after_dp = hotspotFreqRx - val_before_dp * 100000;
 		snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "R %d.%05d MHz", val_before_dp, val_after_dp);
 	}
 
-	ucPrintCentered(48, buffer, FONT_SIZE_3);
-	ucRender();
+	displayPrintCentered(48, buffer, FONT_SIZE_3);
+	displayRender();
 
-	displayLightTrigger(false);
+	if (trxTransmissionEnabled || ((rxCommandState == HOTSPOT_RX_START) || (rxCommandState == HOTSPOT_RX_START_LATE)))
+	{
+		displayLightTrigger(false);
+	}
 }
 
 static bool handleEvent(uiEvent_t *ev)
@@ -506,7 +536,16 @@ void hotspotExit(void)
 	settingsUsbMode = USB_MODE_CPS;
 	hotspotMmdvmHostIsConnected = false;
 
+	rxPowerSavingSetLevel(nonVolatileSettings.ecoLevel);
+
 	menuHotspotRestoreSettings();
 	menuSystemPopAllAndDisplayRootMenu();
 }
 
+static uint16_t getBatteryAverageInMillivolts(void)
+{
+	int volts, mvolts;
+
+	getBatteryVoltage(&volts, &mvolts);
+	return ((volts * 1000) + (mvolts * 100));
+}

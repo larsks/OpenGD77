@@ -29,7 +29,7 @@
  * Translators: DG3GSP, DL4LEX
  *
  *
- * Rev: 4.7
+ * Rev: 4.8
 */
 #ifndef USER_INTERFACE_LANGUAGES_GERMAN_H_
 #define USER_INTERFACE_LANGUAGES_GERMAN_H_
@@ -59,8 +59,8 @@ const stringsTable_t germanLanguage =
 .language				= "Sprache", // MaxLen: 16
 .new_contact			= "Neuer Kontakt", // MaxLen: 16
 .dmr_contacts				= "DMR Kontakte", // MaxLen: 16
-.hotspot_mode			= "Hotspot", // MaxLen: 16
 .contact_details		= "Kontakt Details", // MaxLen: 16
+.hotspot_mode			= "Hotspot", // MaxLen: 16
 .built					= "Erstellt", // MaxLen: 16
 .zones					= "Zonen", // MaxLen: 16
 .keypad					= "Tasten", // MaxLen: 12 (with .ptt)
@@ -114,7 +114,7 @@ const stringsTable_t germanLanguage =
 .rx_group				= "Rx Gruppe", // MaxLen: 16 (with ':' and codeplug group name)
 .on						= "Ein", // MaxLen: 16 (with ':' + .band_limits)
 .timeout_beep			= "Timeout-Ton", // MaxLen: 16 (with ':' + .off or 5..20)
-.list_full				= "List full",
+.list_full				= "Liste voll",
 .UNUSED_1			= "",
 .band_limits			= "Band Limit", // MaxLen: 16 (with ':' + .on or .off)
 .beep_volume			= "Beep Lauts", // MaxLen: 16 (with ':' + -24..6 + 'dB')
@@ -180,7 +180,7 @@ const stringsTable_t germanLanguage =
 .voice_prompt_level_2	= "Stimme L2", // Maxlen 16 (with : + audio_prompt)
 .voice_prompt_level_3	= "Stimme L3", // Maxlen 16 (with : + audio_prompt)
 .dmr_filter				= "DMR Filter",// MaxLen: 12 (with ':' + settings: "TG" or "Ct" or "RxG")
-.dmr_cc_filter			= "CC Filter", // MaxLen: 12 (with ':' + settings: .on or .off)
+.UNUSED_4				= "",
 .dmr_ts_filter			= "TS Filter", // MaxLen: 12 (with ':' + settings: .on or .off)
 .dtmf_contact_list			= "FM DTMF Kontakte", // Maxlen: 16
 .channel_power				= "Ch Leist.", //Displayed as "Ch Power:" + .from_master or "Ch Power:"+ power text e.g. "Power:500mW" . Max total length 16
@@ -192,7 +192,7 @@ const stringsTable_t germanLanguage =
 .user_power				= "User Power",
 .temperature				= "Temperatur", // MaxLen: 16 (with ':' + .celcius or .fahrenheit)
 .celcius				= "°C",
-.seconds				= "sekunden",
+.seconds				= "Sekunden",
 .radio_info				= "Radio Infos",
 .temperature_calibration		= "Temp.Kal", // MaxLen: 8
 .pin_code				= "Pin Code",
@@ -210,7 +210,31 @@ const stringsTable_t germanLanguage =
 .scan_on_boot				= "Scan @ Start", //Maxlen: 12 chars
 .dtmf_entry				= "DTMF entry",
 .name					= "Name",
-.openDM1801A 				= "OpenDM1801A" // Do not translate
+.UNUSED_3				= "",
+.openDM1801A 				= "OpenDM1801A", // Do not translate
+.time					= "Zeit",
+.uptime					= "Uptime",
+.hours					= "Stunden",
+.minutes				= "Minuten",
+.satellite				= "Satellit",
+.alarm_time				= "Alarmzeit",
+.location				= "Standort",
+.date					= "Datum",
+.timeZone				= "Zeitzone",
+.suspend				= "Standby",
+.pass					= "Pass", // For satellite screen
+.elevation				= "El",
+.azimuth				= "Az",
+.inHHMMSS				= "in",
+.predicting				= "Prognose",
+.maximum				= "Max",
+.satellite_short			= "Sat",
+.local					= "Lokal",
+.UTC					= "UTC",
+.symbols				= "NSOW", // symbols: N,S,E,W
+.not_set				= "NICHT GESETZT",
+.general_options			= "Einstellungen",
+.radio_options				= "Radio Optionen"
 };
 /********************************************************************
  *

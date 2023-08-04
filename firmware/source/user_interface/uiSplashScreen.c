@@ -118,39 +118,39 @@ menuStatus_t uiSplashScreen(uiEvent_t *ev, bool isFirstRun)
 
 static void updateScreen(void)
 {
-	char line1[17];
-	char line2[17];
+	char line1[(SCREEN_LINE_BUFFER_SIZE * 2) + 1];
+	char line2[SCREEN_LINE_BUFFER_SIZE];
 	uint8_t bootScreenType;
 	bool customDataHasImage = false;
 
 	codeplugGetBootScreenData(line1, line2, &bootScreenType);
 
-	strcpy(talkAliasText, line1);
-	strcat(talkAliasText, line2);
-
 	if (bootScreenType == 0)
 	{
-		customDataHasImage = codeplugGetOpenGD77CustomData(CODEPLUG_CUSTOM_DATA_TYPE_IMAGE, ucGetDisplayBuffer());
+		customDataHasImage = codeplugGetOpenGD77CustomData(CODEPLUG_CUSTOM_DATA_TYPE_IMAGE, displayGetScreenBuffer());
 	}
 
 	if (!customDataHasImage)
 	{
-		ucClearBuf();
+		displayClearBuf();
 
 #if defined(PLATFORM_RD5R)
-		ucPrintCentered(0, "OpenRD5R", FONT_SIZE_3);
+		displayPrintCentered(0, "OpenRD5R", FONT_SIZE_3);
 #elif defined(PLATFORM_GD77)
-		ucPrintCentered(8, "OpenGD77", FONT_SIZE_3);
+		displayPrintCentered(8, "OpenGD77", FONT_SIZE_3);
 #elif defined(PLATFORM_DM1801)
-		ucPrintCentered(8, "OpenDM1801", FONT_SIZE_3);
+		displayPrintCentered(8, "OpenDM1801", FONT_SIZE_3);
 #elif defined(PLATFORM_DM1801A)
-		ucPrintCentered(8, "OpenDM1801A", FONT_SIZE_3);
+		displayPrintCentered(8, "OpenDM1801A", FONT_SIZE_3);
 #endif
-		ucPrintCentered((DISPLAY_SIZE_Y / 4) * 2, line1, FONT_SIZE_3);
-		ucPrintCentered((DISPLAY_SIZE_Y / 4) * 3, line2, FONT_SIZE_3);
+		displayPrintCentered((DISPLAY_SIZE_Y / 4) * 2, line1, FONT_SIZE_3);
+		displayPrintCentered((DISPLAY_SIZE_Y / 4) * 3, line2, FONT_SIZE_3);
 	}
 
-	ucRender();
+	strcat(line1, line2);
+	HRC6000SetTalkerAlias(line1);
+
+	displayRender();
 }
 
 static void handleEvent(uiEvent_t *ev)
@@ -170,7 +170,7 @@ static void handleEvent(uiEvent_t *ev)
 	}
 	else
 	{
-		if ((ev->time - initialEventTime) > SILENT_PROMPT_HOLD_DURATION_MILLISECONDS)
+		if ((ev->events != NO_EVENT) || ((ev->time - initialEventTime) > SILENT_PROMPT_HOLD_DURATION_MILLISECONDS))
 		{
 			exitSplashScreen();
 		}

@@ -38,7 +38,7 @@ static LinkItem_t *selectedItem;
 static int lastHeardCount;
 static int firstDisplayed;
 
-static void displayTalkerAlias(uint8_t y, char *text, uint32_t time, uint32_t now, uint32_t TGorPC, size_t maxLen, bool displayDetails, bool itemIsSelected, bool isFirstRun);
+static void displayTalkerAlias(uint8_t y, char *text, uint32_t time, uint32_t now, uint32_t TGorPC, size_t maxLen, bool displayDetails, bool itemIsSelected, bool isFirstRun, LinkItem_t * item);
 static void promptsInit(bool isFirstRun);
 
 menuStatus_t menuLastHeard(uiEvent_t *ev, bool isFirstRun)
@@ -113,7 +113,7 @@ void menuLastHeardUpdateScreen(bool showTitleOrHeader, bool displayDetails, bool
 {
 	int numDisplayed = 0;
 	LinkItem_t *item = LinkHead;
-	uint32_t now = fw_millis();
+	uint32_t now = ticksGetMillis();
 	bool invertColour;
 	bool displayTA;
 
@@ -123,7 +123,7 @@ void menuLastHeardUpdateScreen(bool showTitleOrHeader, bool displayDetails, bool
 		promptsInit(isFirstRun);
 	}
 
-	ucClearBuf();
+	displayClearBuf();
 	if (showTitleOrHeader)
 	{
 		menuDisplayTitle(currentLanguage->last_heard);
@@ -148,7 +148,7 @@ void menuLastHeardUpdateScreen(bool showTitleOrHeader, bool displayDetails, bool
 			if (menuDataGlobal.currentItemIndex == (firstDisplayed + numDisplayed))
 			{
 				invertColour = true;
-				ucFillRect(0, 16 + (numDisplayed * MENU_ENTRY_HEIGHT), DISPLAY_SIZE_X, MENU_ENTRY_HEIGHT, false);
+				displayFillRect(0, 16 + (numDisplayed * MENU_ENTRY_HEIGHT), DISPLAY_SIZE_X, MENU_ENTRY_HEIGHT, false);
 				selectedItem = item;
 			}
 			else
@@ -177,11 +177,11 @@ void menuLastHeardUpdateScreen(bool showTitleOrHeader, bool displayDetails, bool
 
 			if (displayTA)
 			{
-				displayTalkerAlias(16 + (numDisplayed * MENU_ENTRY_HEIGHT) + LH_ENTRY_V_OFFSET, item->talkerAlias, item->time, now, item->talkGroupOrPcId, 32, displayDetails, invertColour, isFirstRun);
+				displayTalkerAlias(16 + (numDisplayed * MENU_ENTRY_HEIGHT) + LH_ENTRY_V_OFFSET, item->talkerAlias, item->time, now, item->talkGroupOrPcId, 32, displayDetails, invertColour, isFirstRun, item);
 			}
 			else
 			{
-				displayTalkerAlias(16 + (numDisplayed * MENU_ENTRY_HEIGHT) + LH_ENTRY_V_OFFSET, item->contact, item->time, now, item->talkGroupOrPcId, MAX_DMR_ID_CONTACT_TEXT_LENGTH, displayDetails, invertColour, isFirstRun);
+				displayTalkerAlias(16 + (numDisplayed * MENU_ENTRY_HEIGHT) + LH_ENTRY_V_OFFSET, item->contact, item->time, now, item->talkGroupOrPcId, MAX_DMR_ID_CONTACT_TEXT_LENGTH, displayDetails, invertColour, isFirstRun, item);
 			}
 
 			numDisplayed++;
@@ -194,7 +194,7 @@ void menuLastHeardUpdateScreen(bool showTitleOrHeader, bool displayDetails, bool
 		promptsPlayNotAfterTx();
 	}
 
-	ucRender();
+	displayRender();
 	uiDataGlobal.displayQSOState = QSO_DISPLAY_IDLE;
 }
 
@@ -282,7 +282,7 @@ void menuLastHeardHandleEvent(uiEvent_t *ev)
 
 			if ((timeslot != -1) && (timeslot != trxGetDMRTimeSlot()))
 			{
-				trxSetDMRTimeSlot(timeslot);
+				trxSetDMRTimeSlot(timeslot, true);
 				tsSetManualOverride(((menuSystemGetRootMenuNumber() == UI_CHANNEL_MODE) ? CHANNEL_CHANNEL : (CHANNEL_VFO_A + nonVolatileSettings.currentVFONumber)), (timeslot + 1));
 			}
 			announceItem(PROMPT_SEQUENCE_CONTACT_TG_OR_PC, PROMPT_THRESHOLD_3);
@@ -364,18 +364,34 @@ static void promptsInit(bool isFirstRun)
 	}
 }
 
-static void displayTalkerAlias(uint8_t y, char *text, uint32_t time, uint32_t now, uint32_t TGorPC, size_t maxLen, bool displayDetails, bool itemIsSelected, bool isFirstRun)
+static void displayTalkerAlias(uint8_t y, char *text, uint32_t time, uint32_t now, uint32_t TGorPC, size_t maxLen, bool displayDetails, bool itemIsSelected, bool isFirstRun, LinkItem_t * item)
 {
 	char buffer[37]; // Max: TA 27 (in 7bit format) + ' [' + 6 (Maidenhead)  + ']' + NULL
 	char tg_Buffer[SCREEN_LINE_BUFFER_SIZE];
 	char timeBuffer[SCREEN_LINE_BUFFER_SIZE];
 	uint32_t tg = (TGorPC & 0xFFFFFF);
 	bool isPC = ((TGorPC >> 24) == PC_CALL_FLAG);
+	bool inHours = false;
+	uint32_t heardSince = (((now - time) / 1000U) / 60U);
+
+	// If last heard time is greater than 720 minutes (12h), switch to hours view to avoid mixup between TG and time.
+	if (heardSince > 720U)
+	{
+		heardSince /= 60U;
+		inHours = true;
+	}
 
 	// Do TG and Time stuff first as its always needed for the Voice prompts
 
-	snprintf(tg_Buffer, SCREEN_LINE_BUFFER_SIZE, "%s %u", (isPC ? currentLanguage->pc : currentLanguage->tg), tg);// PC or TG
-	snprintf(timeBuffer, 6, "%u", (((now - time) / 1000U) / 60U));// Time
+	if (item->dmrMode == DMR_MODE_RMO)
+	{
+		snprintf(tg_Buffer, SCREEN_LINE_BUFFER_SIZE, "%s %u:%d", (isPC ? currentLanguage->pc : currentLanguage->tg), tg, (item->receivedTS + 1));// PC or TG
+	}
+	else
+	{
+		snprintf(tg_Buffer, SCREEN_LINE_BUFFER_SIZE, "%s %u", (isPC ? currentLanguage->pc : currentLanguage->tg), tg);// PC or TG
+	}
+	snprintf(timeBuffer, 6, "%u", heardSince);// Time
 
 	if (itemIsSelected && (nonVolatileSettings.audioPromptMode >= AUDIO_PROMPT_MODE_VOICE_LEVEL_1))
 	{
@@ -402,7 +418,7 @@ static void displayTalkerAlias(uint8_t y, char *text, uint32_t time, uint32_t no
 					memcpy(buffer, text, cpos);
 					buffer[cpos] = 0;
 
-					ucPrintCore(0,y , chomp(buffer), FONT_SIZE_3,TEXT_ALIGN_CENTER, itemIsSelected);
+					displayPrintCore(0,y , chomp(buffer), FONT_SIZE_3,TEXT_ALIGN_CENTER, itemIsSelected);
 				}
 				else // Nope, look for first name
 				{
@@ -425,7 +441,7 @@ static void displayTalkerAlias(uint8_t y, char *text, uint32_t time, uint32_t no
 
 						snprintf(outputBuf, SCREEN_LINE_BUFFER_SIZE, "%s %s", chomp(buffer), chomp(nameBuf));
 
-						ucPrintCore(0,y, chomp(outputBuf), FONT_SIZE_3,TEXT_ALIGN_CENTER, itemIsSelected);
+						displayPrintCore(0,y, chomp(outputBuf), FONT_SIZE_3,TEXT_ALIGN_CENTER, itemIsSelected);
 					}
 					else
 					{
@@ -438,7 +454,7 @@ static void displayTalkerAlias(uint8_t y, char *text, uint32_t time, uint32_t no
 
 						snprintf(outputBuf, 17, "%s %s", chomp(buffer), chomp(nameBuf));
 
-						ucPrintCore(0,y, chomp(outputBuf), FONT_SIZE_3,TEXT_ALIGN_CENTER, itemIsSelected);
+						displayPrintCore(0,y, chomp(outputBuf), FONT_SIZE_3,TEXT_ALIGN_CENTER, itemIsSelected);
 					}
 				}
 			}
@@ -448,7 +464,7 @@ static void displayTalkerAlias(uint8_t y, char *text, uint32_t time, uint32_t no
 				memcpy(buffer, text, (SCREEN_LINE_BUFFER_SIZE - 1));
 				buffer[(SCREEN_LINE_BUFFER_SIZE - 1)] = 0;
 
-				ucPrintCore(0, y, chomp(buffer), FONT_SIZE_3,TEXT_ALIGN_CENTER, itemIsSelected);
+				displayPrintCore(0, y, chomp(buffer), FONT_SIZE_3,TEXT_ALIGN_CENTER, itemIsSelected);
 			}
 		}
 		else // short callsign
@@ -456,7 +472,7 @@ static void displayTalkerAlias(uint8_t y, char *text, uint32_t time, uint32_t no
 			memcpy(buffer, text, strlen(text));
 			buffer[strlen(text)] = 0;
 
-			ucPrintCore(0, y, chomp(buffer), FONT_SIZE_3,TEXT_ALIGN_CENTER, itemIsSelected);
+			displayPrintCore(0, y, chomp(buffer), FONT_SIZE_3,TEXT_ALIGN_CENTER, itemIsSelected);
 		}
 
 		if (itemIsSelected && (nonVolatileSettings.audioPromptMode >= AUDIO_PROMPT_MODE_VOICE_LEVEL_1))
@@ -480,20 +496,28 @@ static void displayTalkerAlias(uint8_t y, char *text, uint32_t time, uint32_t no
 			}
 
 			voicePromptsAppendString(timeBuffer);
-			voicePromptsAppendPrompt(PROMPT_MINUTES);
+			if (inHours)
+			{
+				voicePromptsAppendLanguageString(&currentLanguage->hours);
+			}
+			else
+			{
+				voicePromptsAppendPrompt(PROMPT_MINUTES);
+			}
 			voicePromptsAppendString("   ");// Add some blank sound at the end of the callsign, to allow time for follow-on scrolling
 		}
 	}
 	else
 	{
-		ucPrintCore(0, y, tg_Buffer, FONT_SIZE_3, TEXT_ALIGN_LEFT, itemIsSelected);
+		displayPrintCore(0, y, tg_Buffer, FONT_SIZE_3, TEXT_ALIGN_LEFT, itemIsSelected);
 
 #if defined(PLATFORM_RD5R)
-		ucPrintCore((DISPLAY_SIZE_X - (3 * 6)), y, "min", FONT_SIZE_1, TEXT_ALIGN_LEFT, itemIsSelected);
+		displayPrintCore((DISPLAY_SIZE_X - (3 * 6)), y, (inHours ? "h" : "min"), FONT_SIZE_1, TEXT_ALIGN_LEFT, itemIsSelected);
 #else
-		ucPrintCore((DISPLAY_SIZE_X - (3 * 6)), (y + 6), "min", FONT_SIZE_1, TEXT_ALIGN_LEFT, itemIsSelected);
+		displayPrintCore((DISPLAY_SIZE_X - (3 * 6)), (y + 6), (inHours ? "h" : "min"), FONT_SIZE_1, TEXT_ALIGN_LEFT, itemIsSelected);
 #endif
-		ucPrintCore((DISPLAY_SIZE_X - (strlen(timeBuffer) * 8) - (3 * 6) - 1), y, timeBuffer, FONT_SIZE_3, TEXT_ALIGN_LEFT, itemIsSelected);
+
+		displayPrintCore((DISPLAY_SIZE_X - (strlen(timeBuffer) * 8) - (3 * 6) - 1), y, timeBuffer, FONT_SIZE_3, TEXT_ALIGN_LEFT, itemIsSelected);
 	}
 
 	if (isFirstRun)
